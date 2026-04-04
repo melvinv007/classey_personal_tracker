@@ -1,0 +1,103 @@
+{
+  // ============================================================
+  // Classey — VS Code Settings
+  // Wires Copilot skills, prompts, and instructions together
+  // ============================================================
+
+  // --- Copilot + Chat Core ---
+  "chat.useAgentSkills": true,
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+
+  "github.copilot.chat.codeGeneration.instructions": [
+    {
+      "file": ".github/copilot-instructions.md"
+    }
+  ],
+
+  // UI review instructions injected on every code selection review
+  "github.copilot.chat.reviewSelection.instructions": [
+    {
+      "text": "Review against Classey UI standards: glassmorphism exact values (bg-white/5 backdrop-blur-xl border border-white/10), accent color via CSS variables only (rgb(var(--accent))), Framer Motion animations on all interactive elements, fully responsive at 375/768/1024/1280px, no hardcoded colors, no AI-looking generic UI, no default shadcn styling."
+    }
+  ],
+
+  // Commit message format
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "text": "Use conventional commits format: type(scope): description. Types: feat, fix, chore, docs, refactor, style, perf. Scope: auth, theme, semester, subject, attendance, exam, task, calendar, ai, notifications, settings, files, analytics. Example: feat(attendance): add auto-suggest cards on home page"
+    }
+  ],
+
+  // Enable prompt files
+  "chat.promptFiles": true,
+  "chat.promptFilesLocations": {
+    ".github/prompts": true
+  },
+
+  // --- Editor ---
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "explicit"
+  },
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.bracketPairColorization.enabled": true,
+  "editor.guides.bracketPairs": true,
+  "editor.stickyScroll.enabled": true,
+  "editor.inlineSuggest.enabled": true,
+
+  // --- TypeScript ---
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "typescript.suggest.autoImports": true,
+  "typescript.inlayHints.parameterNames.enabled": "literals",
+  "typescript.inlayHints.variableTypes.enabled": false,
+
+  // --- Tailwind CSS ---
+  "tailwindCSS.experimental.classRegex": [
+    ["cn\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"],
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"]
+  ],
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+
+  // --- File associations ---
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+
+  // --- Explorer ---
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "*.tsx": "${capture}.test.tsx, ${capture}.stories.tsx",
+    "*.ts": "${capture}.test.ts",
+    "tailwind.config.*": "tailwind.config*, postcss.config*",
+    "next.config.*": "next.config*, next-env*",
+    ".env.example": ".env*",
+    "package.json": "package-lock.json, pnpm-lock.yaml, .npmrc"
+  },
+  "explorer.sortOrder": "filesFirst",
+
+  // --- Search ---
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/.git": true,
+    "**/pnpm-lock.yaml": true
+  },
+
+  // --- Files to hide in explorer (still searchable) ---
+  "files.exclude": {
+    "**/.git": true,
+    "**/.next": true,
+    "**/node_modules": true
+  },
+
+  // --- Extensions recommended ---
+  "extensions.ignoreRecommendations": false
+}
