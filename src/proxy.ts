@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 const AUTH_COOKIE_NAME = "classey-auth";
 
 /** Paths that don't require authentication */
-const PUBLIC_PATHS = ["/login", "/api/auth"];
+const PUBLIC_PATHS = ["/login", "/api/auth", "/api/telegram"];
 
 /**
  * Proxy to protect routes with password authentication.
@@ -67,7 +67,7 @@ function generateAuthToken(): string {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\..*|api/auth).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\..*|api/auth|api/telegram).*)",
   ],
 };
 
