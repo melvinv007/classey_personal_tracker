@@ -1,0 +1,208 @@
+/**
+ * FullCalendar custom theme for Classey
+ * Overrides default styles to match glassmorphism design
+ */
+
+/* Base calendar styles */
+.fc {
+  --fc-border-color: rgba(var(--foreground), 0.12);
+  --fc-today-bg-color: rgba(var(--accent), 0.08);
+  --fc-event-bg-color: rgba(var(--accent), 0.3);
+  --fc-event-border-color: rgb(var(--accent));
+  --fc-event-text-color: rgb(var(--foreground));
+  --fc-button-bg-color: rgba(var(--accent), 0.2);
+  --fc-button-active-bg-color: rgba(var(--accent), 0.4);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: rgba(var(--foreground), 0.05);
+  --fc-now-indicator-color: rgb(var(--accent));
+  color: rgb(var(--foreground));
+}
+
+/* Time grid */
+.classey-time-calendar .fc-timegrid-slot {
+  height: 3.5rem;
+}
+
+.classey-time-calendar .fc-timegrid-axis-frame,
+.classey-time-calendar .fc-timegrid-slot-label-frame {
+  height: 3.5rem;
+}
+
+.classey-time-calendar .fc-timegrid-slot-label {
+  font-size: 0.75rem;
+  color: rgba(var(--foreground), 0.6);
+  padding: 0 0.5rem;
+}
+
+/* Day headers */
+.fc-col-header-cell {
+  padding: 0.75rem 0;
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: rgba(var(--foreground), 0.8);
+  background: rgba(var(--foreground), 0.04);
+}
+
+.fc-col-header-cell.fc-day-today {
+  background: rgba(var(--accent), 0.1);
+  color: rgb(var(--accent));
+}
+
+/* Grid lines */
+.classey-time-calendar .fc-timegrid-slot-lane {
+  border-color: rgba(var(--foreground), 0.08) !important;
+}
+
+.classey-time-calendar .fc-timegrid-col {
+  border-left: 1px solid rgba(var(--foreground), 0.12) !important;
+}
+
+.classey-time-calendar .fc-timegrid-col:first-child {
+  border-left: 0 !important;
+}
+
+.fc-timegrid-divider {
+  display: none;
+}
+
+/* Events */
+.classey-time-calendar .fc-event {
+  border-radius: 0.5rem;
+  border-width: 1px;
+  border-left-width: 3px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  min-height: 0;
+}
+
+.classey-time-calendar .fc-event:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 10 !important;
+}
+
+.classey-time-calendar .fc-event-main {
+  padding: 0.25rem;
+}
+
+.classey-time-calendar .fc-timegrid-slot-lane {
+  border-top-style: solid !important;
+}
+
+/* Now indicator */
+.fc-timegrid-now-indicator-line {
+  border-color: rgb(var(--accent));
+  border-width: 2px;
+}
+
+.fc-timegrid-now-indicator-arrow {
+  border-color: rgb(var(--accent));
+  border-top-color: transparent;
+  border-bottom-color: transparent;
+}
+
+/* Day grid (month view) */
+.fc-daygrid-day {
+  min-height: 6rem;
+}
+
+.fc-daygrid-day-number {
+  font-size: 0.875rem;
+  color: rgba(var(--foreground), 0.8);
+  padding: 0.5rem;
+}
+
+.fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  background: rgb(var(--accent));
+  color: white;
+  border-radius: 9999px;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Day grid events */
+.fc-daygrid-event {
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.75rem;
+}
+
+/* Scrollbar styling */
+.fc-scroller::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.fc-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.fc-scroller::-webkit-scrollbar-thumb {
+  background: rgba(var(--foreground), 0.2);
+  border-radius: 3px;
+}
+
+.fc-scroller::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--foreground), 0.35);
+}
+
+/* Remove default button styles (we use custom header) */
+.fc-toolbar-title {
+  display: none;
+}
+
+.fc-toolbar {
+  display: none !important;
+}
+
+.calendar-scroll-window {
+  max-height: 72vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.calendar-scroll-window .fc {
+  min-height: 1400px;
+}
+
+/* All day section */
+.fc-timegrid-axis-cushion {
+  color: rgba(var(--foreground), 0.6);
+  font-size: 0.75rem;
+}
+
+/* Highlight current time slot */
+.fc-timegrid-col.fc-day-today {
+  background: rgba(var(--accent), 0.03);
+}
+
+/* More link styling */
+.fc-more-link {
+  color: rgb(var(--accent));
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Popover styling */
+.fc-popover {
+  background: var(--glass-bg-elevated);
+  backdrop-filter: blur(var(--glass-blur-elevated));
+  border: 1px solid var(--glass-border-elevated);
+  border-radius: 1rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  color: rgb(var(--foreground));
+}
+
+.fc-popover-header {
+  background: rgba(var(--foreground), 0.06);
+  border-bottom: 1px solid rgba(var(--foreground), 0.12);
+  padding: 0.75rem;
+  font-weight: 500;
+}
+
+.fc-popover-body {
+  padding: 0.5rem;
+}

@@ -1,0 +1,541 @@
+@import "tailwindcss";
+
+/* =============================================================================
+   CLASSEY — CSS VARIABLE SYSTEM
+   - Dark mode is DEFAULT
+   - Accent color is dynamic per semester
+   - All colors use CSS variables for theme switching
+   ============================================================================= */
+
+/* -----------------------------------------------------------------------------
+   BASE THEME VARIABLES (Dark Mode - Default)
+   ----------------------------------------------------------------------------- */
+:root {
+  color-scheme: dark;
+  /* Core colors */
+  --background: 10 10 12;
+  --foreground: 245 245 247;
+  
+  /* Card/surface colors */
+  --card: 18 18 22;
+  --card-foreground: 245 245 247;
+  
+  /* Muted elements */
+  --muted: 30 30 36;
+  --muted-foreground: 163 163 168;
+  
+  /* Borders */
+  --border: 45 45 52;
+  --border-subtle: 38 38 45;
+  
+  /* Input fields */
+  --input: 30 30 36;
+  --input-foreground: 245 245 247;
+  
+  /* Ring (focus states) */
+  --ring: var(--accent);
+  
+  /* Popover/dropdown */
+  --popover: 18 18 22;
+  --popover-foreground: 245 245 247;
+  
+  /* Destructive actions */
+  --destructive: 239 68 68;
+  --destructive-foreground: 255 255 255;
+  
+  /* Success states */
+  --success: 34 197 94;
+  --success-foreground: 255 255 255;
+  
+  /* Warning states */
+  --warning: 234 179 8;
+  --warning-foreground: 0 0 0;
+  
+  /* Info states */
+  --info: 59 130 246;
+  --info-foreground: 255 255 255;
+
+  /* ==========================================================================
+     ACCENT COLOR SYSTEM
+     - Default accent (used when no semester is selected)
+     - Each semester overrides these via inline styles or data attributes
+     ========================================================================== */
+  
+  /* Default accent: Purple-blue gradient feeling */
+  --accent: 139 92 246;
+  --accent-foreground: 255 255 255;
+  
+  /* Accent variations (computed from main accent) */
+  --accent-hover: 124 77 231;
+  --accent-muted: 139 92 246;
+  --accent-subtle: 139 92 246;
+  
+  /* RGB values for use in rgba() - mirrors --accent */
+  --accent-rgb: 139, 92, 246;
+  
+  /* Accent opacity variants */
+  --accent-5: rgba(var(--accent-rgb), 0.05);
+  --accent-10: rgba(var(--accent-rgb), 0.10);
+  --accent-15: rgba(var(--accent-rgb), 0.15);
+  --accent-20: rgba(var(--accent-rgb), 0.20);
+  --accent-30: rgba(var(--accent-rgb), 0.30);
+  --accent-50: rgba(var(--accent-rgb), 0.50);
+
+  /* ==========================================================================
+     GLASSMORPHISM VALUES (Exact - Do Not Change)
+     ========================================================================== */
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --glass-border-elevated: rgba(255, 255, 255, 0.12);
+  --glass-blur: 20px;
+  --glass-blur-elevated: 24px;
+  
+  /* ==========================================================================
+     ANIMATION DURATIONS
+     ========================================================================== */
+  --duration-micro: 150ms;
+  --duration-standard: 250ms;
+  --duration-page: 300ms;
+  --duration-card: 400ms;
+  --duration-stagger: 50ms;
+  
+  /* ==========================================================================
+     BORDER RADIUS
+     ========================================================================== */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* ==========================================================================
+     SHADOWS
+     ========================================================================== */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.3);
+  
+  /* Glowing shadow (uses accent color) */
+  --shadow-glow: 
+    0 0 0 1px rgba(var(--accent-rgb), 0.3),
+    0 0 20px rgba(var(--accent-rgb), 0.15),
+    0 0 40px rgba(var(--accent-rgb), 0.05);
+  --shadow-glow-hover:
+    0 0 0 1px rgba(var(--accent-rgb), 0.5),
+    0 0 30px rgba(var(--accent-rgb), 0.25),
+    0 0 60px rgba(var(--accent-rgb), 0.10);
+
+  /* ==========================================================================
+     Z-INDEX SCALE
+     ========================================================================== */
+  --z-dropdown: 50;
+  --z-sticky: 100;
+  --z-modal: 200;
+  --z-popover: 300;
+  --z-tooltip: 400;
+  --z-toast: 500;
+  --z-max: 9999;
+}
+
+/* -----------------------------------------------------------------------------
+   LIGHT MODE OVERRIDES
+   ----------------------------------------------------------------------------- */
+.light,
+[data-theme="light"] {
+  color-scheme: light;
+  --background: 255 255 255;
+  --foreground: 10 10 12;
+  
+  --card: 250 250 252;
+  --card-foreground: 10 10 12;
+  
+  --muted: 243 244 246;
+  --muted-foreground: 107 114 128;
+  
+  --border: 229 231 235;
+  --border-subtle: 243 244 246;
+  
+  --input: 255 255 255;
+  --input-foreground: 10 10 12;
+  
+  --popover: 255 255 255;
+  --popover-foreground: 10 10 12;
+  
+  /* Glassmorphism - Light mode */
+  --glass-bg: rgba(255, 255, 255, 0.70);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-border-elevated: rgba(0, 0, 0, 0.10);
+  
+  /* Shadows - Light mode */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.10);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.10);
+  
+  --shadow-glow: 
+    0 0 0 1px rgba(var(--accent-rgb), 0.2),
+    0 0 15px rgba(var(--accent-rgb), 0.10),
+    0 0 30px rgba(var(--accent-rgb), 0.05);
+}
+
+/* -----------------------------------------------------------------------------
+   TAILWIND v4 THEME EXTENSION
+   ----------------------------------------------------------------------------- */
+@theme inline {
+  /* Colors */
+  --color-background: rgb(var(--background));
+  --color-foreground: rgb(var(--foreground));
+  --color-card: rgb(var(--card));
+  --color-card-foreground: rgb(var(--card-foreground));
+  --color-muted: rgb(var(--muted));
+  --color-muted-foreground: rgb(var(--muted-foreground));
+  --color-border: rgb(var(--border));
+  --color-input: rgb(var(--input));
+  --color-ring: rgb(var(--accent));
+  --color-popover: rgb(var(--popover));
+  --color-popover-foreground: rgb(var(--popover-foreground));
+  --color-accent: rgb(var(--accent));
+  --color-accent-foreground: rgb(var(--accent-foreground));
+  --color-destructive: rgb(var(--destructive));
+  --color-destructive-foreground: rgb(var(--destructive-foreground));
+  --color-success: rgb(var(--success));
+  --color-success-foreground: rgb(var(--success-foreground));
+  --color-warning: rgb(var(--warning));
+  --color-warning-foreground: rgb(var(--warning-foreground));
+  --color-info: rgb(var(--info));
+  --color-info-foreground: rgb(var(--info-foreground));
+  
+  /* Typography - Nunito as primary (rounded, friendly) */
+  --font-sans: "Nunito", "Poppins", "Quicksand", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  
+  /* Border radius */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  
+  /* Animations */
+  --animate-fade-in: fade-in var(--duration-standard) ease-out;
+  --animate-fade-out: fade-out var(--duration-standard) ease-out;
+  --animate-slide-in-up: slide-in-up var(--duration-standard) ease-out;
+  --animate-slide-in-down: slide-in-down var(--duration-standard) ease-out;
+  --animate-scale-in: scale-in var(--duration-card) cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* -----------------------------------------------------------------------------
+   KEYFRAME ANIMATIONS
+   ----------------------------------------------------------------------------- */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes slide-in-up {
+  from { 
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-down {
+  from { 
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from { 
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to { 
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes auroraShift {
+  0% { transform: translate3d(-2%, 0, 0) scale(1); }
+  50% { transform: translate3d(2%, -1%, 0) scale(1.04); }
+  100% { transform: translate3d(-2%, 0, 0) scale(1); }
+}
+
+/* -----------------------------------------------------------------------------
+   BASE STYLES
+   ----------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  border-color: rgb(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: var(--font-sans);
+  font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.rdp-themed {
+  --rdp-cell-size: 2.25rem;
+  --rdp-accent-color: rgb(var(--accent));
+  --rdp-background-color: rgba(var(--accent), 0.15);
+  margin: 0;
+}
+
+.rdp-themed .rdp-day {
+  color: rgb(var(--foreground));
+}
+
+.rdp-themed .rdp-day_selected,
+.rdp-themed .rdp-day_selected:focus-visible,
+.rdp-themed .rdp-day_selected:hover {
+  background: rgba(var(--accent), 0.25);
+  color: rgb(var(--foreground));
+}
+
+/* Focus ring styles */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+}
+
+/* Selection colors */
+::selection {
+  background-color: rgba(var(--accent-rgb), 0.3);
+  color: rgb(var(--foreground));
+}
+
+/* Scrollbar styling (dark mode) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(var(--muted));
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--accent-rgb), 0.5);
+}
+
+/* Light mode scrollbar */
+.light ::-webkit-scrollbar-track,
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: rgb(var(--muted));
+}
+
+.light ::-webkit-scrollbar-thumb,
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+}
+
+/* -----------------------------------------------------------------------------
+   FORM CONTROL THEME FIXES (Dropdowns/Date/Time)
+   ----------------------------------------------------------------------------- */
+
+select,
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  color-scheme: dark;
+  background: var(--glass-bg-elevated);
+  backdrop-filter: blur(var(--glass-blur-elevated));
+  -webkit-backdrop-filter: blur(var(--glass-blur-elevated));
+  border: 1px solid var(--glass-border-elevated);
+  color: rgb(var(--foreground));
+}
+
+.light select,
+[data-theme="light"] select,
+.light input[type="date"],
+[data-theme="light"] input[type="date"],
+.light input[type="time"],
+[data-theme="light"] input[type="time"],
+.light input[type="datetime-local"],
+[data-theme="light"] input[type="datetime-local"] {
+  color-scheme: light;
+}
+
+select option,
+select optgroup {
+  background-color: rgb(var(--popover));
+  color: rgb(var(--popover-foreground));
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(92%) sepia(8%) saturate(183%) hue-rotate(185deg) brightness(106%) contrast(98%);
+  opacity: 0.9;
+  cursor: pointer;
+}
+
+.light input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator,
+.light input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.light input[type="time"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(18%) sepia(8%) saturate(593%) hue-rotate(202deg) brightness(95%) contrast(92%);
+}
+
+.color-input-themed {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.color-input-themed::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.color-input-themed::-webkit-color-swatch {
+  border: none;
+  border-radius: 8px;
+}
+
+/* -----------------------------------------------------------------------------
+   UTILITY CLASSES
+   ----------------------------------------------------------------------------- */
+
+/* Glassmorphism card */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+}
+
+/* Elevated glassmorphism (modals, dropdowns) */
+.glass-elevated {
+  background: var(--glass-bg-elevated);
+  backdrop-filter: blur(var(--glass-blur-elevated));
+  -webkit-backdrop-filter: blur(var(--glass-blur-elevated));
+  border: 1px solid var(--glass-border-elevated);
+  border-radius: var(--radius-xl);
+}
+
+/* Glowing border (semester/subject cards) */
+.glow-border {
+  box-shadow: var(--shadow-glow);
+}
+
+/* Accent button */
+.btn-accent {
+  background-color: rgb(var(--accent));
+  color: rgb(var(--accent-foreground));
+  transition: all var(--duration-micro) ease-out;
+}
+
+.btn-accent:hover {
+  background-color: rgb(var(--accent-hover));
+  box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.4);
+}
+
+/* Ghost button with accent */
+.btn-ghost-accent {
+  background-color: transparent;
+  color: rgb(var(--accent));
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  transition: all var(--duration-micro) ease-out;
+}
+
+.btn-ghost-accent:hover {
+  background-color: rgba(var(--accent-rgb), 0.1);
+  border-color: rgba(var(--accent-rgb), 0.5);
+}
+
+/* Interactive surface utilities */
+.interactive-surface {
+  transition:
+    transform var(--duration-micro) ease-out,
+    box-shadow var(--duration-micro) ease-out,
+    background-color var(--duration-micro) ease-out,
+    border-color var(--duration-micro) ease-out,
+    color var(--duration-micro) ease-out,
+    opacity var(--duration-micro) ease-out;
+  will-change: transform, box-shadow;
+}
+
+.interactive-surface:hover {
+  transform: translateY(-1px);
+}
+
+.interactive-surface:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.interactive-glow:hover {
+  box-shadow: var(--shadow-glow-hover);
+}
+
+.interactive-focus:focus-visible {
+  outline: 2px solid rgba(var(--accent-rgb), 0.6);
+  outline-offset: 2px;
+}
+
+@media (hover: none) {
+  .interactive-surface:hover {
+    transform: none;
+  }
+
+  .interactive-glow:hover {
+    box-shadow: var(--shadow-glow);
+  }
+}
+
+/* Prevent layout shift during hydration */
+.no-fouc {
+  visibility: hidden;
+}
+
+.no-fouc.hydrated {
+  visibility: visible;
+}

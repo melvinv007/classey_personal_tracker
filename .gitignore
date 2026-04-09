@@ -1,209 +1,50 @@
-# ============================================================
-# Classey — .gitignore
-# Next.js + Appwrite + Vercel + Node.js
-# ============================================================
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# ------------------------------------------------------------
-# SECRETS — NEVER COMMIT THESE
-# ------------------------------------------------------------
-.env
-.env.local
-.env.development
-.env.development.local
-.env.test
-.env.test.local
-.env.production
-.env.production.local
-.env.staging
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# ------------------------------------------------------------
-# NEXT.JS
-# ------------------------------------------------------------
-.next/
-out/
-build/
-dist/
+# testing
+/coverage
 
-# Next.js cache
-.next/cache/
+# next.js
+/.next/
+/out/
 
-# Next.js static export
-/out
+# production
+/build
 
-# Vercel
-.vercel
+# misc
+.DS_Store
+*.pem
 
-# ------------------------------------------------------------
-# NODE
-# ------------------------------------------------------------
-node_modules/
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-.pnpm-store/
+.pnpm-debug.log*
 
-# ------------------------------------------------------------
-# PACKAGE MANAGERS
-# ------------------------------------------------------------
-# Uncomment the ones you are NOT using:
-# package-lock.json   ← uncomment if using pnpm
-# yarn.lock           ← uncomment if using pnpm
-# pnpm-lock.yaml      ← uncomment if using npm or yarn
+# env files (can opt-in for committing if needed)
+.env*
 
-# ------------------------------------------------------------
-# TYPESCRIPT
-# ------------------------------------------------------------
+# vercel
+.vercel
+
+# typescript
 *.tsbuildinfo
 next-env.d.ts
 
-# ------------------------------------------------------------
-# OPERATING SYSTEM
-# ------------------------------------------------------------
+# local tooling/session artifacts
+appwrite-schema-check.txt
+.claude/
+.copilot/
 
-# macOS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-.AppleDouble
-.LSOverride
-Icon?
-
-# Windows
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-Desktop.ini
-$RECYCLE.BIN/
-*.lnk
-
-# Linux
-*~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
-
-# ------------------------------------------------------------
-# EDITORS & IDEs
-# ------------------------------------------------------------
-
-# VS Code (keep .vscode/settings.json — it has Copilot config)
-.vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
-!.vscode/launch.json
-!.vscode/tasks.json
-
-# JetBrains (WebStorm, IntelliJ)
-.idea/
-*.iml
-*.iws
-*.ipr
-.idea_modules/
-
-# Vim / Neovim
-*.swp
-*.swo
-*~
-.netrwhist
-
-# Emacs
-*~
-\#*\#
-.\#*
-
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-
-# Cursor / Windsurf
-.cursor/
-.windsurf/
-
-# ------------------------------------------------------------
-# TESTING (for when you add tests later)
-# ------------------------------------------------------------
-coverage/
-.nyc_output/
-*.lcov
-test-results/
-playwright-report/
-playwright/.cache/
-
-# ------------------------------------------------------------
-# LOGS
-# ------------------------------------------------------------
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-.pnpm-debug.log*
-
-# Runtime data
-pids/
-*.pid
-*.seed
-*.pid.lock
-
-# ------------------------------------------------------------
-# APPWRITE (local development)
-# ------------------------------------------------------------
-# If you ever run Appwrite locally (self-hosted)
-appwrite/
-.appwrite/
-
-# ------------------------------------------------------------
-# EXPORTS & GENERATED FILES
-# ------------------------------------------------------------
-# Timetable exports (generated on-demand, not stored in git)
-exports/
-*.export.json
-*.export.csv
-classey-backup-*.json
-classey-backup-*.zip
-
-# ------------------------------------------------------------
-# AI / COPILOT
-# ------------------------------------------------------------
-# ui-ux-pro-max-skill generates a design-system folder
-# Keep MASTER.md (your generated design system) but not temp files
-design-system/.cache/
-design-system/temp/
-
-# ------------------------------------------------------------
-# MISC
-# ------------------------------------------------------------
-# Optional: Yarn v2+ (PnP)
-.yarn/cache
-.yarn/unplugged
-.yarn/build-state.yml
-.yarn/install-state.gz
-.pnp.*
-
-# Diagnostic reports
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-
-# Stores VSCode versions used for testing VS Code extensions
-.vscode-test
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-*.temp
-*.bak
-*.backup
-*.orig
-
-# Storybook (if added later)
-storybook-static/
-
-# Bundle analyzer output (if added later)
-analyze/
-.analyze/
+# local sqlite/session files (if generated)
+*.db
+*.sqlite

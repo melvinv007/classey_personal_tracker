@@ -1,0 +1,378 @@
+"use client";
+
+import { motion } from "framer-motion";
+import { ArrowLeft, TrendingUp, Target, Calculator, Award, Info, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { useState, useMemo } from "react";
+import { useData } from "@/hooks/use-data";
+import {
+  calculateSPI,
+  calculateCGPA,
+  whatIfCGPA,
+  requiredSPI,
+  getSPIColor,
+  type SemesterGradeData,
+} from "@/utils/grades";
+import { cn } from "@/lib/utils";
+
+const pageVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
+};
+
+/**
+ * Animated counter component for CGPA display
+ */
+function AnimatedNumber({ value, decimals = 2 }: { value: number; decimals?: number }) {
+  return (
+    <motion.span
+      key={value}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+    >
+      {value.toFixed(decimals)}
+    </motion.span>
+  );
+}
+
+export default function CGPATrackerPage(): React.ReactNode {
+  const { semesters: allSemesters, subjects, ongoingSemester, isLoading } = useData();
+  
+  const semesters = allSemesters.filter((sem) => !sem.deleted_at);
+  
+  // What-if calculator state
+  const [whatIfSPI, setWhatIfSPI] = useState<string>("8.0");
+  const [targetCGPA, setTargetCGPA] = useState<string>("8.5");
+
+  // Calculate semester data for CGPA
+  const semesterData = useMemo((): SemesterGradeData[] => {
+    return semesters
+      .filter((sem) => sem.status === "completed" || sem.status === "ongoing")
+      .map((sem) => {
+        // For quick input semesters, use stored SPI
+        if (sem.is_quick_input && sem.spi !== null) {
+          return {
+            id: sem.$id,
+            name: sem.name,
+            spi: sem.spi,
+            credits: sem.credits_total ?? 0,
+            status: sem.status,
+          };
+        }
+        
+        // Calculate SPI from subjects
+        const semSubjects = subjects.filter(
+          (sub) => sub.semester_id === sem.$id && !sub.deleted_at
+        );
+        const spi = calculateSPI(semSubjects);
+        const credits = semSubjects.reduce((sum, s) => sum + s.credits, 0);
+        
+        return {
+          id: sem.$id,
+          name: sem.name,
+          spi,
+          credits,
+          status: sem.status,
+        };
+      })
+      .sort((a, b) => {
+        // Sort by semester name (assumes format like "Sem 1", "Sem 2", etc.)
+        const aNum = parseInt(a.name.replace(/\D/g, "")) || 0;
+        const bNum = parseInt(b.name.replace(/\D/g, "")) || 0;
+        return aNum - bNum;
+      });
+  }, [semesters, subjects]);
+
+  // Calculate current CGPA (excluding ongoing semester for accuracy)
+  const completedSemesters = useMemo(
+    () => semesterData.filter((s) => s.status === "completed"),
+    [semesterData]
+  );
+  const currentCGPA = useMemo(
+    () => calculateCGPA(completedSemesters),
+    [completedSemesters]
+  );
+
+  // Calculate including ongoing semester
+  const allSemestersCGPA = useMemo(
+    () => calculateCGPA(semesterData),
+    [semesterData]
+  );
+
+  // What-if calculation
+  const whatIfResult = useMemo(() => {
+    const spi = parseFloat(whatIfSPI) || 0;
+    const ongoingCredits = ongoingSemester
+      ? subjects
+          .filter((s) => s.semester_id === ongoingSemester.$id && !s.deleted_at)
+          .reduce((sum, s) => sum + s.credits, 0)
+      : 20; // default
+    return whatIfCGPA(completedSemesters, spi, ongoingCredits);
+  }, [completedSemesters, whatIfSPI, ongoingSemester, subjects]);
+
+  // Required SPI calculation
+  const requiredResult = useMemo(() => {
+    const target = parseFloat(targetCGPA) || 0;
+    const ongoingCredits = ongoingSemester
+      ? subjects
+          .filter((s) => s.semester_id === ongoingSemester.$id && !s.deleted_at)
+          .reduce((sum, s) => sum + s.credits, 0)
+      : 20;
+    return requiredSPI(completedSemesters, target, ongoingCredits);
+  }, [completedSemesters, targetCGPA, ongoingSemester, subjects]);
+
+  // Total credits
+  const totalCredits = useMemo(
+    () => semesterData.reduce((sum, s) => sum + s.credits, 0),
+    [semesterData]
+  );
+
+  // Loading state - AFTER all hooks
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[rgb(var(--accent))]" />
+      </div>
+    );
+  }
+
+  return (
+    <motion.main
+      variants={pageVariants}
+      initial="hidden"
+      animate="visible"
+      transition={{ duration: 0.3 }}
+      className="min-h-screen pt-6 pb-32 px-4 lg:px-8"
+    >
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <motion.header
+          className="flex items-center gap-4 mb-8"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Link
+            href="/"
+            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">CGPA Tracker</h1>
+            <p className="text-sm text-muted-foreground">
+              Track your academic performance
+            </p>
+          </div>
+        </motion.header>
+
+        {/* Current CGPA Card */}
+        <motion.div
+          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 mb-8 text-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <Award className="w-6 h-6 text-[rgb(var(--accent))]" />
+            <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+              Current CGPA
+            </span>
+          </div>
+          <div
+            className="text-7xl font-bold mb-4"
+            style={{ color: getSPIColor(currentCGPA) }}
+          >
+            <AnimatedNumber value={currentCGPA} />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Based on {completedSemesters.length} completed semester{completedSemesters.length !== 1 ? "s" : ""} • {totalCredits} credits
+          </p>
+          {semesterData.some((s) => s.status === "ongoing") && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Including ongoing: <span className="text-foreground font-medium">{allSemestersCGPA.toFixed(2)}</span>
+            </p>
+          )}
+        </motion.div>
+
+        {/* Semester Breakdown */}
+        <motion.div
+          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="w-5 h-5 text-muted-foreground" />
+            <h2 className="text-lg font-semibold text-foreground">Semester Breakdown</h2>
+          </div>
+
+          {semesterData.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">
+                No semesters with grades yet. Add subjects with grades to see your CGPA.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {semesterData.map((sem, index) => (
+                <motion.div
+                  key={sem.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 + index * 0.05 }}
+                  className={cn(
+                    "flex items-center justify-between p-4 rounded-xl border transition-all",
+                    sem.status === "ongoing"
+                      ? "bg-[rgba(var(--accent),0.05)] border-[rgba(var(--accent),0.2)]"
+                      : "bg-white/5 border-white/10"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold"
+                      style={{ 
+                        backgroundColor: `${getSPIColor(sem.spi)}20`,
+                        color: getSPIColor(sem.spi),
+                      }}
+                    >
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">{sem.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {sem.credits} credits
+                        {sem.status === "ongoing" && (
+                          <span className="ml-2 px-1.5 py-0.5 rounded bg-[rgba(var(--accent),0.2)] text-[rgb(var(--accent))]">
+                            Ongoing
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p
+                      className="text-2xl font-bold"
+                      style={{ color: getSPIColor(sem.spi) }}
+                    >
+                      {sem.spi.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">SPI</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+
+        {/* What-If Calculator */}
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* If I score X SPI */}
+          <motion.div
+            className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Calculator className="w-5 h-5 text-muted-foreground" />
+              <h2 className="text-lg font-semibold text-foreground">What If?</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              If I score this SPI this semester...
+            </p>
+            <div className="flex items-center gap-3 mb-4">
+              <input
+                type="number"
+                value={whatIfSPI}
+                onChange={(e) => setWhatIfSPI(e.target.value)}
+                min="0"
+                max="10"
+                step="0.1"
+                className="flex-1 px-4 py-3 rounded-xl bg-white/6 border border-white/10 text-foreground text-lg font-medium text-center focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)]"
+              />
+              <span className="text-muted-foreground">SPI</span>
+            </div>
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
+              <p className="text-xs text-muted-foreground mb-1">Your CGPA will be</p>
+              <p
+                className="text-3xl font-bold"
+                style={{ color: getSPIColor(whatIfResult) }}
+              >
+                {whatIfResult.toFixed(2)}
+              </p>
+            </div>
+          </motion.div>
+
+          {/* To reach X CGPA */}
+          <motion.div
+            className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Target className="w-5 h-5 text-muted-foreground" />
+              <h2 className="text-lg font-semibold text-foreground">Target CGPA</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              To reach this CGPA, I need...
+            </p>
+            <div className="flex items-center gap-3 mb-4">
+              <input
+                type="number"
+                value={targetCGPA}
+                onChange={(e) => setTargetCGPA(e.target.value)}
+                min="0"
+                max="10"
+                step="0.1"
+                className="flex-1 px-4 py-3 rounded-xl bg-white/6 border border-white/10 text-foreground text-lg font-medium text-center focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)]"
+              />
+              <span className="text-muted-foreground">CGPA</span>
+            </div>
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
+              <p className="text-xs text-muted-foreground mb-1">You need SPI of</p>
+              {requiredResult.achievable ? (
+                <p
+                  className="text-3xl font-bold"
+                  style={{ color: getSPIColor(requiredResult.required) }}
+                >
+                  {requiredResult.required.toFixed(2)}
+                </p>
+              ) : (
+                <div>
+                  <p className="text-2xl font-bold text-red-400">
+                    {requiredResult.required > 10 ? "Not Possible" : requiredResult.required.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-red-400 mt-1">
+                    {requiredResult.required > 10
+                      ? "Requires SPI > 10"
+                      : "Already achieved!"}
+                  </p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Info */}
+        <motion.div
+          className="mt-8 p-4 rounded-xl bg-white/5 border border-white/10 flex items-start gap-3"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.35 }}
+        >
+          <Info className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-muted-foreground">
+            <p className="mb-1">
+              <strong>SPI</strong> (Semester Performance Index) is calculated as the weighted average of grade points for a semester.
+            </p>
+            <p>
+              <strong>CGPA</strong> (Cumulative GPA) is the weighted average of all SPIs across semesters, weighted by credits.
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    </motion.main>
+  );
+}

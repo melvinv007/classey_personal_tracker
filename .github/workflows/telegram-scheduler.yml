@@ -1,0 +1,17 @@
+name: Telegram Scheduler
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call scheduler endpoint
+        run: |
+          curl -X POST "${{ secrets.SCHEDULER_URL }}" \
+            -H "x-scheduler-token: ${{ secrets.SCHEDULER_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --fail
