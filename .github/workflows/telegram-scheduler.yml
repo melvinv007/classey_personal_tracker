@@ -1,17 +1,17 @@
-name: Telegram Scheduler
+name: Telegram Due Worker
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: '* * * * *'
   workflow_dispatch:
 
 jobs:
-  trigger:
+  run-due:
     runs-on: ubuntu-latest
     steps:
-      - name: Call scheduler endpoint
+      - name: Trigger scheduler
         run: |
-          curl -X POST "${{ secrets.SCHEDULER_URL }}" \
-            -H "x-scheduler-token: ${{ secrets.SCHEDULER_SECRET }}" \
+          curl -sS -X POST "https://classey-personal-tracker.vercel.app/api/telegram/scheduler" \
             -H "Content-Type: application/json" \
-            --fail
+            -H "x-scheduler-token: ${{ secrets.SCHEDULER_SECRET }}" \
+            -d '{"action":"run-due"}'

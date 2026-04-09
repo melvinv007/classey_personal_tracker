@@ -32,6 +32,7 @@ import {
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
 import { ThemedColorPicker } from "@/components/ui/ThemedColorPicker";
 import { ReminderOffsetsEditor } from "@/components/forms/ReminderOffsetsEditor";
+import { ConfirmActionModal } from "@/components/modals/ConfirmActionModal";
 import { useSettings, useUpdateSettings } from "@/hooks/use-appwrite";
 import type { ReminderOffset, Settings } from "@/types/database";
 import { parseReminderOffsetsJson, serializeReminderOffsetsJson } from "@/lib/appwrite-db";
@@ -123,16 +124,7 @@ function AppearanceSettings(): React.ReactNode {
     setAccentColor,
   } = useThemeStore();
 
-  const backgrounds: BackgroundStyle[] = [
-    "spooky-smoke",
-    "dotted",
-    "boxes",
-    "dot-pattern",
-    "noise-grid",
-    "aurora",
-    "beams",
-    "animated-grid",
-  ];
+  const backgrounds: BackgroundStyle[] = ["dotted", "boxes", "dot-pattern", "aurora", "beams", "animated-grid"];
 
   const accentOptions = [
     "#8b5cf6",
@@ -152,6 +144,16 @@ function AppearanceSettings(): React.ReactNode {
     { value: "poppins", label: "Poppins" },
     { value: "quicksand", label: "Quicksand" },
   ];
+  const updateSettings = useUpdateSettings();
+
+  const commitAppearance = async (patch: Partial<Settings>): Promise<void> => {
+    try {
+      await updateSettings.mutateAsync(patch);
+    } catch (error) {
+      console.error("Failed to update appearance settings:", error);
+      toast.error("Failed to sync appearance settings");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -171,7 +173,12 @@ function AppearanceSettings(): React.ReactNode {
           </div>
         </div>
         <button
-          onClick={toggleMode}
+          onClick={() => {
+            const nextMode = mode === "dark" ? "light" : "dark";
+            toggleMode();
+            void commitAppearance({ theme_mode: nextMode });
+          }}
+          type="button"
           className="flex w-full items-center justify-between rounded-xl bg-muted p-4 transition-colors hover:bg-muted/80"
         >
           <span className="font-medium capitalize">{mode} Mode</span>
@@ -200,12 +207,16 @@ function AppearanceSettings(): React.ReactNode {
           {backgrounds.map((bg) => (
             <button
               key={bg}
-              onClick={() => setBackground(bg)}
+              onClick={() => {
+                setBackground(bg);
+                void commitAppearance({ background_style: bg });
+              }}
               className={`rounded-xl border-2 px-3 py-3 text-sm font-medium transition-all ${
                 background === bg
                   ? "border-accent bg-accent/10 text-accent"
                   : "border-border bg-muted hover:border-accent/50"
               }`}
+              type="button"
             >
               {backgroundDisplayNames[bg]}
             </button>
@@ -226,7 +237,10 @@ function AppearanceSettings(): React.ReactNode {
         </div>
         <ThemedColorPicker
           value={accentColor}
-          onChange={setAccentColor}
+          onChange={(value) => {
+            setAccentColor(value);
+            void commitAppearance({ accent_color_default: value });
+          }}
           colors={accentOptions}
         />
       </div>
@@ -246,7 +260,12 @@ function AppearanceSettings(): React.ReactNode {
           {fonts.map((font) => (
             <button
               key={font.value}
-              onClick={() => setFontFamily(font.value)}
+              onClick={() => {
+                setFontFamily(font.value);
+                const titleCase = font.label;
+                void commitAppearance({ font_family: titleCase });
+              }}
+              type="button"
               className={`rounded-xl border-2 px-3 py-3 text-sm font-medium transition-all ${
                 fontFamily === font.value
                   ? "border-accent bg-accent/10 text-accent"
@@ -270,6 +289,8 @@ function NotificationSettings(): React.ReactNode {
   const [chatIdInput, setChatIdInput] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
 
@@ -594,6 +615,52 @@ function NotificationSettings(): React.ReactNode {
           </div>
         </div>
       )}
+
+      <div className="glass-card border border-red-500/20 p-5">
+        <h3 className="text-base font-semibold text-red-400">Danger Zone</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Permanently delete all semesters, subjects, schedules, attendance, exams, tasks, events, files, links, and notes.
+        </p>
+        <button
+          type="button"
+          onClick={() => setIsDeleteAllOpen(true)}
+          className="mt-4 rounded-xl bg-red-500/20 px-4 py-2.5 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/30"
+        >
+          Delete All Data
+        </button>
+      </div>
+
+      <ConfirmActionModal
+        isOpen={isDeleteAllOpen}
+        title="Delete all data permanently?"
+        description="This cannot be undone. All academic and personal tracking data in the app will be removed."
+        confirmText="Delete Everything"
+        onConfirm={async () => {
+          setIsDeletingAll(true);
+          try {
+            const response = await fetch("/api/data/cascade", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "delete-all" }),
+            });
+            const result = (await response.json()) as { success: boolean; error?: string; deleted?: { semesters?: number; subjects?: number; tasks?: number; events?: number } };
+            if (!response.ok || !result.success) {
+              throw new Error(result.error ?? "Failed to delete all data");
+            }
+            toast.success(
+              `All data deleted (${result.deleted?.semesters ?? 0} semesters, ${result.deleted?.subjects ?? 0} subjects, ${result.deleted?.tasks ?? 0} tasks, ${result.deleted?.events ?? 0} events).`
+            );
+            setIsDeleteAllOpen(false);
+            window.location.href = "/";
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to delete all data");
+          } finally {
+            setIsDeletingAll(false);
+          }
+        }}
+        onCancel={() => setIsDeleteAllOpen(false)}
+        isProcessing={isDeletingAll}
+      />
     </div>
   );
 }

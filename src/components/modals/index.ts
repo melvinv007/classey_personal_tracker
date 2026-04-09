@@ -12,3 +12,4 @@ export { GradeCalculatorModal } from "./GradeCalculatorModal";
 export { UploadFileModal } from "./UploadFileModal";
 export { AddExtraClassModal } from "./AddExtraClassModal";
 export { EditAttendanceHistoryModal } from "./EditAttendanceHistoryModal";
+export { ConfirmActionModal } from "./ConfirmActionModal";

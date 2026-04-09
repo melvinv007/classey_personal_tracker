@@ -9,6 +9,7 @@ import { useState, useMemo } from "react";
 import { useData } from "@/hooks/use-data";
 import { CreateTaskModal } from "@/components/modals/CreateTaskModal";
 import { EditTaskModal } from "@/components/modals/EditTaskModal";
+import { ConfirmActionModal } from "@/components/modals/ConfirmActionModal";
 import type { Task } from "@/types/database";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -32,6 +33,7 @@ export default function TasksPage(): React.ReactNode {
   const [filter, setFilter] = useState<FilterType>("pending");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   
   const { tasks: allTasks, subjects, toggleTaskComplete, deleteTask, ongoingSemester, isLoading } = useData();
   
@@ -137,7 +139,7 @@ export default function TasksPage(): React.ReactNode {
   const handleDelete = (taskId: string) => {
     deleteTask(taskId);
     toast.success("Task deleted", {
-      description: "This action uses soft delete. Data can be recovered.",
+      description: "Task deleted permanently.",
       duration: 5000,
     });
   };
@@ -332,7 +334,7 @@ export default function TasksPage(): React.ReactNode {
                       <Pencil className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => handleDelete(task.$id)}
+                      onClick={() => setDeletingTask(task)}
                       className="p-2 rounded-lg hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -358,6 +360,19 @@ export default function TasksPage(): React.ReactNode {
         isOpen={!!editingTask}
         onClose={() => setEditingTask(null)}
         task={editingTask}
+      />
+
+      <ConfirmActionModal
+        isOpen={deletingTask !== null}
+        title="Delete task?"
+        description={deletingTask ? `Delete "${deletingTask.title}" permanently.` : ""}
+        confirmText="Delete Task"
+        onConfirm={async () => {
+          if (!deletingTask) return;
+          handleDelete(deletingTask.$id);
+          setDeletingTask(null);
+        }}
+        onCancel={() => setDeletingTask(null)}
       />
     </motion.main>
   );

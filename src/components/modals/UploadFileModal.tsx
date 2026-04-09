@@ -267,7 +267,7 @@ export function UploadFileModal({
                 {isDragging ? "Drop files here" : "Drag & drop files or click to browse"}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                PDF, DOC, TXT, Code files, Images • Max 10MB each
+                PDF, DOC, TXT, Code files, Images • Max 100MB each
               </p>
             </div>
 

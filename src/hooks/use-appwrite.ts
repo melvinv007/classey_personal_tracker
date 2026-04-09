@@ -33,6 +33,18 @@ import type {
   Settings,
 } from "@/types/database";
 
+async function syncReminderJobs(
+  action: "sync-entity" | "clear-entity",
+  entityType: "exam" | "task",
+  entityId: string
+): Promise<void> {
+  await fetch("/api/telegram/scheduler", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, entityType, entityId }),
+  });
+}
+
 // Query keys for cache management
 export const queryKeys = {
   semesters: ["semesters"] as const,
@@ -331,6 +343,7 @@ export function useCreateExam() {
     onSuccess: (exam) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.exams(exam.subject_id) });
       queryClient.invalidateQueries({ queryKey: ["exams", "upcoming"] });
+      void syncReminderJobs("sync-entity", "exam", exam.$id);
     },
   });
 }
@@ -340,8 +353,9 @@ export function useUpdateExam() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Exam> }) =>
       examService.update(id, data),
-    onSuccess: () => {
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["exams"] });
+      void syncReminderJobs("sync-entity", "exam", id);
     },
   });
 }
@@ -350,8 +364,9 @@ export function useDeleteExam() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => examService.delete(id),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ["exams"] });
+      void syncReminderJobs("clear-entity", "exam", id);
     },
   });
 }
@@ -379,8 +394,9 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: (data: Omit<Task, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
       taskService.create(data),
-    onSuccess: () => {
+    onSuccess: (task) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks() });
+      void syncReminderJobs("sync-entity", "task", task.$id);
     },
   });
 }
@@ -390,8 +406,9 @@ export function useUpdateTask() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Task> }) =>
       taskService.update(id, data),
-    onSuccess: () => {
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks() });
+      void syncReminderJobs("sync-entity", "task", id);
     },
   });
 }
@@ -401,8 +418,9 @@ export function useToggleTaskComplete() {
   return useMutation({
     mutationFn: ({ id, isCompleted }: { id: string; isCompleted: boolean }) =>
       taskService.toggleComplete(id, isCompleted),
-    onSuccess: () => {
+    onSuccess: (_, { id, isCompleted }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks() });
+      void syncReminderJobs(isCompleted ? "clear-entity" : "sync-entity", "task", id);
     },
   });
 }
@@ -411,8 +429,9 @@ export function useDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => taskService.delete(id),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks() });
+      void syncReminderJobs("clear-entity", "task", id);
     },
   });
 }
@@ -583,7 +602,7 @@ function createDefaultSettingsInput(): Omit<
   return {
     user_id: "default-user",
     theme_mode: "dark",
-    background_style: "spooky-smoke",
+    background_style: "dotted",
     background_custom_css: null,
     font_family: "Nunito",
     accent_color_default: "#8B5CF6",

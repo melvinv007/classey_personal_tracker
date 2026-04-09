@@ -10,7 +10,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useData } from "@/hooks/use-data";
 import { useThemeStore } from "@/stores/theme-store";
-import { EditSubjectModal } from "@/components/modals";
+import { ConfirmActionModal, EditSubjectModal } from "@/components/modals";
 import { CreateExamModal } from "@/components/modals/CreateExamModal";
 import { AddResourceLinkModal } from "@/components/modals/AddResourceLinkModal";
 import { AddNoteModal } from "@/components/modals/AddNoteModal";
@@ -101,11 +101,19 @@ export default function SubjectDetailPage(): React.ReactNode {
   const [manualEndTime, setManualEndTime] = useState("10:00");
   const [manualRoom, setManualRoom] = useState("");
   const [isAttendanceHistoryModalOpen, setIsAttendanceHistoryModalOpen] = useState(false);
+  const [isConfirmDeleteSubjectOpen, setIsConfirmDeleteSubjectOpen] = useState(false);
+  const [isConfirmDeleteFileOpen, setIsConfirmDeleteFileOpen] = useState(false);
+  const [deleteFileTarget, setDeleteFileTarget] = useState<{ fileId: string; storageFileId: string; fileName: string } | null>(null);
+  const [isConfirmDeleteScheduleOpen, setIsConfirmDeleteScheduleOpen] = useState(false);
+  const [deleteScheduleTarget, setDeleteScheduleTarget] = useState<{ id: string; label: string } | null>(null);
+  const [isConfirmDeleteLinkOpen, setIsConfirmDeleteLinkOpen] = useState(false);
+  const [deleteLinkTarget, setDeleteLinkTarget] = useState<{ id: string; title: string } | null>(null);
+  const [isConfirmDeleteNoteOpen, setIsConfirmDeleteNoteOpen] = useState(false);
+  const [deleteNoteTarget, setDeleteNoteTarget] = useState<{ id: string; preview: string } | null>(null);
 
   const { 
     getSemesterById, 
     getSubjectById, 
-    deleteSubject, 
     markAttendance, 
     createAndMarkAttendance,
     getOccurrencesBySubject, 
@@ -252,13 +260,18 @@ export default function SubjectDetailPage(): React.ReactNode {
 
   const handleDelete = async (): Promise<void> => {
     try {
-      for (const file of files) {
-        if (!file.storage_file_id) continue;
-        await deleteFile(file.$id, file.storage_file_id);
+      const response = await fetch("/api/data/cascade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete-subject", subjectId: subject.$id }),
+      });
+      const result = (await response.json()) as { success: boolean; error?: string; deleted?: { exams?: number; files?: number; schedules?: number } };
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "Failed to delete subject");
       }
-
-      await deleteSubject(subject.$id);
-      toast.success("Subject deleted with linked files");
+      toast.success(
+        `Subject deleted (${result.deleted?.exams ?? 0} exams, ${result.deleted?.files ?? 0} files, ${result.deleted?.schedules ?? 0} schedules).`
+      );
       router.push(`/semester/${semesterId}`);
     } catch (error) {
       toast.error(`Failed to delete subject: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -276,6 +289,13 @@ export default function SubjectDetailPage(): React.ReactNode {
     } finally {
       setDeletingFileId(null);
     }
+  };
+
+  const handleDeleteSubjectFileConfirmed = async (): Promise<void> => {
+    if (!deleteFileTarget) return;
+    await handleDeleteSubjectFile(deleteFileTarget.fileId, deleteFileTarget.storageFileId);
+    setDeleteFileTarget(null);
+    setIsConfirmDeleteFileOpen(false);
   };
 
   const handleAddManualSchedule = async (): Promise<void> => {
@@ -312,6 +332,13 @@ export default function SubjectDetailPage(): React.ReactNode {
     } catch (error) {
       toast.error(`Failed to remove schedule: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
+  };
+
+  const handleDeleteScheduleConfirmed = async (): Promise<void> => {
+    if (!deleteScheduleTarget) return;
+    await handleDeleteSchedule(deleteScheduleTarget.id);
+    setDeleteScheduleTarget(null);
+    setIsConfirmDeleteScheduleOpen(false);
   };
 
   return(
@@ -632,7 +659,13 @@ export default function SubjectDetailPage(): React.ReactNode {
                     {schedule.room ? ` • ${schedule.room}` : ""}
                   </p>
                   <button
-                    onClick={() => void handleDeleteSchedule(schedule.$id)}
+                    onClick={() => {
+                      setDeleteScheduleTarget({
+                        id: schedule.$id,
+                        label: `${getDayName(schedule.day_of_week, true)} ${schedule.start_time}-${schedule.end_time}`,
+                      });
+                      setIsConfirmDeleteScheduleOpen(true);
+                    }}
                     className="px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-xs text-red-400 transition-colors"
                   >
                     Remove
@@ -811,7 +844,14 @@ export default function SubjectDetailPage(): React.ReactNode {
                       Download
                     </a>
                     <button
-                      onClick={() => handleDeleteSubjectFile(file.$id, file.storage_file_id)}
+                      onClick={() => {
+                        setDeleteFileTarget({
+                          fileId: file.$id,
+                          storageFileId: file.storage_file_id,
+                          fileName: file.file_name,
+                        });
+                        setIsConfirmDeleteFileOpen(true);
+                      }}
                       disabled={deletingFileId === file.$id}
                       className="px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-xs text-red-400 transition-colors disabled:opacity-50"
                     >
@@ -896,21 +936,15 @@ export default function SubjectDetailPage(): React.ReactNode {
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <ExternalLink className="w-4 h-4 text-muted-foreground" />
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          deleteResourceLink(link.$id);
-                          toast.success("Link deleted", {
-                            action: {
-                              label: "Undo",
-                              onClick: () => toast.info("Link deletion cannot be undone"),
-                            },
-                            duration: 5000,
-                          });
-                        }}
-                        className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
-                      >
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setDeleteLinkTarget({ id: link.$id, title: link.title });
+                            setIsConfirmDeleteLinkOpen(true);
+                          }}
+                          className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+                        >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -988,19 +1022,13 @@ export default function SubjectDetailPage(): React.ReactNode {
                       >
                         <Pin className={cn("w-4 h-4", note.is_pinned && "fill-current")} />
                       </button>
-                      <button
-                        onClick={() => {
-                          deleteNote(note.$id);
-                          toast.success("Note deleted", {
-                            action: {
-                              label: "Undo",
-                              onClick: () => toast.info("Note deletion cannot be undone"),
-                            },
-                            duration: 5000,
-                          });
-                        }}
-                        className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
-                      >
+                        <button
+                          onClick={() => {
+                          setDeleteNoteTarget({ id: note.$id, preview: note.content.slice(0, 40) });
+                          setIsConfirmDeleteNoteOpen(true);
+                          }}
+                          className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+                        >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -1127,7 +1155,7 @@ export default function SubjectDetailPage(): React.ReactNode {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         subject={subject}
-        onDelete={handleDelete}
+        onDelete={() => setIsConfirmDeleteSubjectOpen(true)}
       />
 
       {/* Create Exam Modal */}
@@ -1179,6 +1207,78 @@ export default function SubjectDetailPage(): React.ReactNode {
         onDelete={async (occurrenceId) => {
           await deleteClassOccurrence(occurrenceId);
           await refetch();
+        }}
+      />
+
+      <ConfirmActionModal
+        isOpen={isConfirmDeleteSubjectOpen}
+        title="Delete subject permanently?"
+        description={`This will permanently delete ${subject.name} and all linked schedules, attendance, exams, files, links, and notes.`}
+        confirmText="Delete Subject"
+        onConfirm={async () => {
+          await handleDelete();
+          setIsConfirmDeleteSubjectOpen(false);
+        }}
+        onCancel={() => setIsConfirmDeleteSubjectOpen(false)}
+      />
+
+      <ConfirmActionModal
+        isOpen={isConfirmDeleteFileOpen}
+        title="Delete file permanently?"
+        description={deleteFileTarget ? `This will permanently delete "${deleteFileTarget.fileName}".` : ""}
+        confirmText="Delete File"
+        onConfirm={handleDeleteSubjectFileConfirmed}
+        onCancel={() => {
+          setDeleteFileTarget(null);
+          setIsConfirmDeleteFileOpen(false);
+        }}
+      />
+
+      <ConfirmActionModal
+        isOpen={isConfirmDeleteScheduleOpen}
+        title="Delete class schedule?"
+        description={deleteScheduleTarget ? `This removes ${deleteScheduleTarget.label} from this subject.` : ""}
+        confirmText="Delete Schedule"
+        onConfirm={handleDeleteScheduleConfirmed}
+        onCancel={() => {
+          setDeleteScheduleTarget(null);
+          setIsConfirmDeleteScheduleOpen(false);
+        }}
+      />
+
+      <ConfirmActionModal
+        isOpen={isConfirmDeleteLinkOpen}
+        title="Delete resource link?"
+        description={deleteLinkTarget ? `Delete "${deleteLinkTarget.title}" permanently.` : ""}
+        confirmText="Delete Link"
+        onConfirm={async () => {
+          if (!deleteLinkTarget) return;
+          await deleteResourceLink(deleteLinkTarget.id);
+          toast.success("Link deleted");
+          setDeleteLinkTarget(null);
+          setIsConfirmDeleteLinkOpen(false);
+        }}
+        onCancel={() => {
+          setDeleteLinkTarget(null);
+          setIsConfirmDeleteLinkOpen(false);
+        }}
+      />
+
+      <ConfirmActionModal
+        isOpen={isConfirmDeleteNoteOpen}
+        title="Delete note?"
+        description={deleteNoteTarget ? `Delete note "${deleteNoteTarget.preview}${deleteNoteTarget.preview.length >= 40 ? "..." : ""}" permanently.` : ""}
+        confirmText="Delete Note"
+        onConfirm={async () => {
+          if (!deleteNoteTarget) return;
+          await deleteNote(deleteNoteTarget.id);
+          toast.success("Note deleted");
+          setDeleteNoteTarget(null);
+          setIsConfirmDeleteNoteOpen(false);
+        }}
+        onCancel={() => {
+          setDeleteNoteTarget(null);
+          setIsConfirmDeleteNoteOpen(false);
         }}
       />
     </motion.main>

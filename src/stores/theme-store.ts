@@ -10,11 +10,9 @@ export type ThemeMode = "dark" | "light";
  * Available background styles
  */
 export type BackgroundStyle =
-  | "spooky-smoke"
   | "dotted"
   | "boxes"
   | "dot-pattern"
-  | "noise-grid"
   | "aurora"
   | "beams"
   | "animated-grid";
@@ -74,7 +72,7 @@ export const useThemeStore = create<ThemeStore>()(
     (set) => ({
       // Initial state - Dark mode default
       mode: "dark",
-      background: "spooky-smoke",
+      background: "dotted",
       fontFamily: "nunito",
       accentColor: DEFAULT_ACCENT_COLOR,
       hydrated: false,
@@ -126,12 +124,24 @@ export const fontFamilyMap: Record<FontFamily, string> = {
  * Background style display names
  */
 export const backgroundDisplayNames: Record<BackgroundStyle, string> = {
-  "spooky-smoke": "Spooky Smoke",
   dotted: "Dotted",
   boxes: "Animated Boxes",
   "dot-pattern": "Dot Pattern",
-  "noise-grid": "Noise Grid",
   aurora: "Aurora",
   beams: "Background Beams",
   "animated-grid": "Animated Grid",
 };
+
+/**
+ * Runtime guard for persisted/server background values.
+ */
+export function isBackgroundStyle(value: unknown): value is BackgroundStyle {
+  return (
+    value === "dotted" ||
+    value === "boxes" ||
+    value === "dot-pattern" ||
+    value === "aurora" ||
+    value === "beams" ||
+    value === "animated-grid"
+  );
+}

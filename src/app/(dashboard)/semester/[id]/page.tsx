@@ -8,7 +8,7 @@ import { format } from "date-fns";
 import { useData } from "@/hooks/use-data";
 import { useThemeStore } from "@/stores/theme-store";
 import { SubjectCard } from "@/components/cards";
-import { CreateSubjectModal, EditSemesterModal, AddExtraClassModal } from "@/components/modals";
+import { CreateSubjectModal, EditSemesterModal, AddExtraClassModal, ConfirmActionModal } from "@/components/modals";
 import { toast } from "sonner";
 import type { Subject } from "@/types/database";
 
@@ -32,16 +32,10 @@ export default function SemesterDetailPage(): React.ReactNode {
   const [isEditSemesterOpen, setIsEditSemesterOpen] = useState(false);
   const [isExtraClassOpen, setIsExtraClassOpen] = useState(false);
   const [extraClassSubjectId, setExtraClassSubjectId] = useState<string | undefined>();
+  const [deleteSubjectTarget, setDeleteSubjectTarget] = useState<Subject | null>(null);
 
-  const {
-    getSemesterById,
-    getSubjectsBySemester,
-    getAttendanceStats,
-    deleteSemester,
-    classSchedules,
-    addClassOccurrence,
-    isLoading,
-  } = useData();
+  const { getSemesterById, getSubjectsBySemester, getAttendanceStats, classSchedules, addClassOccurrence, refetch, isLoading } =
+    useData();
 
   const semester = getSemesterById(semesterId);
   const subjects = getSubjectsBySemester(semesterId);
@@ -55,10 +49,45 @@ export default function SemesterDetailPage(): React.ReactNode {
   }, [semester, setAccentColor]);
 
   const handleDeleteSemester = async () => {
-    if (semester) {
-      await deleteSemester(semester.$id);
-      toast("Deleted semester");
+    if (!semester) return;
+    try {
+      const response = await fetch("/api/data/cascade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete-semester", semesterId: semester.$id }),
+      });
+      const result = (await response.json()) as { success: boolean; error?: string; deleted?: { subjects?: number; tasks?: number; events?: number } };
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "Failed to delete semester");
+      }
+      toast.success(
+        `Semester deleted (${result.deleted?.subjects ?? 0} subjects, ${result.deleted?.tasks ?? 0} tasks, ${result.deleted?.events ?? 0} events).`
+      );
       router.push("/");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete semester");
+    }
+  };
+
+  const handleDeleteSubject = async () => {
+    if (!deleteSubjectTarget) return;
+    try {
+      const response = await fetch("/api/data/cascade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete-subject", subjectId: deleteSubjectTarget.$id }),
+      });
+      const result = (await response.json()) as { success: boolean; error?: string; deleted?: { exams?: number; files?: number; schedules?: number } };
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "Failed to delete subject");
+      }
+      toast.success(
+        `Subject deleted (${result.deleted?.exams ?? 0} exams, ${result.deleted?.files ?? 0} files, ${result.deleted?.schedules ?? 0} schedules).`
+      );
+      setDeleteSubjectTarget(null);
+      refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete subject");
     }
   };
 
@@ -272,6 +301,7 @@ export default function SemesterDetailPage(): React.ReactNode {
                   stats={getAttendanceStats(subject.$id, subject.attendance_requirement_percent ?? 75)}
                   onAddExtraClass={handleAddExtraClass}
                   onMarkAllPresent={handleMarkAllPresent}
+                  onDelete={(target) => setDeleteSubjectTarget(target)}
                 />
               ))}
             </motion.div>
@@ -390,6 +420,20 @@ export default function SemesterDetailPage(): React.ReactNode {
         subjects={subjects}
         preselectedSubjectId={extraClassSubjectId}
       />
+
+      <ConfirmActionModal
+        isOpen={deleteSubjectTarget !== null}
+        title="Delete subject permanently?"
+        description={
+          deleteSubjectTarget
+            ? `This will permanently delete ${deleteSubjectTarget.name} and all linked schedules, attendance, exams, files, links, and notes.`
+            : ""
+        }
+        confirmText="Delete Subject"
+        onConfirm={handleDeleteSubject}
+        onCancel={() => setDeleteSubjectTarget(null)}
+      />
+
     </motion.main>
   );
 }

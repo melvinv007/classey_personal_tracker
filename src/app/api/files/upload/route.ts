@@ -8,7 +8,7 @@ const ALLOWED_EXTENSIONS = new Set([
   "jpg", "jpeg", "png", "gif", "webp",
 ]);
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 function getExtension(filename: string): string {
   return filename.split(".").pop()?.toLowerCase() ?? "";
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ success: false, error: "File exceeds 10MB limit" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "File exceeds 100MB limit" }, { status: 400 });
     }
 
     const extension = getExtension(file.name);

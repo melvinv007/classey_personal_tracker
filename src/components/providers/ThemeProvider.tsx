@@ -6,8 +6,10 @@ import {
   fontFamilyMap,
   type ThemeMode,
   type FontFamily,
+  isBackgroundStyle,
 } from "@/stores/theme-store";
 import { hexToRgbString, hexToRgbComma } from "@/lib/utils";
+import { useSettings } from "@/hooks/use-appwrite";
 
 /**
  * Props for ThemeProvider component
@@ -66,7 +68,9 @@ function applyTheme(
  * Must wrap the entire app.
  */
 export function ThemeProvider({ children }: ThemeProviderProps): React.ReactNode {
-  const { mode, accentColor, fontFamily, hydrated } = useThemeStore();
+  const { mode, accentColor, fontFamily, background, hydrated, setMode, setAccentColor, setFontFamily, setBackground } =
+    useThemeStore();
+  const { data: settings } = useSettings();
 
   // Apply theme on mount and when values change
   useIsomorphicLayoutEffect(() => {
@@ -74,6 +78,26 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.ReactNode
       applyTheme(mode, accentColor, fontFamily);
     }
   }, [mode, accentColor, fontFamily, hydrated]);
+
+  useIsomorphicLayoutEffect(() => {
+    if (!hydrated || !settings) return;
+    const storeFontTitle = fontFamily.charAt(0).toUpperCase() + fontFamily.slice(1);
+    if (settings.theme_mode !== mode) {
+      setMode(settings.theme_mode);
+    }
+    if (settings.accent_color_default.toLowerCase() !== accentColor.toLowerCase()) {
+      setAccentColor(settings.accent_color_default);
+    }
+    if (isBackgroundStyle(settings.background_style) && settings.background_style !== background) {
+      setBackground(settings.background_style);
+    }
+    if (settings.font_family !== storeFontTitle) {
+      const next = settings.font_family.toLowerCase();
+      if (next === "nunito" || next === "poppins" || next === "quicksand") {
+        setFontFamily(next);
+      }
+    }
+  }, [hydrated, settings, mode, accentColor, background, fontFamily, setAccentColor, setBackground, setFontFamily, setMode]);
 
   // Handle initial theme application before hydration
   useIsomorphicLayoutEffect(() => {

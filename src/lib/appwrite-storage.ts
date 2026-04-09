@@ -13,8 +13,8 @@ const ALLOWED_EXTENSIONS = {
   images: ["jpg", "jpeg", "png", "gif", "webp"],
 };
 
-// Max file size: 10MB
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+// Max file size: 100MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 /**
  * Get file extension from filename
@@ -44,7 +44,7 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
   if (file.size > MAX_FILE_SIZE) {
     return {
       valid: false,
-      error: `File size exceeds 10MB limit. Size: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
+      error: `File size exceeds 100MB limit. Size: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
     };
   }
 

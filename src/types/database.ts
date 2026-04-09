@@ -195,7 +195,7 @@ export interface GradeScale extends AppwriteDocument {
 export interface Settings extends AppwriteDocument {
   user_id: string;
   theme_mode: "dark" | "light";
-  background_style: "spooky-smoke" | "dotted" | "boxes" | "dot-pattern" | "noise-grid";
+  background_style: "dotted" | "boxes" | "dot-pattern" | "aurora" | "beams" | "animated-grid";
   background_custom_css: string | null;
   font_family: string;
   accent_color_default: string;
