@@ -146,6 +146,7 @@ function toTask(doc: Record<string, unknown>): Task {
 }
 
 function toNotificationLog(doc: Record<string, unknown>): NotificationLog {
+  const rawType = doc.type ?? doc.entity_type;
   return {
     $id: String(doc.$id ?? ""),
     $createdAt: String(doc.$createdAt ?? ""),
@@ -154,8 +155,8 @@ function toNotificationLog(doc: Record<string, unknown>): NotificationLog {
     $databaseId: String(doc.$databaseId ?? ""),
     $permissions: Array.isArray(doc.$permissions) ? doc.$permissions.filter((item): item is string => typeof item === "string") : [],
     type:
-      doc.type === "class" || doc.type === "deadline" || doc.type === "assignment" || doc.type === "task"
-        ? doc.type
+      rawType === "class" || rawType === "deadline" || rawType === "assignment" || rawType === "task"
+        ? rawType
         : "exam",
     entity_id: String(doc.entity_id ?? ""),
     channel: doc.channel === "push" ? "push" : "telegram",
@@ -253,17 +254,28 @@ async function getTaskById(taskId: string): Promise<Task | null> {
 }
 
 async function clearPendingJobs(entityType: EntityType, entityId: string): Promise<number> {
-  const jobs = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NOTIFICATIONS_LOG, [
+  const jobsByType = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NOTIFICATIONS_LOG, [
     Query.equal("channel", "telegram"),
     Query.equal("type", entityType),
     Query.equal("entity_id", entityId),
     Query.equal("success", false),
     Query.limit(500),
   ]);
+  const jobsByEntityType = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NOTIFICATIONS_LOG, [
+    Query.equal("channel", "telegram"),
+    Query.equal("entity_type", entityType),
+    Query.equal("entity_id", entityId),
+    Query.equal("success", false),
+    Query.limit(500),
+  ]).catch(() => ({ documents: [], total: 0 }));
+  const jobIds = new Set<string>([
+    ...jobsByType.documents.map((doc) => String(doc.$id)),
+    ...jobsByEntityType.documents.map((doc) => String(doc.$id)),
+  ]);
   await Promise.all(
-    jobs.documents.map((doc) => databases.deleteDocument(DATABASE_ID, COLLECTIONS.NOTIFICATIONS_LOG, String(doc.$id)))
+    Array.from(jobIds).map((id) => databases.deleteDocument(DATABASE_ID, COLLECTIONS.NOTIFICATIONS_LOG, id))
   );
-  return jobs.total;
+  return jobIds.size;
 }
 
 async function createQueuedJob(
@@ -275,9 +287,11 @@ async function createQueuedJob(
 ): Promise<void> {
   await databases.createDocument(DATABASE_ID, COLLECTIONS.NOTIFICATIONS_LOG, ID.unique(), {
     type: entityType,
+    entity_type: entityType,
     entity_id: entityId,
     channel: "telegram",
     sent_at: new Date().toISOString(),
+    message_preview: preview.slice(0, 100),
     success: false,
     error_message: "queued",
     dedupe_key: dedupe,
@@ -335,6 +349,7 @@ async function markLogSuccess(logId: string, messagePreview: string, errorMessag
   await databases.updateDocument(DATABASE_ID, COLLECTIONS.NOTIFICATIONS_LOG, logId, {
     success: true,
     sent_at: new Date().toISOString(),
+    message_preview: messagePreview.slice(0, 100),
     error_message: errorMessage,
     next_retry_at: null,
   });
