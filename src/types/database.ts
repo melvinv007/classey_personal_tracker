@@ -228,11 +228,11 @@ export interface Settings extends AppwriteDocument {
 }
 
 export interface NotificationLog extends AppwriteDocument {
-  entity_type: "exam" | "task" | "class" | "deadline" | "assignment";
+  type: "exam" | "task" | "class" | "deadline" | "assignment";
   entity_id: string;
   channel: "telegram" | "push";
   sent_at: string;
-  message_preview: string;
+  message_preview?: string;
   success: boolean;
   error_message: string | null;
   dedupe_key: string | null;

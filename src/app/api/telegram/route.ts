@@ -68,11 +68,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             COLLECTIONS.NOTIFICATIONS_LOG,
             ID.unique(),
             {
-              entity_type: entityType,
+              type: entityType,
               entity_id: entityId,
               channel: "telegram",
               sent_at: new Date().toISOString(),
-              message_preview: JSON.stringify(data).slice(0, 100),
               success: result.ok,
               error_message: result.ok ? null : result.description ?? "Unknown error",
               dedupe_key: dedupeKey ?? null,

@@ -153,14 +153,14 @@ function toNotificationLog(doc: Record<string, unknown>): NotificationLog {
     $collectionId: String(doc.$collectionId ?? ""),
     $databaseId: String(doc.$databaseId ?? ""),
     $permissions: Array.isArray(doc.$permissions) ? doc.$permissions.filter((item): item is string => typeof item === "string") : [],
-    entity_type:
-      doc.entity_type === "class" || doc.entity_type === "deadline" || doc.entity_type === "assignment" || doc.entity_type === "task"
-        ? doc.entity_type
+    type:
+      doc.type === "class" || doc.type === "deadline" || doc.type === "assignment" || doc.type === "task"
+        ? doc.type
         : "exam",
     entity_id: String(doc.entity_id ?? ""),
     channel: doc.channel === "push" ? "push" : "telegram",
     sent_at: String(doc.sent_at ?? ""),
-    message_preview: String(doc.message_preview ?? ""),
+    message_preview: typeof doc.message_preview === "string" ? doc.message_preview : undefined,
     success: Boolean(doc.success),
     error_message: typeof doc.error_message === "string" ? doc.error_message : null,
     dedupe_key: typeof doc.dedupe_key === "string" ? doc.dedupe_key : null,
@@ -255,7 +255,7 @@ async function getTaskById(taskId: string): Promise<Task | null> {
 async function clearPendingJobs(entityType: EntityType, entityId: string): Promise<number> {
   const jobs = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NOTIFICATIONS_LOG, [
     Query.equal("channel", "telegram"),
-    Query.equal("entity_type", entityType),
+    Query.equal("type", entityType),
     Query.equal("entity_id", entityId),
     Query.equal("success", false),
     Query.limit(500),
@@ -274,11 +274,10 @@ async function createQueuedJob(
   preview: string
 ): Promise<void> {
   await databases.createDocument(DATABASE_ID, COLLECTIONS.NOTIFICATIONS_LOG, ID.unique(), {
-    entity_type: entityType,
+    type: entityType,
     entity_id: entityId,
     channel: "telegram",
     sent_at: new Date().toISOString(),
-    message_preview: preview.slice(0, 100),
     success: false,
     error_message: "queued",
     dedupe_key: dedupe,
@@ -336,7 +335,6 @@ async function markLogSuccess(logId: string, messagePreview: string, errorMessag
   await databases.updateDocument(DATABASE_ID, COLLECTIONS.NOTIFICATIONS_LOG, logId, {
     success: true,
     sent_at: new Date().toISOString(),
-    message_preview: messagePreview.slice(0, 100),
     error_message: errorMessage,
     next_retry_at: null,
   });
@@ -365,7 +363,7 @@ async function processDueJobs(settings: Settings): Promise<{ sent: number; retri
 
   for (const raw of dueDocs.documents) {
     const log = toNotificationLog(raw as Record<string, unknown>);
-    if (log.entity_type !== "exam" && log.entity_type !== "task") {
+    if (log.type !== "exam" && log.type !== "task") {
       skipped += 1;
       await markLogSuccess(log.$id, "Skipped unsupported reminder job", "unsupported-entity");
       continue;
@@ -388,7 +386,7 @@ async function processDueJobs(settings: Settings): Promise<{ sent: number; retri
       }
     }
 
-    if (log.entity_type === "exam") {
+    if (log.type === "exam") {
       const exam = await getExamById(log.entity_id);
       if (!exam || exam.deleted_at || exam.status !== "upcoming" || !isExamTelegramEnabled(settings, exam)) {
         skipped += 1;
