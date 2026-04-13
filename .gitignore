@@ -48,3 +48,4 @@ appwrite-schema-check.txt
 # local sqlite/session files (if generated)
 *.db
 *.sqlite
+testing.md

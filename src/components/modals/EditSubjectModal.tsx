@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useData } from "@/hooks/use-data";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
-import { ThemedTimeInput } from "@/components/ui/ThemedDateTimeInput";
+import { ThemedDateInput, ThemedTimeInput } from "@/components/ui/ThemedDateTimeInput";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Subject } from "@/types/database";
@@ -25,6 +25,8 @@ const subjectSchema = z.object({
   teacher_name: z.string().optional(),
   teacher_email: z.string().email().optional().or(z.literal("")),
   grade: z.string().optional(),
+  start_date: z.string().min(1, "Start date is required"),
+  end_date: z.string().min(1, "End date is required"),
 });
 
 type SubjectFormData = z.infer<typeof subjectSchema>;
@@ -44,6 +46,8 @@ interface EditSubjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   subject: Subject;
+  semesterStartDate?: string;
+  semesterEndDate?: string;
   onDelete?: () => void | Promise<void>;
 }
 
@@ -55,7 +59,14 @@ const dayOptions: Array<{ value: 1 | 2 | 3 | 4 | 5 | 6; label: string }> = [
   { value: 4, label: "Thu" }, { value: 5, label: "Fri" }, { value: 6, label: "Sat" },
 ];
 
-export function EditSubjectModal({ isOpen, onClose, subject, onDelete }: EditSubjectModalProps) {
+export function EditSubjectModal({
+  isOpen,
+  onClose,
+  subject,
+  semesterStartDate,
+  semesterEndDate,
+  onDelete,
+}: EditSubjectModalProps) {
   const {
     updateSubject,
     getSchedulesBySubject,
@@ -100,6 +111,8 @@ export function EditSubjectModal({ isOpen, onClose, subject, onDelete }: EditSub
       teacher_name: subject.teacher_name ?? "",
       teacher_email: subject.teacher_email ?? "",
       grade: subject.grade ?? "",
+      start_date: subject.start_date ?? semesterStartDate ?? "",
+      end_date: subject.end_date ?? semesterEndDate ?? "",
     },
   });
 
@@ -119,16 +132,24 @@ export function EditSubjectModal({ isOpen, onClose, subject, onDelete }: EditSub
         teacher_name: subject.teacher_name ?? "",
         teacher_email: subject.teacher_email ?? "",
         grade: subject.grade ?? "",
+        start_date: subject.start_date ?? semesterStartDate ?? "",
+        end_date: subject.end_date ?? semesterEndDate ?? "",
       });
     }
-  }, [isOpen, subject, reset]);
+  }, [isOpen, subject, reset, semesterStartDate, semesterEndDate]);
 
   const onSubmit = async (data: SubjectFormData): Promise<void> => {
     try {
+      if (data.start_date > data.end_date) {
+        toast.error("Subject start date must be on or before end date");
+        return;
+      }
       await updateSubject(subject.$id, {
         name: data.name,
         short_name: data.short_name.toUpperCase(),
         code: data.code || null,
+        start_date: data.start_date,
+        end_date: data.end_date,
         color: data.color,
         credits: parseInt(data.credits, 10),
         type: data.type,
@@ -179,7 +200,7 @@ export function EditSubjectModal({ isOpen, onClose, subject, onDelete }: EditSub
         subject.$id,
         selectedSlot,
         selectedSubSlotIds,
-        subject.start_date ?? new Date().toISOString().split("T")[0]
+        watch("start_date") || subject.start_date || semesterStartDate || new Date().toISOString().split("T")[0]
       );
       for (const schedule of generated) {
         await addClassSchedule(schedule);
@@ -251,6 +272,27 @@ export function EditSubjectModal({ isOpen, onClose, subject, onDelete }: EditSub
                   <div className="grid grid-cols-2 gap-4">
                     <input {...register("code")} type="text" placeholder="Course Code" className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground" />
                     <input {...register("credits")} type="number" min="1" max="10" className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">Start Date</label>
+                      <ThemedDateInput
+                        value={watch("start_date") || ""}
+                        onChange={(value) => setValue("start_date", value, { shouldValidate: true })}
+                      />
+                      <input type="hidden" {...register("start_date")} />
+                      {errors.start_date && <p className="mt-1 text-xs text-red-400">{errors.start_date.message}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">End Date</label>
+                      <ThemedDateInput
+                        value={watch("end_date") || ""}
+                        onChange={(value) => setValue("end_date", value, { shouldValidate: true })}
+                      />
+                      <input type="hidden" {...register("end_date")} />
+                      {errors.end_date && <p className="mt-1 text-xs text-red-400">{errors.end_date.message}</p>}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">

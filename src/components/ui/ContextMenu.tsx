@@ -133,7 +133,7 @@ export function ContextMenu({ children, items }: ContextMenuProps): React.ReactN
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.1 }}
-              className="fixed z-50 min-w-[180px] bg-background/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-xl overflow-hidden"
+              className="fixed z-50 min-w-[180px] glass-elevated rounded-xl shadow-xl overflow-hidden"
               style={{ left: state.x, top: state.y }}
             >
               {items.map((item, index) => (
@@ -146,11 +146,11 @@ export function ContextMenu({ children, items }: ContextMenuProps): React.ReactN
                     }
                   }}
                   disabled={item.disabled}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors",
-                    item.variant === "danger"
-                      ? "text-red-400 hover:bg-red-500/10"
-                      : "text-foreground hover:bg-white/10",
+                    className={cn(
+                     "w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors interactive-surface interactive-focus",
+                     item.variant === "danger"
+                       ? "text-red-400 hover:bg-red-500/10"
+                       : "text-foreground hover:bg-white/10",
                     item.disabled && "opacity-50 cursor-not-allowed"
                   )}
                 >

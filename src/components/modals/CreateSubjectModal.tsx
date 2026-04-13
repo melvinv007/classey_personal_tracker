@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useData } from "@/hooks/use-data";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
-import { ThemedTimeInput } from "@/components/ui/ThemedDateTimeInput";
+import { ThemedDateInput, ThemedTimeInput } from "@/components/ui/ThemedDateTimeInput";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { generateSchedulesFromSlot, parseSubSlots, getDayName } from "@/utils/slots";
@@ -23,6 +23,8 @@ const subjectSchema = z.object({
   attendance_requirement: z.string().optional(),
   teacher_name: z.string().optional(),
   teacher_email: z.string().email().optional().or(z.literal("")),
+  start_date: z.string().min(1, "Start date is required"),
+  end_date: z.string().min(1, "End date is required"),
 });
 
 type SubjectFormData = z.infer<typeof subjectSchema>;
@@ -54,6 +56,8 @@ interface CreateSubjectModalProps {
   onClose: () => void;
   semesterId: string;
   semesterColor?: string;
+  semesterStartDate?: string;
+  semesterEndDate?: string;
 }
 
 const overlayVariants = {
@@ -82,6 +86,8 @@ export function CreateSubjectModal({
   onClose,
   semesterId,
   semesterColor = "#8B5CF6",
+  semesterStartDate,
+  semesterEndDate,
 }: CreateSubjectModalProps) {
   const { addSubject, addClassSchedule, getSemesterById, slots, isMutating } = useData();
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("slot");
@@ -111,6 +117,8 @@ export function CreateSubjectModal({
       attendance_requirement: "75",
       teacher_name: "",
       teacher_email: "",
+      start_date: semesterStartDate ?? "",
+      end_date: semesterEndDate ?? "",
     },
   });
 
@@ -136,6 +144,8 @@ export function CreateSubjectModal({
         attendance_requirement: "75",
         teacher_name: "",
         teacher_email: "",
+        start_date: semesterStartDate ?? "",
+        end_date: semesterEndDate ?? "",
       });
       setScheduleMode("slot");
       setSelectedSlotId("");
@@ -145,7 +155,7 @@ export function CreateSubjectModal({
       setManualEndTime("10:00");
       setManualRoom("");
     }
-  }, [isOpen, reset, semesterColor]);
+  }, [isOpen, reset, semesterColor, semesterStartDate, semesterEndDate]);
 
   const onSubmit = async (data: SubjectFormData): Promise<void> => {
     try {
@@ -157,6 +167,9 @@ export function CreateSubjectModal({
       }
       if (scheduleMode === "manual" && manualStartTime >= manualEndTime) {
         throw new Error("Manual end time must be after start time");
+      }
+      if (data.start_date > data.end_date) {
+        throw new Error("Subject start date must be on or before end date");
       }
 
       const slotIdsForSubject =
@@ -171,8 +184,8 @@ export function CreateSubjectModal({
         name: data.name,
         short_name: data.short_name.toUpperCase(),
         code: data.code || null,
-        start_date: null,
-        end_date: null,
+        start_date: data.start_date,
+        end_date: data.end_date,
         color: data.color,
         icon: null,
         attendance_requirement_percent: data.attendance_requirement
@@ -198,7 +211,7 @@ export function CreateSubjectModal({
           createdSubject.$id,
           selectedSlot,
           selectedSubSlotIds,
-          semester.start_date
+          data.start_date
         );
         for (const schedule of generated) {
           await addClassSchedule(schedule);
@@ -213,7 +226,7 @@ export function CreateSubjectModal({
           end_time: manualEndTime,
           room: manualRoom.trim() || null,
           building: null,
-          effective_from: semester.start_date,
+          effective_from: data.start_date,
           effective_until: null,
           deleted_at: null,
         });
@@ -324,6 +337,31 @@ export function CreateSubjectModal({
                       max="10"
                       className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent-rgb),0.5)] focus:border-transparent transition-all"
                     />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Start Date
+                    </label>
+                    <ThemedDateInput
+                      value={watch("start_date") || ""}
+                      onChange={(value) => setValue("start_date", value, { shouldValidate: true })}
+                    />
+                    <input type="hidden" {...register("start_date")} />
+                    {errors.start_date && <p className="mt-1 text-xs text-red-400">{errors.start_date.message}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      End Date
+                    </label>
+                    <ThemedDateInput
+                      value={watch("end_date") || ""}
+                      onChange={(value) => setValue("end_date", value, { shouldValidate: true })}
+                    />
+                    <input type="hidden" {...register("end_date")} />
+                    {errors.end_date && <p className="mt-1 text-xs text-red-400">{errors.end_date.message}</p>}
                   </div>
                 </div>
 

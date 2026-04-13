@@ -4,6 +4,15 @@ import { motion } from "framer-motion";
 import { ArrowLeft, TrendingUp, Target, Calculator, Award, Info, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useState, useMemo } from "react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+} from "recharts";
 import { useData } from "@/hooks/use-data";
 import {
   calculateSPI,
@@ -77,10 +86,11 @@ export default function CGPATrackerPage(): React.ReactNode {
         };
       })
       .sort((a, b) => {
-        // Sort by semester name (assumes format like "Sem 1", "Sem 2", etc.)
-        const aNum = parseInt(a.name.replace(/\D/g, "")) || 0;
-        const bNum = parseInt(b.name.replace(/\D/g, "")) || 0;
-        return aNum - bNum;
+        const aSem = semesters.find((sem) => sem.$id === a.id);
+        const bSem = semesters.find((sem) => sem.$id === b.id);
+        const aTime = aSem ? new Date(aSem.start_date).getTime() : 0;
+        const bTime = bSem ? new Date(bSem.start_date).getTime() : 0;
+        return aTime - bTime;
       });
   }, [semesters, subjects]);
 
@@ -99,6 +109,23 @@ export default function CGPATrackerPage(): React.ReactNode {
     () => calculateCGPA(semesterData),
     [semesterData]
   );
+
+  const spiChartData = useMemo(() => {
+    return semesterData.reduce<Array<{ semester: string; spi: number; cgpa: number; _weighted: number; _credits: number }>>((acc, sem) => {
+      const prev = acc[acc.length - 1];
+      const weighted = (prev?._weighted ?? 0) + sem.spi * sem.credits;
+      const credits = (prev?._credits ?? 0) + sem.credits;
+      const runningCgpa = credits > 0 ? weighted / credits : 0;
+      acc.push({
+        semester: sem.name,
+        spi: Number(sem.spi.toFixed(2)),
+        cgpa: Number(runningCgpa.toFixed(2)),
+        _weighted: weighted,
+        _credits: credits,
+      });
+      return acc;
+    }, []).map(({ semester, spi, cgpa }) => ({ semester, spi, cgpa }));
+  }, [semesterData]);
 
   // What-if calculation
   const whatIfResult = useMemo(() => {
@@ -154,7 +181,7 @@ export default function CGPATrackerPage(): React.ReactNode {
         >
           <Link
             href="/"
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+            className="p-2 rounded-xl btn-muted-themed interactive-focus"
           >
             <ArrowLeft className="w-5 h-5 text-muted-foreground" />
           </Link>
@@ -168,7 +195,7 @@ export default function CGPATrackerPage(): React.ReactNode {
 
         {/* Current CGPA Card */}
         <motion.div
-          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 mb-8 text-center"
+          className="glass-card rounded-3xl p-8 mb-8 text-center"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -195,9 +222,73 @@ export default function CGPATrackerPage(): React.ReactNode {
           )}
         </motion.div>
 
+        {/* SPI Trend */}
+        <motion.div
+          className="glass-card rounded-2xl p-6 mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.14 }}
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="w-5 h-5 text-muted-foreground" />
+            <h2 className="text-lg font-semibold text-foreground">SPI Trend (Semester-wise)</h2>
+          </div>
+          {spiChartData.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">
+              Add semesters with grades to view the SPI trend.
+            </div>
+          ) : (
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={spiChartData} margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
+                  <CartesianGrid stroke="rgba(var(--foreground),0.08)" strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="semester"
+                    tick={{ fill: "rgba(var(--foreground),0.65)", fontSize: 12 }}
+                    axisLine={{ stroke: "rgba(var(--foreground),0.12)" }}
+                    tickLine={{ stroke: "rgba(var(--foreground),0.12)" }}
+                  />
+                  <YAxis
+                    domain={[0, 10]}
+                    tick={{ fill: "rgba(var(--foreground),0.65)", fontSize: 12 }}
+                    axisLine={{ stroke: "rgba(var(--foreground),0.12)" }}
+                    tickLine={{ stroke: "rgba(var(--foreground),0.12)" }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--glass-bg-elevated)",
+                      border: "1px solid var(--glass-border-elevated)",
+                      borderRadius: "12px",
+                      color: "rgb(var(--foreground))",
+                    }}
+                    labelStyle={{ color: "rgba(var(--foreground),0.8)" }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="spi"
+                    name="SPI"
+                    stroke="rgb(var(--accent))"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: "rgb(var(--accent))", stroke: "rgba(255,255,255,0.9)", strokeWidth: 1 }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="cgpa"
+                    name="Running CGPA"
+                    stroke="rgba(var(--foreground),0.75)"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "rgba(var(--foreground),0.75)" }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </motion.div>
+
         {/* Semester Breakdown */}
         <motion.div
-          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-8"
+          className="glass-card rounded-2xl p-6 mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
@@ -269,7 +360,7 @@ export default function CGPATrackerPage(): React.ReactNode {
         <div className="grid md:grid-cols-2 gap-6">
           {/* If I score X SPI */}
           <motion.div
-            className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6"
+            className="glass-card rounded-2xl p-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
@@ -306,7 +397,7 @@ export default function CGPATrackerPage(): React.ReactNode {
 
           {/* To reach X CGPA */}
           <motion.div
-            className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6"
+            className="glass-card rounded-2xl p-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
@@ -357,7 +448,7 @@ export default function CGPATrackerPage(): React.ReactNode {
 
         {/* Info */}
         <motion.div
-          className="mt-8 p-4 rounded-xl bg-white/5 border border-white/10 flex items-start gap-3"
+          className="glass-card mt-8 p-4 rounded-xl flex items-start gap-3"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.35 }}

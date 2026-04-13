@@ -19,10 +19,11 @@ import { UploadFileModal } from "@/components/modals/UploadFileModal";
 import { EditAttendanceHistoryModal } from "@/components/modals/EditAttendanceHistoryModal";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
 import { ThemedTimeInput } from "@/components/ui/ThemedDateTimeInput";
+import { PersistentNotepad } from "@/components/ui/PersistentNotepad";
 import { hexToRgbComma, cn, DAY_SHORT_NAMES, normalizeTimeHM } from "@/lib/utils";
 import { getDayName } from "@/utils/slots";
 import { toast } from "sonner";
-import { format, parseISO } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { deleteFile, getFileDownloadUrl, getFileViewUrl } from "@/lib/appwrite-storage";
 
 const pageVariants = {
@@ -129,6 +130,7 @@ export default function SubjectDetailPage(): React.ReactNode {
     deleteNote,
     updateNote,
     deleteResourceLink,
+    settings,
     refetch,
     isLoading
   } = useData();
@@ -167,6 +169,62 @@ export default function SubjectDetailPage(): React.ReactNode {
     canBunk,
     classesNeeded,
   };
+
+  const subjectStartDate = subject?.start_date ?? semester?.start_date ?? null;
+  const subjectEndDate = subject?.end_date ?? semester?.end_date ?? null;
+  const currentDateTime = new Date();
+  const currentDate = format(currentDateTime, "yyyy-MM-dd");
+  const currentTime = format(currentDateTime, "HH:mm");
+
+  const scheduleWithinRange = (effectiveFrom: string, effectiveUntil: string | null, date: string): boolean =>
+    effectiveFrom <= date && (!effectiveUntil || effectiveUntil >= date);
+
+  const expectedClassStats = useMemo(() => {
+    if (!subjectStartDate || !subjectEndDate) {
+      return { total: 0, left: 0 };
+    }
+    const scheduleDayMap = new Map<number, Array<{ start: string; end: string }>>();
+    for (const schedule of schedules) {
+      const items = scheduleDayMap.get(schedule.day_of_week) ?? [];
+      items.push({ start: schedule.start_time, end: schedule.end_time });
+      scheduleDayMap.set(schedule.day_of_week, items);
+    }
+    let total = 0;
+    let left = 0;
+    let cursor = parseISO(subjectStartDate);
+    const end = parseISO(subjectEndDate);
+    while (cursor <= end) {
+      const date = format(cursor, "yyyy-MM-dd");
+      const day = cursor.getDay() === 0 ? 7 : cursor.getDay();
+      const daySchedules = scheduleDayMap.get(day);
+      if (daySchedules && daySchedules.length > 0) {
+        const activeForDate = schedules.filter(
+          (schedule) =>
+            schedule.day_of_week === day &&
+            scheduleWithinRange(schedule.effective_from, schedule.effective_until, date)
+        );
+        for (const schedule of activeForDate) {
+          total += 1;
+          const notStartedYet =
+            date > currentDate || (date === currentDate && normalizeTimeHM(schedule.start_time) > normalizeTimeHM(currentTime));
+          if (notStartedYet) {
+            left += 1;
+          }
+        }
+      }
+      cursor = addDays(cursor, 1);
+    }
+    return { total, left };
+  }, [subjectStartDate, subjectEndDate, schedules, currentDate, currentTime]);
+
+  const classesAttended = occurrences.filter(
+    (occurrence) =>
+      occurrence.attendance === "present" &&
+      occurrence.status !== "cancelled" &&
+      (!subjectStartDate || occurrence.date >= subjectStartDate) &&
+      (!subjectEndDate || occurrence.date <= subjectEndDate)
+  ).length;
+  const autoAbsentHours = settings?.auto_absent_hours ?? 48;
   
   // Modal state
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
@@ -458,7 +516,7 @@ export default function SubjectDetailPage(): React.ReactNode {
           transition={{ delay: 0.15 }}
         >
           {/* Attendance Ring Card */}
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 flex items-center gap-6">
+          <div className="glass-card rounded-2xl p-6 flex items-center gap-6">
             <AttendanceRing
               percentage={stats.percentage}
               requirement={requirement}
@@ -487,7 +545,7 @@ export default function SubjectDetailPage(): React.ReactNode {
 
           {/* Quick Stats */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+            <div className="glass-card rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <TrendingUp className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Requirement</span>
@@ -495,7 +553,7 @@ export default function SubjectDetailPage(): React.ReactNode {
               <p className="text-2xl font-bold text-foreground">{requirement}%</p>
             </div>
 
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+            <div className="glass-card rounded-2xl p-4">
               {stats.percentage >= requirement ? (
                 <>
                   <div className="flex items-center gap-2 mb-2">
@@ -518,7 +576,7 @@ export default function SubjectDetailPage(): React.ReactNode {
             </div>
 
             {subject.grade && (
-              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+              <div className="glass-card rounded-2xl p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Award className="w-4 h-4 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">Grade</span>
@@ -529,20 +587,38 @@ export default function SubjectDetailPage(): React.ReactNode {
               </div>
             )}
 
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+            <div className="glass-card rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Total Classes</span>
+              </div>
+              <p className="text-2xl font-bold text-foreground">{expectedClassStats.total}</p>
+              <p className="text-xs text-muted-foreground">in subject date range</p>
+            </div>
+
+            <div className="glass-card rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Auto-absent</span>
+                <span className="text-xs text-muted-foreground">Classes Left</span>
               </div>
-              <p className="text-sm font-medium text-foreground">48 hours</p>
-              <p className="text-xs text-muted-foreground">after class</p>
+              <p className="text-2xl font-bold text-foreground">{expectedClassStats.left}</p>
+              <p className="text-xs text-muted-foreground">from now onward</p>
+            </div>
+
+            <div className="glass-card rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs text-muted-foreground">Classes Attended</span>
+              </div>
+              <p className="text-2xl font-bold text-emerald-400">{classesAttended}</p>
+              <p className="text-xs text-muted-foreground">marked present</p>
             </div>
           </div>
         </motion.div>
 
         {/* Quick Mark Attendance */}
         <motion.div
-          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-8"
+          className="glass-card rounded-2xl p-6 mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -609,7 +685,7 @@ export default function SubjectDetailPage(): React.ReactNode {
 
         {/* Schedule Section */}
         <motion.div
-          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-8"
+          className="glass-card rounded-2xl p-6 mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.21 }}
@@ -678,7 +754,7 @@ export default function SubjectDetailPage(): React.ReactNode {
 
         {/* Exams Section */}
         <motion.div
-          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-8"
+          className="glass-card rounded-2xl p-6 mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.22 }}
@@ -788,7 +864,7 @@ export default function SubjectDetailPage(): React.ReactNode {
 
         {/* Files Section */}
         <motion.div
-          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-8"
+          className="glass-card rounded-2xl p-6 mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.24 }}
@@ -866,7 +942,7 @@ export default function SubjectDetailPage(): React.ReactNode {
 
         {/* Resource Links Section */}
         <motion.div
-          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-8"
+          className="glass-card rounded-2xl p-6 mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
@@ -957,7 +1033,7 @@ export default function SubjectDetailPage(): React.ReactNode {
 
         {/* Notes Section */}
         <motion.div
-          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-8"
+          className="glass-card rounded-2xl p-6 mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.28 }}
@@ -1041,7 +1117,7 @@ export default function SubjectDetailPage(): React.ReactNode {
 
         {/* Attendance History */}
         <motion.div
-          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6"
+          className="glass-card rounded-2xl p-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
@@ -1148,6 +1224,27 @@ export default function SubjectDetailPage(): React.ReactNode {
             </div>
           )}
         </motion.div>
+
+        <motion.div
+          className="glass-card rounded-2xl p-4 mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Clock className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Auto-absent</span>
+          </div>
+          <p className="text-sm font-medium text-foreground">{autoAbsentHours} hours</p>
+          <p className="text-xs text-muted-foreground">after class</p>
+        </motion.div>
+
+        <PersistentNotepad
+          storageKey={`classey:notepad:subject:${subjectId}`}
+          title="Subject Notepad"
+          placeholder="Write anything about this subject..."
+          className="mb-8"
+        />
       </div>
 
       {/* Edit Subject Modal */}
@@ -1155,6 +1252,8 @@ export default function SubjectDetailPage(): React.ReactNode {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         subject={subject}
+        semesterStartDate={semester.start_date}
+        semesterEndDate={semester.end_date}
         onDelete={() => setIsConfirmDeleteSubjectOpen(true)}
       />
 

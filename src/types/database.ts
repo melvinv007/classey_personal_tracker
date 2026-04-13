@@ -172,6 +172,17 @@ export interface Event extends AppwriteDocument {
 }
 
 /**
+ * Holiday / no-class period entity
+ */
+export interface Holiday extends AppwriteDocument {
+  name: string;
+  date: string;
+  date_end: string | null;
+  description: string | null;
+  deleted_at: string | null;
+}
+
+/**
  * Grade mapping for grade scales
  */
 export interface GradeMapping {
@@ -195,7 +206,7 @@ export interface GradeScale extends AppwriteDocument {
 export interface Settings extends AppwriteDocument {
   user_id: string;
   theme_mode: "dark" | "light";
-  background_style: "dotted" | "boxes" | "dot-pattern" | "aurora" | "beams" | "animated-grid";
+  background_style: "spooky-smoke" | "dotted" | "boxes" | "dot-pattern" | "noise-grid";
   background_custom_css: string | null;
   font_family: string;
   accent_color_default: string;

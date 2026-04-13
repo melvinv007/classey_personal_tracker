@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Query } from "appwrite";
 import {
   semesterService,
   subjectService,
@@ -17,6 +18,7 @@ import {
   resourceLinkService,
   noteService,
   settingsService,
+  holidayService,
 } from "@/lib/appwrite-db";
 import type {
   Semester,
@@ -31,6 +33,7 @@ import type {
   ResourceLink,
   Note,
   Settings,
+  Holiday,
 } from "@/types/database";
 
 async function syncReminderJobs(
@@ -38,11 +41,31 @@ async function syncReminderJobs(
   entityType: "exam" | "task",
   entityId: string
 ): Promise<void> {
-  await fetch("/api/telegram/scheduler", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, entityType, entityId }),
-  });
+  try {
+    const response = await fetch("/api/telegram/scheduler", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ action, entityType, entityId }),
+    });
+    if (!response.ok) {
+      const payload = await response.text();
+      console.error("Failed to sync reminder jobs:", {
+        action,
+        entityType,
+        entityId,
+        status: response.status,
+        payload,
+      });
+    }
+  } catch (error) {
+    console.error("Reminder sync request failed:", {
+      action,
+      entityType,
+      entityId,
+      error,
+    });
+  }
 }
 
 // Query keys for cache management
@@ -61,6 +84,7 @@ export const queryKeys = {
   resourceLinks: (subjectId?: string) => ["resourceLinks", subjectId] as const,
   notes: (subjectId?: string) => ["notes", subjectId] as const,
   settings: () => ["settings"] as const,
+  holidays: (semesterId?: string) => ["holidays", semesterId] as const,
 };
 
 // ============================================================
@@ -602,7 +626,7 @@ function createDefaultSettingsInput(): Omit<
   return {
     user_id: "default-user",
     theme_mode: "dark",
-    background_style: "dotted",
+    background_style: "spooky-smoke",
     background_custom_css: null,
     font_family: "Nunito",
     accent_color_default: "#8B5CF6",
@@ -822,6 +846,52 @@ export function useUpdateSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.settings() });
+    },
+  });
+}
+
+// ============================================================
+// HOLIDAYS
+// ============================================================
+
+export function useHolidays(semesterId?: string) {
+  return useQuery({
+    queryKey: queryKeys.holidays(semesterId),
+    queryFn: () => holidayService.list([Query.orderAsc("date")]),
+  });
+}
+
+export function useCreateHoliday() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Omit<Holiday, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
+      holidayService.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["holidays"] });
+      queryClient.invalidateQueries({ queryKey: ["classOccurrences"] });
+    },
+  });
+}
+
+export function useUpdateHoliday() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Holiday> }) =>
+      holidayService.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["holidays"] });
+      queryClient.invalidateQueries({ queryKey: ["classOccurrences"] });
+    },
+  });
+}
+
+export function useDeleteHoliday() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => holidayService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["holidays"] });
+      queryClient.invalidateQueries({ queryKey: ["classOccurrences"] });
     },
   });
 }

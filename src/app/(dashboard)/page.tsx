@@ -242,6 +242,7 @@ export default function Home(): React.ReactNode {
       ),
     [pendingTasksForActiveSemester]
   );
+  const hasPendingTasks = pendingTasksForActiveSemester.length > 0;
 
   const handleCompleteTask = (taskId: string): void => {
     void toggleTaskComplete(taskId);
@@ -445,7 +446,7 @@ export default function Home(): React.ReactNode {
               variants={cardVariants}
               initial="hidden"
               animate="visible"
-              className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5"
+              className="glass-card rounded-2xl p-5"
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -551,13 +552,15 @@ export default function Home(): React.ReactNode {
             </motion.div>
 
             {/* Tasks - Mobile (above semesters) */}
-            <DashboardTasksCard
-              dueTodayTasks={dueTodayTasks}
-              otherPendingTasks={otherPendingTasks}
-              getSubjectById={getSubjectById}
-              onCompleteTask={handleCompleteTask}
-              className="lg:hidden"
-            />
+            {hasPendingTasks ? (
+              <DashboardTasksCard
+                dueTodayTasks={dueTodayTasks}
+                otherPendingTasks={otherPendingTasks}
+                getSubjectById={getSubjectById}
+                onCompleteTask={handleCompleteTask}
+                className="lg:hidden"
+              />
+            ) : null}
 
             {/* Semester List */}
             <motion.div
@@ -610,7 +613,7 @@ export default function Home(): React.ReactNode {
                   ))}
                 </motion.div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-center bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl">
+                <div className="glass-card flex flex-col items-center justify-center py-12 text-center rounded-2xl">
                   <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-3">
                     {showArchived ? (
                       <Archive className="w-6 h-6 text-muted-foreground" />
@@ -640,51 +643,17 @@ export default function Home(): React.ReactNode {
             </motion.div>
           </div>
 
-          {/* Right Column - Quick Stats & Free Time */}
+          {/* Right Column - Tasks & Free Time */}
           <div className="space-y-6">
-            {/* Tasks - Desktop (above quick stats/free time) */}
-            <DashboardTasksCard
-              dueTodayTasks={dueTodayTasks}
-              otherPendingTasks={otherPendingTasks}
-              getSubjectById={getSubjectById}
-              onCompleteTask={handleCompleteTask}
-              className="hidden lg:block"
-            />
-
-            {/* Quick Stats */}
-            <motion.div
-              variants={cardVariants}
-              initial="hidden"
-              animate="visible"
-              transition={{ delay: 0.15 }}
-              className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5"
-            >
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">Quick Stats</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Today&apos;s classes</span>
-                  <span className="text-lg font-bold text-foreground">{todayClasses.length}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Completed</span>
-                  <span className="text-lg font-bold text-emerald-400">
-                    {todayClasses.filter((c) => c.status === "ended" && c.isMarked).length}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Pending</span>
-                  <span className="text-lg font-bold text-amber-400">
-                    {pendingAttendance.length}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Upcoming</span>
-                  <span className="text-lg font-bold text-foreground">
-                    {todayClasses.filter((c) => c.status === "upcoming").length}
-                  </span>
-                </div>
-              </div>
-            </motion.div>
+            {hasPendingTasks ? (
+              <DashboardTasksCard
+                dueTodayTasks={dueTodayTasks}
+                otherPendingTasks={otherPendingTasks}
+                getSubjectById={getSubjectById}
+                onCompleteTask={handleCompleteTask}
+                className="hidden lg:block"
+              />
+            ) : null}
 
             {/* Free Time Finder */}
             <motion.div
@@ -692,7 +661,7 @@ export default function Home(): React.ReactNode {
               initial="hidden"
               animate="visible"
               transition={{ delay: 0.2 }}
-              className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5"
+              className="glass-card rounded-2xl p-5"
             >
               <div className="flex items-center gap-2 mb-4">
                 <Coffee className="w-4 h-4 text-[rgb(var(--accent))]" />
@@ -791,7 +760,7 @@ function DashboardTasksCard({
       initial="hidden"
       animate="visible"
       transition={{ delay: 0.12 }}
-      className={cn("bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5", className)}
+      className={cn("glass-card rounded-2xl p-5", className)}
     >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-muted-foreground">Tasks</h3>

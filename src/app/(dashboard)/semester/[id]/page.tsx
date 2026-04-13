@@ -2,15 +2,19 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Plus, Edit3, MoreHorizontal, Calendar, Target, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Edit3, MoreHorizontal, Calendar, Target, Loader2, Trash2, Sparkles } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
-import { format } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { useData } from "@/hooks/use-data";
 import { useThemeStore } from "@/stores/theme-store";
 import { SubjectCard } from "@/components/cards";
 import { CreateSubjectModal, EditSemesterModal, AddExtraClassModal, ConfirmActionModal } from "@/components/modals";
 import { toast } from "sonner";
 import type { Subject } from "@/types/database";
+import { normalizeTimeHM } from "@/lib/utils";
+import { ThemedSelect } from "@/components/ui/ThemedSelect";
+import { ThemedDateInput } from "@/components/ui/ThemedDateTimeInput";
+import { PersistentNotepad } from "@/components/ui/PersistentNotepad";
 
 const containerVariants = {
   hidden: {},
@@ -33,20 +37,167 @@ export default function SemesterDetailPage(): React.ReactNode {
   const [isExtraClassOpen, setIsExtraClassOpen] = useState(false);
   const [extraClassSubjectId, setExtraClassSubjectId] = useState<string | undefined>();
   const [deleteSubjectTarget, setDeleteSubjectTarget] = useState<Subject | null>(null);
+  const [periodName, setPeriodName] = useState("");
+  const [periodStartDate, setPeriodStartDate] = useState("");
+  const [periodEndDate, setPeriodEndDate] = useState("");
+  const [periodType, setPeriodType] = useState<"holiday" | "exam-time">("holiday");
+  const [editingPeriodId, setEditingPeriodId] = useState<string | null>(null);
+  const [isNoClassModalOpen, setIsNoClassModalOpen] = useState(false);
 
-  const { getSemesterById, getSubjectsBySemester, getAttendanceStats, classSchedules, addClassOccurrence, refetch, isLoading } =
+  const {
+    getSemesterById,
+    getSubjectsBySemester,
+    getAttendanceStats,
+    getSchedulesBySubject,
+    getHolidaysBySemester,
+    classSchedules,
+    classOccurrences,
+    addClassOccurrence,
+    updateClassOccurrence,
+    deleteClassOccurrence,
+    addHoliday,
+    updateHoliday,
+    deleteHoliday,
+    refetch,
+    isLoading,
+  } =
     useData();
 
   const semester = getSemesterById(semesterId);
   const subjects = getSubjectsBySemester(semesterId);
+  const semesterHolidays = getHolidaysBySemester(semesterId);
   const setAccentColor = useThemeStore((s) => s.setAccentColor);
+  const totalCredits = subjects.reduce((sum, s) => sum + s.credits, 0);
+
+  const toPeriodDescription = useCallback(
+    (kind: "holiday" | "exam-time", note: string): string =>
+      `semester:${semesterId}|type:${kind}|note:${encodeURIComponent(note)}`,
+    [semesterId]
+  );
+
+  const parsePeriodMeta = useCallback((description: string | null): { kind: "holiday" | "exam-time"; note: string } => {
+    const fallback = { kind: "holiday" as const, note: description ?? "" };
+    if (!description) return fallback;
+    const prefix = `semester:${semesterId}|`;
+    if (!description.startsWith(prefix)) return fallback;
+    const parts = description.slice(prefix.length).split("|");
+    const typePart = parts.find((part) => part.startsWith("type:"));
+    const notePart = parts.find((part) => part.startsWith("note:"));
+    const kind = typePart === "type:exam-time" ? "exam-time" : "holiday";
+    const noteRaw = notePart ? notePart.replace("note:", "") : "";
+    return { kind, note: decodeURIComponent(noteRaw || "") };
+  }, [semesterId]);
+
+  const listDatesInRange = useCallback((startDate: string, endDate: string): string[] => {
+    const start = parseISO(startDate);
+    const end = parseISO(endDate);
+    const dates: string[] = [];
+    let cursor = start;
+    while (cursor <= end) {
+      dates.push(format(cursor, "yyyy-MM-dd"));
+      cursor = addDays(cursor, 1);
+    }
+    return dates;
+  }, []);
+
+  const holidayTag = useCallback((holidayId: string): string => `[holiday:${holidayId}]`, []);
+
+  const removeHolidayCancellations = useCallback(async (holidayId: string): Promise<void> => {
+    const tag = holidayTag(holidayId);
+    const subjectIds = new Set(subjects.map((subject) => subject.$id));
+    const related = classOccurrences.filter(
+      (occurrence) =>
+        subjectIds.has(occurrence.subject_id) &&
+        occurrence.status === "cancelled" &&
+        Boolean(occurrence.cancellation_reason?.includes(tag))
+    );
+    await Promise.all(related.map((occurrence) => deleteClassOccurrence(occurrence.$id)));
+  }, [classOccurrences, deleteClassOccurrence, holidayTag, subjects]);
+
+  const applyHolidayCancellations = useCallback(
+    async (holidayId: string, holidayName: string, startDate: string, endDate: string): Promise<number> => {
+      const tag = holidayTag(holidayId);
+      const reason = `No class: ${holidayName} ${tag}`;
+      const dateList = listDatesInRange(startDate, endDate);
+      let affected = 0;
+
+      for (const subject of subjects) {
+        const schedules = getSchedulesBySubject(subject.$id);
+        for (const date of dateList) {
+          const weekday = parseISO(date).getDay();
+          const dayOfWeek = weekday === 0 ? 7 : weekday;
+          if (dayOfWeek < 1 || dayOfWeek > 6) continue;
+
+          const activeSchedules = schedules.filter(
+            (schedule) =>
+              schedule.day_of_week === dayOfWeek &&
+              schedule.effective_from <= date &&
+              (!schedule.effective_until || schedule.effective_until >= date)
+          );
+
+          for (const schedule of activeSchedules) {
+            const existing = classOccurrences.find(
+              (occurrence) =>
+                occurrence.subject_id === subject.$id &&
+                occurrence.date === date &&
+                normalizeTimeHM(occurrence.start_time) === normalizeTimeHM(schedule.start_time) &&
+                normalizeTimeHM(occurrence.end_time) === normalizeTimeHM(schedule.end_time)
+            );
+
+            if (existing) {
+              await updateClassOccurrence(existing.$id, {
+                status: "cancelled",
+                cancellation_reason: reason,
+                attendance: null,
+                attendance_marked_at: null,
+                attendance_note: null,
+              });
+            } else {
+              await addClassOccurrence({
+                subject_id: subject.$id,
+                schedule_id: schedule.$id,
+                date,
+                start_time: schedule.start_time,
+                end_time: schedule.end_time,
+                status: "cancelled",
+                cancellation_reason: reason,
+                rescheduled_to: null,
+                attendance: null,
+                attendance_marked_at: null,
+                attendance_note: null,
+                is_extra_class: false,
+              });
+            }
+            affected += 1;
+          }
+        }
+      }
+
+      return affected;
+    },
+    [addClassOccurrence, classOccurrences, getSchedulesBySubject, holidayTag, listDatesInRange, subjects, updateClassOccurrence]
+  );
+
+  const resetPeriodForm = useCallback(() => {
+    setPeriodName("");
+    setPeriodType("holiday");
+    setPeriodStartDate(semester?.start_date ?? "");
+    setPeriodEndDate(semester?.start_date ?? "");
+    setEditingPeriodId(null);
+  }, [semester?.start_date]);
 
   // Set this semester's accent color
   useEffect(() => {
     if (semester) {
       setAccentColor(semester.color);
+      if (!periodStartDate) {
+        setPeriodStartDate(semester.start_date);
+      }
+      if (!periodEndDate) {
+        setPeriodEndDate(semester.start_date);
+      }
     }
-  }, [semester, setAccentColor]);
+  }, [semester, setAccentColor, periodStartDate, periodEndDate]);
 
   const handleDeleteSemester = async () => {
     if (!semester) return;
@@ -88,6 +239,78 @@ export default function SemesterDetailPage(): React.ReactNode {
       refetch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete subject");
+    }
+  };
+
+  const handleSaveNoClassPeriod = async (): Promise<boolean> => {
+    if (!periodName.trim()) {
+      toast.error("Please enter a name");
+      return false;
+    }
+    if (!periodStartDate || !periodEndDate) {
+      toast.error("Please choose start and end dates");
+      return false;
+    }
+    if (periodStartDate > periodEndDate) {
+      toast.error("End date must be on or after start date");
+      return false;
+    }
+
+    try {
+      if (editingPeriodId) {
+        await removeHolidayCancellations(editingPeriodId);
+        await updateHoliday(editingPeriodId, {
+          name: periodName.trim(),
+          date: periodStartDate,
+          date_end: periodStartDate === periodEndDate ? null : periodEndDate,
+          description: toPeriodDescription(periodType, periodType === "exam-time" ? "exam-time" : "holiday"),
+        });
+        const updatedCount = await applyHolidayCancellations(editingPeriodId, periodName.trim(), periodStartDate, periodEndDate);
+        toast.success(`Updated period. ${updatedCount} classes marked cancelled.`);
+      } else {
+        const created = await addHoliday({
+          name: periodName.trim(),
+          date: periodStartDate,
+          date_end: periodStartDate === periodEndDate ? null : periodEndDate,
+          description: toPeriodDescription(periodType, periodType === "exam-time" ? "exam-time" : "holiday"),
+          deleted_at: null,
+        });
+        const createdCount = await applyHolidayCancellations(created.$id, periodName.trim(), periodStartDate, periodEndDate);
+        toast.success(`No-class period created. ${createdCount} classes cancelled.`);
+      }
+
+      await refetch();
+      resetPeriodForm();
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save no-class period");
+      return false;
+    }
+  };
+
+  const handleEditNoClassPeriod = (holidayId: string): void => {
+    const target = semesterHolidays.find((holiday) => holiday.$id === holidayId);
+    if (!target) return;
+    const meta = parsePeriodMeta(target.description);
+    setEditingPeriodId(target.$id);
+    setPeriodName(target.name);
+    setPeriodType(meta.kind);
+    setPeriodStartDate(target.date);
+    setPeriodEndDate(target.date_end ?? target.date);
+    setIsNoClassModalOpen(true);
+  };
+
+  const handleDeleteNoClassPeriod = async (holidayId: string): Promise<void> => {
+    try {
+      await removeHolidayCancellations(holidayId);
+      await deleteHoliday(holidayId);
+      await refetch();
+      if (editingPeriodId === holidayId) {
+        resetPeriodForm();
+      }
+      toast.success("No-class period deleted");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete no-class period");
     }
   };
 
@@ -213,6 +436,9 @@ export default function SemesterDetailPage(): React.ReactNode {
                 <h1 className="text-2xl md:text-3xl font-bold text-foreground">
                   {semester.name}
                 </h1>
+                <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-white/10 text-foreground">
+                  Total Credits: {totalCredits}
+                </span>
                 <span
                   className="px-2.5 py-1 text-xs font-medium rounded-full capitalize"
                   style={{
@@ -270,6 +496,73 @@ export default function SemesterDetailPage(): React.ReactNode {
             </motion.div>
           </div>
         </div>
+
+        <motion.div
+          className="glass-card rounded-2xl p-6 mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.16 }}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">No-Class Periods</h2>
+              <p className="text-sm text-muted-foreground">
+                Add holidays and exam-time ranges. Classes in these dates are automatically cancelled.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                resetPeriodForm();
+                setIsNoClassModalOpen(true);
+              }}
+              className="interactive-surface interactive-focus inline-flex items-center gap-2 rounded-xl px-4 py-2.5 bg-[rgba(var(--accent-rgb),0.2)] hover:bg-[rgba(var(--accent-rgb),0.3)] text-[rgb(var(--accent))] text-sm font-medium transition-all"
+            >
+              <Sparkles className="w-4 h-4" />
+              Add No-Class Period
+            </button>
+          </div>
+
+          {semesterHolidays.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No no-class periods added yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {semesterHolidays.map((holiday) => {
+                const meta = parsePeriodMeta(holiday.description);
+                return (
+                  <div key={holiday.$id} className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/3">
+                    <div>
+                      <p className="text-sm text-foreground">{holiday.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {meta.kind === "exam-time" ? "Exam Time" : "Holiday"} • {holiday.date}
+                        {holiday.date_end ? ` to ${holiday.date_end}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEditNoClassPeriod(holiday.$id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteNoClassPeriod(holiday.$id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-xs text-red-400 transition-colors"
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </motion.div>
 
         {/* Subjects section */}
         <div className="mb-6">
@@ -335,63 +628,13 @@ export default function SemesterDetailPage(): React.ReactNode {
           )}
         </div>
 
-        {/* Quick stats (if subjects exist) */}
-        {subjects.length > 0 && (
-          <motion.div
-            className="grid grid-cols-2 md:grid-cols-4 gap-4"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            {/* Total credits */}
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-              <p className="text-2xl font-bold text-foreground">
-                {subjects.reduce((sum, s) => sum + s.credits, 0)}
-              </p>
-              <p className="text-xs text-muted-foreground">Total Credits</p>
-            </div>
+        <PersistentNotepad
+          storageKey={`classey:notepad:semester:${semesterId}`}
+          title="Semester Notepad"
+          placeholder="Write anything about this semester..."
+          className="mb-8"
+        />
 
-            {/* Average attendance */}
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-              <p className="text-2xl font-bold text-foreground">
-                {subjects.length > 0
-                  ? Math.round(
-                      subjects.reduce(
-                        (sum, s) => sum + (getAttendanceStats(s.$id, s.attendance_requirement_percent ?? 75)?.percentage || 0),
-                        0
-                      ) / subjects.length
-                    )
-                  : 0}
-                %
-              </p>
-              <p className="text-xs text-muted-foreground">Avg Attendance</p>
-            </div>
-
-            {/* Subjects on track */}
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-              <p className="text-2xl font-bold text-emerald-400">
-                {subjects.filter((s) => {
-                  const stats = getAttendanceStats(s.$id, s.attendance_requirement_percent ?? 75);
-                  const req = s.attendance_requirement_percent ?? 75;
-                  return stats && stats.percentage >= req;
-                }).length}
-              </p>
-              <p className="text-xs text-muted-foreground">On Track</p>
-            </div>
-
-            {/* Subjects at risk */}
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-              <p className="text-2xl font-bold text-amber-400">
-                {subjects.filter((s) => {
-                  const stats = getAttendanceStats(s.$id, s.attendance_requirement_percent ?? 75);
-                  const req = s.attendance_requirement_percent ?? 75;
-                  return stats && stats.percentage < req;
-                }).length}
-              </p>
-              <p className="text-xs text-muted-foreground">Needs Attention</p>
-            </div>
-          </motion.div>
-        )}
       </div>
 
       {/* Create Subject Modal */}
@@ -400,6 +643,8 @@ export default function SemesterDetailPage(): React.ReactNode {
         onClose={() => setIsCreateSubjectOpen(false)}
         semesterId={semesterId}
         semesterColor={semester.color}
+        semesterStartDate={semester.start_date}
+        semesterEndDate={semester.end_date}
       />
 
       {/* Edit Semester Modal */}
@@ -433,6 +678,83 @@ export default function SemesterDetailPage(): React.ReactNode {
         onConfirm={handleDeleteSubject}
         onCancel={() => setDeleteSubjectTarget(null)}
       />
+
+      {isNoClassModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close no-class modal"
+            onClick={() => setIsNoClassModalOpen(false)}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ type: "spring", stiffness: 400, damping: 35 }}
+            className="relative z-10 w-full max-w-xl rounded-3xl border border-white/12 bg-[var(--glass-bg-elevated)] p-6 backdrop-blur-2xl"
+          >
+            <h3 className="text-lg font-semibold text-foreground mb-1">
+              {editingPeriodId ? "Edit No-Class Period" : "Create No-Class Period"}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Classes in this date range will be cancelled automatically.
+            </p>
+
+            <div className="space-y-3">
+              <ThemedSelect
+                value={periodType}
+                onChange={(value) => setPeriodType(value as "holiday" | "exam-time")}
+                options={[
+                  { value: "holiday", label: "Holiday" },
+                  { value: "exam-time", label: "Exam Time" },
+                ]}
+              />
+              <input
+                value={periodName}
+                onChange={(event) => setPeriodName(event.target.value)}
+                placeholder={periodType === "exam-time" ? "Exam Preparation Week" : "Holiday name"}
+                className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)]"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">Start date</p>
+                  <ThemedDateInput value={periodStartDate} onChange={setPeriodStartDate} />
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">End date</p>
+                  <ThemedDateInput value={periodEndDate} onChange={setPeriodEndDate} />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsNoClassModalOpen(false);
+                  resetPeriodForm();
+                }}
+                className="px-4 py-2.5 rounded-xl bg-white/8 hover:bg-white/12 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const ok = await handleSaveNoClassPeriod();
+                  if (ok) {
+                    setIsNoClassModalOpen(false);
+                  }
+                }}
+                className="px-4 py-2.5 rounded-xl bg-[rgba(var(--accent),0.18)] hover:bg-[rgba(var(--accent),0.28)] text-[rgb(var(--accent))] text-sm font-medium transition-colors"
+              >
+                {editingPeriodId ? "Update Period" : "Create Period"}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      ) : null}
 
     </motion.main>
   );

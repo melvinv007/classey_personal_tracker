@@ -19,14 +19,16 @@ import {
   Calendar,
   FileText,
   CheckSquare,
-  BookOpen
+  BookOpen,
+  LogOut
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { 
   useThemeStore, 
   type BackgroundStyle, 
-  type FontFamily,
+  type FontFamily, type UIStyle,
+  toUIStyleToken,
   backgroundDisplayNames 
 } from "@/stores/theme-store";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
@@ -36,12 +38,30 @@ import { ConfirmActionModal } from "@/components/modals/ConfirmActionModal";
 import { useSettings, useUpdateSettings } from "@/hooks/use-appwrite";
 import type { ReminderOffset, Settings } from "@/types/database";
 import { parseReminderOffsetsJson, serializeReminderOffsetsJson } from "@/lib/appwrite-db";
+import { cn } from "@/lib/utils";
 
 /**
  * Settings page - Appearance and Notification preferences
  */
 export default function SettingsPage(): React.ReactNode {
   const [activeTab, setActiveTab] = useState<"appearance" | "notifications">("appearance");
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async (): Promise<void> => {
+    setIsLoggingOut(true);
+    try {
+      const response = await fetch("/api/auth", { method: "DELETE" });
+      if (!response.ok) {
+        throw new Error("Failed to logout");
+      }
+      window.location.href = "/login";
+    } catch (error) {
+      console.error("Logout failed:", error);
+      toast.error("Failed to logout");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <div className="min-h-screen p-4 pb-24 md:p-6 md:pb-6">
@@ -63,6 +83,15 @@ export default function SettingsPage(): React.ReactNode {
             Customize your Classey experience
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => { void handleLogout(); }}
+          disabled={isLoggingOut}
+          className="ml-auto inline-flex items-center gap-2 rounded-xl btn-muted-themed px-3 py-2 text-sm font-medium text-red-400 disabled:opacity-50"
+        >
+          {isLoggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+          Logout
+        </button>
       </motion.div>
 
       {/* Tabs */}
@@ -122,9 +151,11 @@ function AppearanceSettings(): React.ReactNode {
     setFontFamily,
     accentColor,
     setAccentColor,
+    uiStyle,
+    setUIStyle,
   } = useThemeStore();
 
-  const backgrounds: BackgroundStyle[] = ["dotted", "boxes", "dot-pattern", "aurora", "beams", "animated-grid"];
+  const backgrounds: BackgroundStyle[] = ["spooky-smoke", "dotted", "boxes", "dot-pattern", "noise-grid"];
 
   const accentOptions = [
     "#8b5cf6",
@@ -143,6 +174,15 @@ function AppearanceSettings(): React.ReactNode {
     { value: "nunito", label: "Nunito" },
     { value: "poppins", label: "Poppins" },
     { value: "quicksand", label: "Quicksand" },
+  ];
+  const uiStyleOptions: { value: UIStyle; label: string; description: string }[] = [
+    { value: "classic-glass", label: "Classic Glass", description: "Current style with clean glass surfaces." },
+    { value: "organic-glass", label: "Organic Glass", description: "Richer depth, stronger hover, softer premium motion." },
+    { value: "frosted-prism-glass", label: "Frosted Prism", description: "Subtle chromatic edge refraction with premium glow." },
+    { value: "liquid-glass", label: "Liquid Glass", description: "Soft inner distortion and caustic-like highlights." },
+    { value: "layered-pane-glass", label: "Layered Pane", description: "Foreground/background pane depth for spatial hierarchy." },
+    { value: "iridescent-glass", label: "Iridescent Glass", description: "Angle-shifting tint with vivid hover response." },
+    { value: "smoked-matte-glass", label: "Smoked Matte", description: "Low-gloss, high-legibility glass for dense content." },
   ];
   const updateSettings = useUpdateSettings();
 
@@ -179,7 +219,7 @@ function AppearanceSettings(): React.ReactNode {
             void commitAppearance({ theme_mode: nextMode });
           }}
           type="button"
-          className="flex w-full items-center justify-between rounded-xl bg-muted p-4 transition-colors hover:bg-muted/80"
+          className="flex w-full items-center justify-between rounded-xl btn-muted-themed p-4 interactive-focus"
         >
           <span className="font-medium capitalize">{mode} Mode</span>
           <div className="flex h-8 w-14 items-center rounded-full bg-accent/20 p-1">
@@ -190,6 +230,41 @@ function AppearanceSettings(): React.ReactNode {
             />
           </div>
         </button>
+      </div>
+
+      {/* UI Style */}
+      <div className="glass-card p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <Sparkles className="h-5 w-5 text-accent" />
+          <div>
+            <h3 className="font-semibold">UI Style</h3>
+            <p className="text-sm text-muted-foreground">
+              Switch between classic and premium organic interaction design.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {uiStyleOptions.map((style) => (
+            <button
+              key={style.value}
+              onClick={() => {
+                setUIStyle(style.value);
+                void commitAppearance({ background_custom_css: toUIStyleToken(style.value) });
+              }}
+              type="button"
+              className={cn(
+                "rounded-xl border px-4 py-3 text-left transition-all",
+                "interactive-surface interactive-focus",
+                uiStyle === style.value
+                  ? "border-accent bg-accent/10"
+                  : "border-border bg-muted hover:border-accent/50"
+              )}
+            >
+              <p className="text-sm font-semibold text-foreground">{style.label}</p>
+              <p className="text-xs text-muted-foreground mt-1">{style.description}</p>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Background Style */}
@@ -215,7 +290,7 @@ function AppearanceSettings(): React.ReactNode {
                 background === bg
                   ? "border-accent bg-accent/10 text-accent"
                   : "border-border bg-muted hover:border-accent/50"
-              }`}
+              } interactive-surface interactive-focus`}
               type="button"
             >
               {backgroundDisplayNames[bg]}
@@ -446,7 +521,7 @@ function NotificationSettings(): React.ReactNode {
               <button
                 onClick={handleVerifyChatId}
                 disabled={isVerifying}
-                className="flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition-opacity disabled:opacity-50"
+                 className="flex items-center gap-2 rounded-xl btn-themed px-4 py-2.5 text-sm font-medium transition-opacity disabled:opacity-50"
               >
                 {isVerifying ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -467,7 +542,7 @@ function NotificationSettings(): React.ReactNode {
                 <button
                   onClick={handleTestNotification}
                   disabled={isTesting}
-                  className="flex items-center gap-1 rounded-lg bg-accent/20 px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent/30"
+                   className="flex items-center gap-1 rounded-lg btn-themed px-3 py-1.5 text-sm font-medium transition-colors"
                 >
                   {isTesting ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -478,7 +553,7 @@ function NotificationSettings(): React.ReactNode {
                 </button>
                 <button
                   onClick={handleDisconnect}
-                  className="flex items-center gap-1 rounded-lg bg-destructive/20 px-3 py-1.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/30"
+                   className="flex items-center gap-1 rounded-lg btn-muted-themed px-3 py-1.5 text-sm font-medium text-destructive transition-colors"
                 >
                   <XCircle className="h-3 w-3" />
                   Disconnect

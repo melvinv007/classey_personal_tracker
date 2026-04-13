@@ -114,7 +114,7 @@ export function ThemedColorPicker({ value, onChange, colors, className }: Themed
         <button
           type="button"
           className={cn(
-            "inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/6 px-3 py-2 text-foreground transition-colors hover:bg-white/10",
+            "inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/6 px-3 py-2 text-foreground transition-colors hover:bg-white/10 interactive-surface interactive-focus",
             className
           )}
         >
@@ -134,7 +134,7 @@ export function ThemedColorPicker({ value, onChange, colors, className }: Themed
                 key={color}
                 type="button"
                 onClick={() => onChange(color)}
-                className="relative h-8 w-8 rounded-lg border border-white/15"
+                className="relative h-8 w-8 rounded-lg border border-white/15 interactive-surface interactive-focus"
                 style={{ backgroundColor: color }}
               >
                 {value.toLowerCase() === color.toLowerCase() && (

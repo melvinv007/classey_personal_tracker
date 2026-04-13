@@ -6,7 +6,10 @@ import {
   fontFamilyMap,
   type ThemeMode,
   type FontFamily,
+  type UIStyle,
   isBackgroundStyle,
+  parseUIStyleToken,
+  isUIStyle,
 } from "@/stores/theme-store";
 import { hexToRgbString, hexToRgbComma } from "@/lib/utils";
 import { useSettings } from "@/hooks/use-appwrite";
@@ -31,7 +34,8 @@ const useIsomorphicLayoutEffect = useEffect;
 function applyTheme(
   mode: ThemeMode,
   accentColor: string,
-  fontFamily: FontFamily
+  fontFamily: FontFamily,
+  uiStyle: UIStyle
 ): void {
   const root = document.documentElement;
   const body = document.body;
@@ -54,6 +58,7 @@ function applyTheme(
   const b = parseInt(accentColor.slice(5, 7), 16);
   const hoverRgb = `${Math.max(0, r - 15)} ${Math.max(0, g - 15)} ${Math.max(0, b - 15)}`;
   root.style.setProperty("--accent-hover", hoverRgb);
+  root.setAttribute("data-ui-style", uiStyle);
 
   // Apply font family
   body.style.fontFamily = fontFamilyMap[fontFamily];
@@ -68,16 +73,28 @@ function applyTheme(
  * Must wrap the entire app.
  */
 export function ThemeProvider({ children }: ThemeProviderProps): React.ReactNode {
-  const { mode, accentColor, fontFamily, background, hydrated, setMode, setAccentColor, setFontFamily, setBackground } =
+  const {
+    mode,
+    accentColor,
+    fontFamily,
+    background,
+    uiStyle,
+    hydrated,
+    setMode,
+    setAccentColor,
+    setFontFamily,
+    setBackground,
+    setUIStyle,
+  } =
     useThemeStore();
   const { data: settings } = useSettings();
 
   // Apply theme on mount and when values change
   useIsomorphicLayoutEffect(() => {
     if (hydrated) {
-      applyTheme(mode, accentColor, fontFamily);
+      applyTheme(mode, accentColor, fontFamily, uiStyle);
     }
-  }, [mode, accentColor, fontFamily, hydrated]);
+  }, [mode, accentColor, fontFamily, uiStyle, hydrated]);
 
   useIsomorphicLayoutEffect(() => {
     if (!hydrated || !settings) return;
@@ -91,13 +108,17 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.ReactNode
     if (isBackgroundStyle(settings.background_style) && settings.background_style !== background) {
       setBackground(settings.background_style);
     }
+    const parsedStyle = parseUIStyleToken(settings.background_custom_css);
+    if (parsedStyle && parsedStyle !== uiStyle && isUIStyle(parsedStyle)) {
+      setUIStyle(parsedStyle);
+    }
     if (settings.font_family !== storeFontTitle) {
       const next = settings.font_family.toLowerCase();
       if (next === "nunito" || next === "poppins" || next === "quicksand") {
         setFontFamily(next);
       }
     }
-  }, [hydrated, settings, mode, accentColor, background, fontFamily, setAccentColor, setBackground, setFontFamily, setMode]);
+  }, [hydrated, settings, mode, accentColor, background, fontFamily, uiStyle, setAccentColor, setBackground, setFontFamily, setMode, setUIStyle]);
 
   // Handle initial theme application before hydration
   useIsomorphicLayoutEffect(() => {

@@ -16,6 +16,8 @@
   --fc-neutral-bg-color: rgba(var(--foreground), 0.05);
   --fc-now-indicator-color: rgb(var(--accent));
   color: rgb(var(--foreground));
+  --fc-ui-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  --fc-ui-event-radius: 10px;
 }
 
 /* Time grid */
@@ -67,17 +69,17 @@
 
 /* Events */
 .classey-time-calendar .fc-event {
-  border-radius: 0.5rem;
+  border-radius: var(--fc-ui-event-radius);
   border-width: 1px;
   border-left-width: 3px;
   cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, background-color 0.15s;
   min-height: 0;
 }
 
 .classey-time-calendar .fc-event:hover {
   transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--fc-ui-shadow);
   z-index: 10 !important;
 }
 
@@ -194,6 +196,36 @@
   border-radius: 1rem;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
   color: rgb(var(--foreground));
+}
+
+[data-ui-style="organic-glass"] .fc {
+  --fc-today-bg-color: rgba(var(--accent-rgb), 0.12);
+  --fc-event-bg-color: rgba(var(--accent-rgb), 0.22);
+  --fc-ui-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.26),
+    0 0 0 1px rgba(var(--accent-rgb), 0.3),
+    0 0 24px rgba(var(--accent-rgb), 0.2);
+  --fc-ui-event-radius: 12px;
+}
+
+[data-ui-style="organic-glass"] .fc-col-header-cell {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0.03)
+  );
+}
+
+[data-ui-style="organic-glass"] .classey-time-calendar .fc-timegrid-col.fc-day-today {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--accent-rgb), 0.12),
+    rgba(var(--accent-rgb), 0.03)
+  );
+}
+
+[data-ui-style="organic-glass"] .classey-time-calendar .fc-event:hover {
+  transform: translateY(-1px) scale(1.03);
 }
 
 .fc-popover-header {

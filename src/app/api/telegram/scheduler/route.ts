@@ -23,14 +23,13 @@ function toSettings(doc: Record<string, unknown>): Settings {
     user_id: String(doc.user_id ?? "default-user"),
     theme_mode: doc.theme_mode === "light" ? "light" : "dark",
     background_style:
+      doc.background_style === "spooky-smoke" ||
       doc.background_style === "dotted" ||
       doc.background_style === "boxes" ||
       doc.background_style === "dot-pattern" ||
-      doc.background_style === "aurora" ||
-      doc.background_style === "beams" ||
-      doc.background_style === "animated-grid"
+      doc.background_style === "noise-grid"
         ? doc.background_style
-        : "dotted",
+        : "spooky-smoke",
     background_custom_css: typeof doc.background_custom_css === "string" ? doc.background_custom_css : null,
     font_family: typeof doc.font_family === "string" ? doc.font_family : "Nunito",
     accent_color_default: typeof doc.accent_color_default === "string" ? doc.accent_color_default : "#8B5CF6",
@@ -203,11 +202,25 @@ function getReminderDateTimeForTask(task: Task): Date | null {
 
 function buildExamMessage(exam: Exam, subject?: Subject): string {
   const subjectName = subject?.short_name ?? subject?.name ?? "Subject";
-  return `📚 <b>Exam Reminder</b>\n\n<b>${exam.name}</b>\nSubject: ${subjectName}\nDate: ${exam.date}${exam.start_time ? ` ${exam.start_time}` : ""}`;
+  const examType = exam.type === "assignment" ? "Assignment" : "Exam";
+  return `📚 <b>${examType} Reminder</b>\n\nType: <b>${examType}</b>\n<b>${exam.name}</b>\nSubject: ${subjectName}\nDate: ${exam.date}${exam.start_time ? ` ${exam.start_time}` : ""}`;
 }
 
-function buildTaskMessage(task: Task): string {
-  return `✅ <b>Task Reminder</b>\n\n<b>${task.title}</b>\n${task.deadline ? `Due: ${new Date(task.deadline).toLocaleString()}` : "No deadline"}`;
+function formatInTimezone(iso: string, timezone: string): string {
+  const date = new Date(iso);
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function buildTaskMessage(task: Task, timezone: string): string {
+  return `✅ <b>Task Reminder</b>\n\nType: <b>Task</b>\n<b>${task.title}</b>\n${task.deadline ? `Due: ${formatInTimezone(task.deadline, timezone)}` : "No deadline"}`;
 }
 
 function dedupeKey(entityType: EntityType, entityId: string, offset: ReminderOffset, targetDateTimeIso: string): string {
@@ -307,9 +320,12 @@ async function syncExamReminderJobs(settings: Settings, examId: string): Promise
   if (!exam || exam.deleted_at || exam.status !== "upcoming" || !isExamTelegramEnabled(settings, exam)) return 0;
   const examDateTime = getReminderDateTimeForExam(exam);
   if (!examDateTime) return 0;
-  const offsets = parseReminderOffsetsJson(exam.reminder_offsets_json).length > 0
-    ? parseReminderOffsetsJson(exam.reminder_offsets_json)
-    : parseReminderOffsetsJson(settings.exam_default_reminder_offsets_json);
+  const examOffsets = parseReminderOffsetsJson(exam.reminder_offsets_json);
+  const defaultOffsets = parseReminderOffsetsJson(settings.exam_default_reminder_offsets_json);
+  const offsets = examOffsets.length > 0 ? examOffsets : defaultOffsets;
+  if (offsets.length === 0) {
+    offsets.push({ value: 24, unit: "hours" });
+  }
   let created = 0;
   for (const offset of offsets) {
     const scheduledAt = new Date(examDateTime.getTime() - toMs(offset));
@@ -327,9 +343,12 @@ async function syncTaskReminderJobs(settings: Settings, taskId: string): Promise
   if (!task || task.deleted_at || task.is_completed) return 0;
   const taskDateTime = getReminderDateTimeForTask(task);
   if (!taskDateTime) return 0;
-  const offsets = parseReminderOffsetsJson(task.reminder_offsets_json).length > 0
-    ? parseReminderOffsetsJson(task.reminder_offsets_json)
-    : parseReminderOffsetsJson(settings.task_default_reminder_offsets_json);
+  const taskOffsets = parseReminderOffsetsJson(task.reminder_offsets_json);
+  const defaultOffsets = parseReminderOffsetsJson(settings.task_default_reminder_offsets_json);
+  const offsets = taskOffsets.length > 0 ? taskOffsets : defaultOffsets;
+  if (offsets.length === 0) {
+    offsets.push({ value: 24, unit: "hours" });
+  }
   let created = 0;
   for (const offset of offsets) {
     const scheduledAt = new Date(taskDateTime.getTime() - toMs(offset));
@@ -427,7 +446,7 @@ async function processDueJobs(settings: Settings): Promise<{ sent: number; retri
       await markLogSuccess(log.$id, "Skipped task reminder", "entity-ineligible");
       continue;
     }
-    const taskMessage = buildTaskMessage(task);
+    const taskMessage = buildTaskMessage(task, settings.timezone || "Asia/Kolkata");
     const taskResult = await sendTelegramMessage({ chat_id: settings.telegram_bot_chat_id, text: taskMessage });
     if (taskResult.ok) {
       sent += 1;
@@ -439,6 +458,31 @@ async function processDueJobs(settings: Settings): Promise<{ sent: number; retri
   }
 
   return { sent, retried, skipped, due: dueDocs.total };
+}
+
+async function syncAllReminderJobs(settings: Settings): Promise<number> {
+  let created = 0;
+  const exams = await databases.listDocuments(DATABASE_ID, COLLECTIONS.EXAMS, [
+    Query.isNull("deleted_at"),
+    Query.equal("status", "upcoming"),
+    Query.limit(500),
+  ]);
+  for (const raw of exams.documents) {
+    const exam = toExam(raw as Record<string, unknown>);
+    created += await syncExamReminderJobs(settings, exam.$id);
+  }
+
+  const tasks = await databases.listDocuments(DATABASE_ID, COLLECTIONS.TASKS, [
+    Query.isNull("deleted_at"),
+    Query.equal("is_completed", false),
+    Query.limit(500),
+  ]);
+  for (const raw of tasks.documents) {
+    const task = toTask(raw as Record<string, unknown>);
+    created += await syncTaskReminderJobs(settings, task.$id);
+  }
+
+  return created;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -477,30 +521,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (action === "sync-all") {
-      let created = 0;
-      const exams = await databases.listDocuments(DATABASE_ID, COLLECTIONS.EXAMS, [
-        Query.isNull("deleted_at"),
-        Query.equal("status", "upcoming"),
-        Query.limit(500),
-      ]);
-      for (const raw of exams.documents) {
-        const exam = toExam(raw as Record<string, unknown>);
-        created += await syncExamReminderJobs(settings, exam.$id);
-      }
-      const tasks = await databases.listDocuments(DATABASE_ID, COLLECTIONS.TASKS, [
-        Query.isNull("deleted_at"),
-        Query.equal("is_completed", false),
-        Query.limit(500),
-      ]);
-      for (const raw of tasks.documents) {
-        const task = toTask(raw as Record<string, unknown>);
-        created += await syncTaskReminderJobs(settings, task.$id);
-      }
+      const created = await syncAllReminderJobs(settings);
       return NextResponse.json({ success: true, action, created });
     }
 
+    const synced = await syncAllReminderJobs(settings);
     const result = await processDueJobs(settings);
-    return NextResponse.json({ success: true, action: "run-due", ...result });
+    return NextResponse.json({ success: true, action: "run-due", synced, ...result });
   } catch (error) {
     console.error("Telegram scheduler error:", error);
     return NextResponse.json(

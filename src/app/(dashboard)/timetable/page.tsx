@@ -14,8 +14,8 @@ const TIME_SLOTS = Array.from({ length: 24 }, (_, hour) =>
   `${String(hour).padStart(2, "0")}:00`
 );
 
-// Days of the week (1-6, Monday to Saturday)
-const DAYS = [1, 2, 3, 4, 5, 6] as const;
+// Days of the week (1-7, Monday to Sunday)
+const DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 
 interface TimetableEvent {
   id: string;
@@ -142,13 +142,14 @@ export default function TimetablePage() {
       <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-30 backdrop-blur-xl bg-background/80 border-b border-white/10"
+        className="sticky top-0 z-30 border-b border-[var(--glass-border-elevated)] backdrop-blur-[var(--glass-blur-elevated)]"
+        style={{ background: "var(--glass-bg-elevated)" }}
       >
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <Link
               href="/"
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+              className="p-2 rounded-xl btn-muted-themed interactive-focus"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
@@ -168,74 +169,78 @@ export default function TimetablePage() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden"
+          className="glass-card overflow-hidden"
         >
-          {/* Day headers */}
-          <div className="grid grid-cols-[60px_repeat(6,1fr)] border-b border-white/10">
-            <div className="p-3 text-center text-sm text-white/30">Time</div>
-            {DAYS.map((day) => (
-              <motion.div
-                key={day}
-                variants={itemVariants}
-                className={cn(
-                  "p-3 text-center text-sm font-medium border-l border-white/10",
-                  day === currentDay && "bg-[rgba(var(--accent),0.1)]"
-                )}
-              >
-                <span className={cn(
-                  day === currentDay && "text-[rgb(var(--accent))]"
-                )}>
-                  {DAY_SHORT_NAMES[day]}
-                </span>
-                {day === currentDay && (
-                  <div className="text-xs text-white/50 mt-0.5">Today</div>
-                )}
-              </motion.div>
-            ))}
-          </div>
+          <div className="overflow-x-auto">
+            <div className="min-w-[860px]">
+              {/* Day headers */}
+              <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-white/10">
+                <div className="p-3 text-center text-sm text-white/30">Time</div>
+                {DAYS.map((day) => (
+                  <motion.div
+                    key={day}
+                    variants={itemVariants}
+                    className={cn(
+                      "p-3 text-center text-sm font-medium border-l border-white/10",
+                      day === currentDay && "bg-[rgba(var(--accent),0.1)]"
+                    )}
+                  >
+                    <span className={cn(
+                      day === currentDay && "text-[rgb(var(--accent))]"
+                    )}>
+                      {DAY_SHORT_NAMES[day]}
+                    </span>
+                    {day === currentDay && (
+                      <div className="text-xs text-white/50 mt-0.5">Today</div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
 
-          {/* Time grid */}
-          <div ref={scrollRef} className="max-h-[72vh] overflow-y-auto">
-            <div className="grid grid-cols-[64px_repeat(6,1fr)]">
-            {/* Time labels */}
-            <div className="relative">
-              {TIME_SLOTS.map((time) => (
-                <div
-                  key={time}
-                  className="border-b border-white/8 flex items-start justify-center pt-1"
-                  style={{ height: `${HOUR_ROW_HEIGHT}px` }}
-                >
-                  <span className="text-xs text-white/40">{time}</span>
+              {/* Time grid */}
+              <div ref={scrollRef} className="max-h-[72vh] overflow-y-auto">
+                <div className="grid grid-cols-[64px_repeat(7,1fr)]">
+                {/* Time labels */}
+                <div className="relative">
+                  {TIME_SLOTS.map((time) => (
+                    <div
+                      key={time}
+                      className="border-b border-white/8 flex items-start justify-center pt-1"
+                      style={{ height: `${HOUR_ROW_HEIGHT}px` }}
+                    >
+                      <span className="text-xs text-white/40">{time}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* Day columns */}
-            {DAYS.map((day) => (
-              <motion.div
-                key={day}
-                variants={itemVariants}
-                className={cn(
-                  "relative border-l border-white/10",
-                  day === currentDay && "bg-[rgba(var(--accent),0.03)]"
-                )}
-                style={{ height: `${TIME_SLOTS.length * HOUR_ROW_HEIGHT}px` }}
-              >
-                {/* Hour grid lines */}
-                {TIME_SLOTS.map((_, i) => (
-                  <div
-                    key={i}
-                    className="absolute left-0 right-0 border-b border-white/8"
-                    style={{ top: `${(i + 1) * HOUR_ROW_HEIGHT}px` }}
-                  />
-                ))}
+                {/* Day columns */}
+                {DAYS.map((day) => (
+                  <motion.div
+                    key={day}
+                    variants={itemVariants}
+                    className={cn(
+                      "relative border-l border-white/10",
+                      day === currentDay && "bg-[rgba(var(--accent),0.03)]"
+                    )}
+                    style={{ height: `${TIME_SLOTS.length * HOUR_ROW_HEIGHT}px` }}
+                  >
+                    {/* Hour grid lines */}
+                    {TIME_SLOTS.map((_, i) => (
+                      <div
+                        key={i}
+                        className="absolute left-0 right-0 border-b border-white/8"
+                        style={{ top: `${(i + 1) * HOUR_ROW_HEIGHT}px` }}
+                      />
+                    ))}
 
-                {/* Events */}
-                {eventsByDay[day]?.map((event) => (
-                  <TimetableEventCard key={event.id} event={event} />
+                    {/* Events */}
+                    {eventsByDay[day]?.map((event) => (
+                      <TimetableEventCard key={event.id} event={event} />
+                    ))}
+                  </motion.div>
                 ))}
-              </motion.div>
-            ))}
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>

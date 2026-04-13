@@ -11,7 +11,7 @@ interface DotParticle {
 }
 
 /**
- * DottedBackground - Subtle animated dot pattern.
+ * DottedBackground - subtle animated dotted surface.
  */
 export function DottedBackground(): React.ReactNode {
   const fract = (value: number): number => value - Math.floor(value);

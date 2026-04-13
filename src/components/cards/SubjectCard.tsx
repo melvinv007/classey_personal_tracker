@@ -103,7 +103,6 @@ export function SubjectCard({
 }: SubjectCardProps) {
   const router = useRouter();
 
-  // RGB for glow effect
   const accentRgb = hexToRgbComma(subject.color);
   const requirement = subject.attendance_requirement_percent ?? 75;
 
@@ -164,27 +163,13 @@ export function SubjectCard({
         onClick={handleClick}
       className={cn(
         "group interactive-surface interactive-glow relative cursor-pointer",
-        "bg-white/5 dark:bg-white/5",
-        "backdrop-blur-xl",
-        "border border-white/10",
+        "glass-card",
         "rounded-2xl p-4",
         "duration-200"
       )}
-      style={{
-        boxShadow: `
-          0 0 0 1px rgba(${accentRgb}, 0.3),
-          0 0 20px rgba(${accentRgb}, 0.15),
-          0 0 40px rgba(${accentRgb}, 0.05)
-        `,
-      }}
       whileHover={{
         scale: 1.02,
         y: -2,
-        boxShadow: `
-          0 0 0 1px rgba(${accentRgb}, 0.5),
-          0 0 30px rgba(${accentRgb}, 0.25),
-          0 0 60px rgba(${accentRgb}, 0.10)
-        `,
       }}
       whileTap={{ scale: 0.98 }}
     >
@@ -279,7 +264,7 @@ export function SubjectCard({
             e.stopPropagation();
             onEdit?.(subject);
           }}
-          className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors"
+          className="p-1.5 rounded-lg btn-muted-themed interactive-focus text-muted-foreground hover:text-foreground transition-colors"
           title="Edit subject"
         >
           <MoreHorizontal className="w-3.5 h-3.5" />

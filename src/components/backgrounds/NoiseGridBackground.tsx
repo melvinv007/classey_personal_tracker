@@ -86,6 +86,9 @@ export function NoiseGridBackground(): React.ReactNode {
           backgroundSize: "40px 40px",
         }}
       />
+
+      {/* Pointer ripple sheen */}
+      <div className="glass-ripple-overlay absolute inset-0" />
     </motion.div>
   );
 }

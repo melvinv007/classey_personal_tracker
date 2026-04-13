@@ -19,6 +19,7 @@ import type {
   Settings,
   NotificationLog,
   ReminderOffset,
+  Holiday,
 } from "@/types/database";
 
 type AppwriteDoc = object;
@@ -121,6 +122,19 @@ function parseReminderOffsetsJson(value: unknown): ReminderOffset[] {
 function serializeReminderOffsetsJson(offsets: ReminderOffset[] | null | undefined): string | null {
   if (!offsets || offsets.length === 0) return null;
   return JSON.stringify(offsets);
+}
+
+function extractUnknownAttributeKey(message: string): string | null {
+  const match = message.match(/Unknown attribute: "([^"]+)"/);
+  return match?.[1] ?? null;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return "";
 }
 
 /**
@@ -449,6 +463,45 @@ export const settingsService = {
     updateDocument<Settings>(COLLECTIONS.SETTINGS, id, data),
   create: (data: Record<string, unknown>) =>
     createDocument<Settings>(COLLECTIONS.SETTINGS, data),
+};
+
+// HOLIDAYS
+export const holidayService = {
+  list: (queries?: string[]) => listDocuments<Holiday>(COLLECTIONS.HOLIDAYS, queries),
+  get: (id: string) => getDocument<Holiday>(COLLECTIONS.HOLIDAYS, id),
+  create: async (data: Omit<Holiday, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) => {
+    const payload: Record<string, unknown> = { ...data };
+    for (let attempt = 0; attempt < 6; attempt++) {
+      try {
+        return await createDocument<Holiday>(COLLECTIONS.HOLIDAYS, payload);
+      } catch (error) {
+        const unknown = extractUnknownAttributeKey(getErrorMessage(error));
+        if (unknown && unknown in payload) {
+          delete payload[unknown];
+          continue;
+        }
+        throw error;
+      }
+    }
+    return createDocument<Holiday>(COLLECTIONS.HOLIDAYS, payload);
+  },
+  update: async (id: string, data: Partial<Holiday>) => {
+    const payload: Record<string, unknown> = { ...data };
+    for (let attempt = 0; attempt < 6; attempt++) {
+      try {
+        return await updateDocument<Holiday>(COLLECTIONS.HOLIDAYS, id, payload);
+      } catch (error) {
+        const unknown = extractUnknownAttributeKey(getErrorMessage(error));
+        if (unknown && unknown in payload) {
+          delete payload[unknown];
+          continue;
+        }
+        throw error;
+      }
+    }
+    return updateDocument<Holiday>(COLLECTIONS.HOLIDAYS, id, payload);
+  },
+  delete: (id: string) => softDeleteDocument<Holiday>(COLLECTIONS.HOLIDAYS, id),
 };
 
 export const notificationLogService = {

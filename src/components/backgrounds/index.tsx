@@ -2,22 +2,20 @@
 
 import { useThemeStore, type BackgroundStyle } from "@/stores/theme-store";
 import { DottedBackground } from "./DottedBackground";
-import { BoxesBackground } from "./BoxesBackground";
 import { DotPatternBackground } from "./DotPatternBackground";
-import { AuroraBackground } from "./AuroraBackground";
-import { BeamsBackground } from "./BeamsBackground";
+import { SpookySmokeBackground } from "./SpookySmokeBackground";
+import { NoiseGridBackground } from "./NoiseGridBackground";
 import { AnimatedGridBackground } from "./AnimatedGridBackground";
 
 /**
  * Background component map
  */
 const backgroundComponents: Record<BackgroundStyle, React.ComponentType> = {
+  "spooky-smoke": SpookySmokeBackground,
   dotted: DottedBackground,
-  boxes: BoxesBackground,
+  boxes: AnimatedGridBackground,
   "dot-pattern": DotPatternBackground,
-  aurora: AuroraBackground,
-  beams: BeamsBackground,
-  "animated-grid": AnimatedGridBackground,
+  "noise-grid": NoiseGridBackground,
 };
 
 /**
@@ -39,9 +37,9 @@ export function DynamicBackground(): React.ReactNode {
 }
 
 // Re-export individual backgrounds for direct use
+export { SpookySmokeBackground } from "./SpookySmokeBackground";
 export { DottedBackground } from "./DottedBackground";
 export { BoxesBackground } from "./BoxesBackground";
-export { DotPatternBackground } from "./DotPatternBackground";
-export { AuroraBackground } from "./AuroraBackground";
-export { BeamsBackground } from "./BeamsBackground";
 export { AnimatedGridBackground } from "./AnimatedGridBackground";
+export { DotPatternBackground } from "./DotPatternBackground";
+export { NoiseGridBackground } from "./NoiseGridBackground";

@@ -34,7 +34,7 @@ export function ThemedSelect({
       <Select.Trigger
         className={cn(
           "w-full inline-flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl",
-          "bg-white/6 border border-white/10 text-foreground",
+          "bg-white/6 border border-white/10 text-foreground interactive-surface interactive-focus",
           "focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)]",
           "transition-all disabled:opacity-50",
           className
@@ -67,7 +67,7 @@ export function ThemedSelect({
                 value={option.value}
                 className={cn(
                   "relative flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm",
-                  "text-foreground/90 cursor-pointer select-none outline-none",
+                  "text-foreground/90 cursor-pointer select-none outline-none interactive-surface",
                   "data-[highlighted]:bg-[rgba(var(--accent),0.15)] data-[highlighted]:text-foreground"
                 )}
               >

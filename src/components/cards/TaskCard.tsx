@@ -63,7 +63,7 @@ export function TaskCard({
       onClick={onClick}
       className={cn(
         "group relative rounded-xl p-4 cursor-pointer transition-all duration-200",
-        "bg-white/5 backdrop-blur-xl border border-white/10",
+        "glass-card interactive-surface interactive-glow",
         "hover:bg-white/8 hover:border-white/15",
         isCompleted && "opacity-60"
       )}
@@ -86,7 +86,7 @@ export function TaskCard({
             onToggleComplete?.();
           }}
           className={cn(
-            "flex-shrink-0 mt-0.5 transition-colors",
+            "flex-shrink-0 mt-0.5 transition-colors rounded-md interactive-focus",
             isCompleted ? "text-green-400" : "text-muted-foreground hover:text-accent"
           )}
         >

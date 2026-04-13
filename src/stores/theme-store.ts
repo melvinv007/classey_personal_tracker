@@ -10,17 +10,24 @@ export type ThemeMode = "dark" | "light";
  * Available background styles
  */
 export type BackgroundStyle =
+  | "spooky-smoke"
   | "dotted"
   | "boxes"
   | "dot-pattern"
-  | "aurora"
-  | "beams"
-  | "animated-grid";
+  | "noise-grid";
 
 /**
  * Available font families
  */
 export type FontFamily = "nunito" | "poppins" | "quicksand";
+export type UIStyle =
+  | "classic-glass"
+  | "organic-glass"
+  | "frosted-prism-glass"
+  | "liquid-glass"
+  | "layered-pane-glass"
+  | "iridescent-glass"
+  | "smoked-matte-glass";
 
 /**
  * Theme store state interface
@@ -34,6 +41,8 @@ interface ThemeState {
   fontFamily: FontFamily;
   /** Current accent color hex (default or semester-specific) */
   accentColor: string;
+  /** Global UI style mode */
+  uiStyle: UIStyle;
   /** Whether the store has been hydrated from localStorage */
   hydrated: boolean;
 }
@@ -52,6 +61,8 @@ interface ThemeActions {
   setFontFamily: (fontFamily: FontFamily) => void;
   /** Set the accent color (hex) */
   setAccentColor: (color: string) => void;
+  /** Set global UI style */
+  setUIStyle: (uiStyle: UIStyle) => void;
   /** Reset accent to default */
   resetAccentColor: () => void;
   /** Mark store as hydrated */
@@ -72,9 +83,10 @@ export const useThemeStore = create<ThemeStore>()(
     (set) => ({
       // Initial state - Dark mode default
       mode: "dark",
-      background: "dotted",
+      background: "spooky-smoke",
       fontFamily: "nunito",
       accentColor: DEFAULT_ACCENT_COLOR,
+      uiStyle: "classic-glass",
       hydrated: false,
 
       // Actions
@@ -90,6 +102,7 @@ export const useThemeStore = create<ThemeStore>()(
       setFontFamily: (fontFamily) => set({ fontFamily }),
 
       setAccentColor: (accentColor) => set({ accentColor }),
+      setUIStyle: (uiStyle) => set({ uiStyle }),
 
       resetAccentColor: () => set({ accentColor: DEFAULT_ACCENT_COLOR }),
 
@@ -103,6 +116,7 @@ export const useThemeStore = create<ThemeStore>()(
         background: state.background,
         fontFamily: state.fontFamily,
         accentColor: state.accentColor,
+        uiStyle: state.uiStyle,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHydrated(true);
@@ -124,12 +138,11 @@ export const fontFamilyMap: Record<FontFamily, string> = {
  * Background style display names
  */
 export const backgroundDisplayNames: Record<BackgroundStyle, string> = {
+  "spooky-smoke": "Spooky Smoke",
   dotted: "Dotted",
   boxes: "Animated Boxes",
   "dot-pattern": "Dot Pattern",
-  aurora: "Aurora",
-  beams: "Background Beams",
-  "animated-grid": "Animated Grid",
+  "noise-grid": "Noise Grid",
 };
 
 /**
@@ -137,11 +150,56 @@ export const backgroundDisplayNames: Record<BackgroundStyle, string> = {
  */
 export function isBackgroundStyle(value: unknown): value is BackgroundStyle {
   return (
+    value === "spooky-smoke" ||
     value === "dotted" ||
     value === "boxes" ||
     value === "dot-pattern" ||
-    value === "aurora" ||
-    value === "beams" ||
-    value === "animated-grid"
+    value === "noise-grid"
   );
+}
+
+/**
+ * Runtime guard for UI style values.
+ */
+export function isUIStyle(value: unknown): value is UIStyle {
+  return (
+    value === "classic-glass" ||
+    value === "organic-glass" ||
+    value === "frosted-prism-glass" ||
+    value === "liquid-glass" ||
+    value === "layered-pane-glass" ||
+    value === "iridescent-glass" ||
+    value === "smoked-matte-glass"
+  );
+}
+
+/**
+ * Parse UI style token from settings.background_custom_css.
+ * Supported values:
+ * - "ui-style:classic-glass"
+ * - "ui-style:organic-glass"
+ * - "ui-style:frosted-prism-glass"
+ * - "ui-style:liquid-glass"
+ * - "ui-style:layered-pane-glass"
+ * - "ui-style:iridescent-glass"
+ * - "ui-style:smoked-matte-glass"
+ */
+export function parseUIStyleToken(value: string | null): UIStyle | null {
+  if (!value) return null;
+  const token = value.trim().toLowerCase();
+  if (token === "ui-style:classic-glass") return "classic-glass";
+  if (token === "ui-style:organic-glass") return "organic-glass";
+  if (token === "ui-style:frosted-prism-glass") return "frosted-prism-glass";
+  if (token === "ui-style:liquid-glass") return "liquid-glass";
+  if (token === "ui-style:layered-pane-glass") return "layered-pane-glass";
+  if (token === "ui-style:iridescent-glass") return "iridescent-glass";
+  if (token === "ui-style:smoked-matte-glass") return "smoked-matte-glass";
+  return null;
+}
+
+/**
+ * Serialize UI style token for settings.background_custom_css.
+ */
+export function toUIStyleToken(uiStyle: UIStyle): string {
+  return `ui-style:${uiStyle}`;
 }

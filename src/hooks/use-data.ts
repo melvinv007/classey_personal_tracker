@@ -53,6 +53,10 @@ import {
   useDeleteClassSchedule,
   useSettings,
   useUpdateSettings,
+  useHolidays,
+  useCreateHoliday,
+  useUpdateHoliday,
+  useDeleteHoliday,
 } from "./use-appwrite";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -69,6 +73,7 @@ import type {
   Note,
   Settings,
   ReminderOffset,
+  Holiday,
 } from "@/types/database";
 import {
   parseReminderOffsetsJson,
@@ -126,6 +131,7 @@ export function useData() {
   const { data: resourceLinks = [], isLoading: loadingLinks, refetch: refetchLinks } = useResourceLinks();
   const { data: notes = [], isLoading: loadingNotes, refetch: refetchNotes } = useNotes();
   const { data: settings, isLoading: loadingSettings, refetch: refetchSettings } = useSettings();
+  const { data: holidays = [], isLoading: loadingHolidays, refetch: refetchHolidays } = useHolidays();
 
   // Mutations
   const createSemesterMutation = useCreateSemester();
@@ -159,12 +165,15 @@ export function useData() {
   const updateClassScheduleMutation = useUpdateClassSchedule();
   const deleteClassScheduleMutation = useDeleteClassSchedule();
   const updateSettingsMutation = useUpdateSettings();
+  const createHolidayMutation = useCreateHoliday();
+  const updateHolidayMutation = useUpdateHoliday();
+  const deleteHolidayMutation = useDeleteHoliday();
 
   // Loading state
   const isLoading = loadingSemesters || loadingSubjects || loadingSchedules || loadingSlots ||
                     loadingOccurrences || loadingExams || loadingTasks || 
                     loadingEvents || loadingFiles || loadingLinks || loadingNotes ||
-                    loadingSettings;
+                    loadingSettings || loadingHolidays;
 
   // Derived data (memoized)
   const activeSemesters = useMemo(
@@ -284,6 +293,15 @@ export function useData() {
   const getNotesBySubject = useCallback(
     (subjectId: string) => notes.filter(n => n.subject_id === subjectId && !n.deleted_at),
     [notes]
+  );
+
+  const getHolidaysBySemester = useCallback(
+    (semesterId: string) =>
+      holidays.filter(
+        (holiday) =>
+          !holiday.deleted_at && holiday.description?.startsWith(`semester:${semesterId}`)
+      ),
+    [holidays]
   );
 
   // Calculate attendance stats for a subject
@@ -553,6 +571,27 @@ export function useData() {
     [updateSettingsMutation]
   );
 
+  const addHoliday = useCallback(
+    async (data: Omit<Holiday, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) => {
+      return createHolidayMutation.mutateAsync(data);
+    },
+    [createHolidayMutation]
+  );
+
+  const updateHoliday = useCallback(
+    async (id: string, data: Partial<Holiday>) => {
+      return updateHolidayMutation.mutateAsync({ id, data });
+    },
+    [updateHolidayMutation]
+  );
+
+  const deleteHoliday = useCallback(
+    async (id: string) => {
+      return deleteHolidayMutation.mutateAsync(id);
+    },
+    [deleteHolidayMutation]
+  );
+
   const getExamReminderOffsets = useCallback(
     (exam: Exam): ReminderOffset[] => parseReminderOffsetsJson(exam.reminder_offsets_json),
     []
@@ -603,7 +642,8 @@ export function useData() {
     refetchNotes();
     refetchSlots();
     refetchSettings();
-  }, [refetchSemesters, refetchSubjects, refetchExams, refetchTasks, refetchEvents, refetchFiles, refetchLinks, refetchNotes, refetchSlots, refetchSettings]);
+    refetchHolidays();
+  }, [refetchSemesters, refetchSubjects, refetchExams, refetchTasks, refetchEvents, refetchFiles, refetchLinks, refetchNotes, refetchSlots, refetchSettings, refetchHolidays]);
 
   return {
     // Data
@@ -619,6 +659,7 @@ export function useData() {
     resourceLinks,
     notes,
     settings: settings ?? null,
+    holidays,
     
     // Loading
     isLoading,
@@ -647,6 +688,7 @@ export function useData() {
     getFilesBySubject,
     getLinksBySubject,
     getNotesBySubject,
+    getHolidaysBySemester,
     getAttendanceStats,
     
     // CRUD - async versions
@@ -680,6 +722,9 @@ export function useData() {
     updateNote,
     deleteResourceLink,
     updateSettings,
+    addHoliday,
+    updateHoliday,
+    deleteHoliday,
     getExamReminderOffsets,
     getTaskReminderOffsets,
     getDefaultExamReminderOffsets,
@@ -713,7 +758,10 @@ export function useData() {
       createClassOccurrenceMutation.isPending ||
       updateClassOccurrenceMutation.isPending ||
       deleteClassOccurrenceMutation.isPending ||
-      updateSettingsMutation.isPending,
+      updateSettingsMutation.isPending ||
+      createHolidayMutation.isPending ||
+      updateHolidayMutation.isPending ||
+      deleteHolidayMutation.isPending,
   };
 }
 

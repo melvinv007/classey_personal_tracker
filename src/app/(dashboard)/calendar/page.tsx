@@ -247,7 +247,7 @@ export default function CalendarPage(): React.ReactNode {
             <div className="flex items-center gap-4">
               <Link
                 href="/"
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                className="p-2 rounded-xl btn-muted-themed interactive-focus"
               >
                 <ArrowLeft className="w-5 h-5" />
               </Link>
@@ -263,20 +263,20 @@ export default function CalendarPage(): React.ReactNode {
             <div className="flex items-center gap-2">
               <button
                 onClick={navigateToday}
-                className="px-3 py-1.5 text-sm rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                className="px-3 py-1.5 text-sm rounded-lg btn-muted-themed interactive-focus"
               >
                 Today
               </button>
               <div className="flex items-center gap-1">
                 <button
                   onClick={navigatePrev}
-                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                  className="p-1.5 rounded-lg btn-muted-themed interactive-focus"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                   onClick={navigateNext}
-                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                  className="p-1.5 rounded-lg btn-muted-themed interactive-focus"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -291,10 +291,10 @@ export default function CalendarPage(): React.ReactNode {
                 key={v}
               onClick={() => changeView(v)}
                 className={cn(
-                  "px-3 py-1.5 text-sm rounded-lg transition-colors",
-                  view === v
-                    ? "bg-[rgba(var(--accent),0.2)] text-[rgb(var(--accent))]"
-                    : "bg-white/5 hover:bg-white/10 text-muted-foreground"
+                    "px-3 py-1.5 text-sm rounded-lg interactive-focus transition-colors",
+                    view === v
+                      ? "btn-themed text-[rgb(var(--accent))]"
+                      : "btn-muted-themed text-muted-foreground"
                 )}
               >
                 {v === "timeGridWeek" ? "Week" : v === "timeGridDay" ? "Day" : "Month"}
@@ -310,7 +310,7 @@ export default function CalendarPage(): React.ReactNode {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 overflow-hidden"
+          className="glass-card rounded-2xl p-4 overflow-hidden"
         >
           <div
             className={cn(
@@ -375,7 +375,7 @@ export default function CalendarPage(): React.ReactNode {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-6 p-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl"
+            className="mt-6 p-4 glass-card rounded-2xl"
           >
             <h3 className="text-sm font-medium text-white/70 mb-3">Legend</h3>
             <div className="flex flex-wrap gap-3">
@@ -387,7 +387,7 @@ export default function CalendarPage(): React.ReactNode {
                   <Link
                     key={subject.$id}
                     href={`/semester/${ongoingSemester.$id}/subject/${subject.$id}`}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg btn-muted-themed interactive-focus"
                     style={{ backgroundColor: `${subject.color}15` }}
                   >
                     <div
