@@ -98,7 +98,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ID.unique(),
         {
           storage_file_id: storageFile.$id,
-          file_name: file.name,
+          file_name: parseOptionalString(formData, "file_name") ?? file.name,
           file_size: file.size,
           mime_type: getMimeType(extension),
           file_extension: extension,

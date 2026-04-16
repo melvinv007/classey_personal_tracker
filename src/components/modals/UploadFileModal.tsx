@@ -15,7 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useExams, useSubjects } from "@/hooks/use-appwrite";
+import { useData } from "@/hooks/use-data";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
 import { uploadFile, validateFile, formatFileSize } from "@/lib/appwrite-storage";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,7 @@ interface UploadFileModalProps {
 
 interface FileToUpload {
   file: File;
+  displayName: string;
   status: "pending" | "uploading" | "success" | "error";
   error?: string;
   progress?: number;
@@ -60,8 +61,7 @@ export function UploadFileModal({
   defaultExamId,
   defaultTaskId,
 }: UploadFileModalProps): React.ReactNode {
-  const { data: subjects = [] } = useSubjects();
-  const { data: exams = [] } = useExams();
+  const { subjects = [], exams = [], ongoingSemester } = useData();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [files, setFiles] = useState<FileToUpload[]>([]);
@@ -73,7 +73,10 @@ export function UploadFileModal({
   const [description, setDescription] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
-  const activeSubjects = subjects.filter((s) => !s.deleted_at);
+  const activeSemesterId = ongoingSemester?.$id ?? null;
+  const activeSubjects = subjects.filter(
+    (s) => !s.deleted_at && (!activeSemesterId || s.semester_id === activeSemesterId)
+  );
   const subjectExams = subjectId
     ? exams.filter((e) => e.subject_id === subjectId && !e.deleted_at)
     : [];
@@ -95,7 +98,7 @@ export function UploadFileModal({
     fileArray.forEach((file) => {
       const validation = validateFile(file);
       if (validation.valid) {
-        validatedFiles.push({ file, status: "pending" });
+        validatedFiles.push({ file, displayName: file.name, status: "pending" });
       } else {
         toast.error(`${file.name}: ${validation.error}`);
       }
@@ -149,6 +152,7 @@ export function UploadFileModal({
 
       try {
         await uploadFile(fileToUpload.file, {
+          file_name: fileToUpload.displayName.trim() || fileToUpload.file.name,
           subject_id: subjectId || undefined,
           exam_id: examId || undefined,
           task_id: taskId || undefined,
@@ -288,6 +292,20 @@ export function UploadFileModal({
                         <Icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{f.file.name}</p>
+                          {f.status === "pending" && (
+                            <input
+                              value={f.displayName}
+                              onChange={(event) =>
+                                setFiles((prev) =>
+                                  prev.map((file, fileIdx) =>
+                                    fileIdx === idx ? { ...file, displayName: event.target.value } : file
+                                  )
+                                )
+                              }
+                              className="mt-1 w-full rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)]"
+                              placeholder="Rename file (optional)"
+                            />
+                          )}
                           <p className="text-xs text-muted-foreground">
                             {formatFileSize(f.file.size)}
                           </p>

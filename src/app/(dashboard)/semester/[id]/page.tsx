@@ -263,7 +263,7 @@ export default function SemesterDetailPage(): React.ReactNode {
           name: periodName.trim(),
           date: periodStartDate,
           date_end: periodStartDate === periodEndDate ? null : periodEndDate,
-          description: toPeriodDescription(periodType, periodType === "exam-time" ? "exam-time" : "holiday"),
+          description: toPeriodDescription(periodType, periodName.trim()),
         });
         const updatedCount = await applyHolidayCancellations(editingPeriodId, periodName.trim(), periodStartDate, periodEndDate);
         toast.success(`Updated period. ${updatedCount} classes marked cancelled.`);
@@ -272,7 +272,7 @@ export default function SemesterDetailPage(): React.ReactNode {
           name: periodName.trim(),
           date: periodStartDate,
           date_end: periodStartDate === periodEndDate ? null : periodEndDate,
-          description: toPeriodDescription(periodType, periodType === "exam-time" ? "exam-time" : "holiday"),
+          description: toPeriodDescription(periodType, periodName.trim()),
           deleted_at: null,
         });
         const createdCount = await applyHolidayCancellations(created.$id, periodName.trim(), periodStartDate, periodEndDate);
@@ -497,73 +497,6 @@ export default function SemesterDetailPage(): React.ReactNode {
           </div>
         </div>
 
-        <motion.div
-          className="glass-card rounded-2xl p-6 mb-8"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.16 }}
-        >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">No-Class Periods</h2>
-              <p className="text-sm text-muted-foreground">
-                Add holidays and exam-time ranges. Classes in these dates are automatically cancelled.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                resetPeriodForm();
-                setIsNoClassModalOpen(true);
-              }}
-              className="interactive-surface interactive-focus inline-flex items-center gap-2 rounded-xl px-4 py-2.5 bg-[rgba(var(--accent-rgb),0.2)] hover:bg-[rgba(var(--accent-rgb),0.3)] text-[rgb(var(--accent))] text-sm font-medium transition-all"
-            >
-              <Sparkles className="w-4 h-4" />
-              Add No-Class Period
-            </button>
-          </div>
-
-          {semesterHolidays.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No no-class periods added yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {semesterHolidays.map((holiday) => {
-                const meta = parsePeriodMeta(holiday.description);
-                return (
-                  <div key={holiday.$id} className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/3">
-                    <div>
-                      <p className="text-sm text-foreground">{holiday.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {meta.kind === "exam-time" ? "Exam Time" : "Holiday"} • {holiday.date}
-                        {holiday.date_end ? ` to ${holiday.date_end}` : ""}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEditNoClassPeriod(holiday.$id)}
-                        className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteNoClassPeriod(holiday.$id)}
-                        className="px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-xs text-red-400 transition-colors"
-                      >
-                        <span className="inline-flex items-center gap-1">
-                          <Trash2 className="w-3.5 h-3.5" />
-                          Delete
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </motion.div>
-
         {/* Subjects section */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -634,6 +567,73 @@ export default function SemesterDetailPage(): React.ReactNode {
           placeholder="Write anything about this semester..."
           className="mb-8"
         />
+
+        <motion.div
+          className="glass-card rounded-2xl p-6 mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.16 }}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">No-Class Periods</h2>
+              <p className="text-sm text-muted-foreground">
+                Add holidays and exam-time ranges. Classes in these dates are automatically cancelled.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                resetPeriodForm();
+                setIsNoClassModalOpen(true);
+              }}
+              className="interactive-surface interactive-focus inline-flex items-center gap-2 rounded-xl px-4 py-2.5 bg-[rgba(var(--accent-rgb),0.2)] hover:bg-[rgba(var(--accent-rgb),0.3)] text-[rgb(var(--accent))] text-sm font-medium transition-all"
+            >
+              <Sparkles className="w-4 h-4" />
+              Add No-Class Period
+            </button>
+          </div>
+
+          {semesterHolidays.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No no-class periods added yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {semesterHolidays.map((holiday) => {
+                const meta = parsePeriodMeta(holiday.description);
+                return (
+                  <div key={holiday.$id} className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/3">
+                    <div>
+                      <p className="text-sm text-foreground">{holiday.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {meta.kind === "exam-time" ? "Exam Time" : "Holiday"} • {holiday.date}
+                        {holiday.date_end ? ` to ${holiday.date_end}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEditNoClassPeriod(holiday.$id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteNoClassPeriod(holiday.$id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-xs text-red-400 transition-colors"
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </motion.div>
 
       </div>
 

@@ -56,8 +56,14 @@ export default function CGPATrackerPage(): React.ReactNode {
 
   // Calculate semester data for CGPA
   const semesterData = useMemo((): SemesterGradeData[] => {
+    const now = new Date();
     return semesters
-      .filter((sem) => sem.status === "completed" || sem.status === "ongoing")
+      .filter((sem) => {
+        if (sem.status === "completed") return true;
+        if (sem.status === "ongoing") return true;
+        const start = new Date(sem.start_date);
+        return start <= now;
+      })
       .map((sem) => {
         // For quick input semesters, use stored SPI
         if (sem.is_quick_input && sem.spi !== null) {
@@ -96,7 +102,7 @@ export default function CGPATrackerPage(): React.ReactNode {
 
   // Calculate current CGPA (excluding ongoing semester for accuracy)
   const completedSemesters = useMemo(
-    () => semesterData.filter((s) => s.status === "completed"),
+    () => semesterData.filter((s) => s.status === "completed" && s.spi > 0 && s.credits > 0),
     [semesterData]
   );
   const currentCGPA = useMemo(
@@ -111,7 +117,10 @@ export default function CGPATrackerPage(): React.ReactNode {
   );
 
   const spiChartData = useMemo(() => {
-    return semesterData.reduce<Array<{ semester: string; spi: number; cgpa: number; _weighted: number; _credits: number }>>((acc, sem) => {
+    const chartSemesters = semesterData.filter(
+      (sem) => sem.status === "completed" && sem.spi > 0 && sem.credits > 0
+    );
+    return chartSemesters.reduce<Array<{ semester: string; spi: number; cgpa: number; _weighted: number; _credits: number }>>((acc, sem) => {
       const prev = acc[acc.length - 1];
       const weighted = (prev?._weighted ?? 0) + sem.spi * sem.credits;
       const credits = (prev?._credits ?? 0) + sem.credits;
@@ -151,8 +160,8 @@ export default function CGPATrackerPage(): React.ReactNode {
 
   // Total credits
   const totalCredits = useMemo(
-    () => semesterData.reduce((sum, s) => sum + s.credits, 0),
-    [semesterData]
+    () => completedSemesters.reduce((sum, s) => sum + s.credits, 0),
+    [completedSemesters]
   );
 
   // Loading state - AFTER all hooks
@@ -213,7 +222,9 @@ export default function CGPATrackerPage(): React.ReactNode {
             <AnimatedNumber value={currentCGPA} />
           </div>
           <p className="text-sm text-muted-foreground">
-            Based on {completedSemesters.length} completed semester{completedSemesters.length !== 1 ? "s" : ""} • {totalCredits} credits
+            {completedSemesters.length > 0
+              ? `Based on ${completedSemesters.length} completed semester${completedSemesters.length !== 1 ? "s" : ""} • ${totalCredits} credits`
+              : "This is your first semester. CGPA will appear after your first completed semester."}
           </p>
           {semesterData.some((s) => s.status === "ongoing") && (
             <p className="text-xs text-muted-foreground mt-2">

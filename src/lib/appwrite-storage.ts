@@ -57,6 +57,7 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
 export async function uploadFile(
   file: File,
   context: {
+    file_name?: string;
     subject_id?: string;
     exam_id?: string;
     task_id?: string;
@@ -75,6 +76,7 @@ export async function uploadFile(
   try {
     const formData = new FormData();
     formData.set("file", file);
+    if (context.file_name) formData.set("file_name", context.file_name);
     if (context.subject_id) formData.set("subject_id", context.subject_id);
     if (context.exam_id) formData.set("exam_id", context.exam_id);
     if (context.task_id) formData.set("task_id", context.task_id);

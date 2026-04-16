@@ -30,7 +30,7 @@ const PRIORITY_CONFIG = {
 type FilterType = "all" | "pending" | "completed" | "overdue";
 
 export default function TasksPage(): React.ReactNode {
-  const [filter, setFilter] = useState<FilterType>("pending");
+  const [filter, setFilter] = useState<FilterType>("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
@@ -53,6 +53,9 @@ export default function TasksPage(): React.ReactNode {
 
     let filtered = tasks;
     switch (filter) {
+      case "all":
+        filtered = pending;
+        break;
       case "pending":
         filtered = pending;
         break;
@@ -88,7 +91,7 @@ export default function TasksPage(): React.ReactNode {
     return {
       filteredTasks: filtered,
       counts: {
-        all: tasks.length,
+        all: pending.length,
         pending: pending.length,
         completed: completed.length,
         overdue: overdue.length,
@@ -142,6 +145,12 @@ export default function TasksPage(): React.ReactNode {
       description: "Task deleted permanently.",
       duration: 5000,
     });
+  };
+
+  const handleClearCompleted = () => {
+    const completedTasks = tasks.filter((task) => task.is_completed);
+    completedTasks.forEach((task) => deleteTask(task.$id));
+    toast.success(`Cleared ${completedTasks.length} completed task${completedTasks.length !== 1 ? "s" : ""}`);
   };
 
   const filters: { key: FilterType; label: string }[] = [
@@ -208,6 +217,14 @@ export default function TasksPage(): React.ReactNode {
               </span>
             </button>
           ))}
+          {filter === "completed" && counts.completed > 0 && (
+            <button
+              onClick={handleClearCompleted}
+              className="interactive-surface interactive-focus px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap bg-red-500/15 text-red-300 hover:bg-red-500/25 transition-all"
+            >
+              Clear Completed ({counts.completed})
+            </button>
+          )}
         </motion.div>
 
         {/* Task List */}

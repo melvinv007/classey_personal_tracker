@@ -33,7 +33,9 @@ const EXAM_COLORS = {
 export default function CalendarPage(): React.ReactNode {
   const router = useRouter();
   const calendarRef = useRef<FullCalendar>(null);
-  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+  const nowDate = useMemo(() => new Date(), []);
+  const nowTime = useMemo(() => nowDate.toTimeString().slice(0, 8), [nowDate]);
+  const [currentDate, setCurrentDate] = useState<Date | null>(nowDate);
   const [view, setView] = useState<"timeGridWeek" | "timeGridDay" | "dayGridMonth">("timeGridWeek");
 
   const { classSchedules, classOccurrences, exams, events: personalEvents, subjects, getSubjectById, ongoingSemester, isLoading } = useData();
@@ -325,7 +327,8 @@ export default function CalendarPage(): React.ReactNode {
               events={calendarEvents}
               eventClick={handleEventClick}
               datesSet={handleDatesSet}
-              slotMinTime="00:00:00"
+              initialDate={nowDate}
+              slotMinTime="06:00:00"
               slotMaxTime="23:55:00"
               slotDuration="01:00:00"
               slotLabelInterval="01:00:00"
@@ -336,7 +339,7 @@ export default function CalendarPage(): React.ReactNode {
               height={view === "dayGridMonth" ? "auto" : 1400}
               nowIndicator={true}
               scrollTimeReset={false}
-              scrollTime="00:00:00"
+              scrollTime={nowTime}
               eventDisplay="block"
               slotLabelFormat={{
                 hour: "2-digit",

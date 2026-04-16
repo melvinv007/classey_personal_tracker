@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { ArrowLeft, MapPin, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useData } from "@/hooks/use-data";
 import { cn, DAY_SHORT_NAMES, normalizeTimeHM } from "@/lib/utils";
 
@@ -78,11 +78,16 @@ const itemVariants = {
 
 export default function TimetablePage() {
   const { classSchedules, subjects, getSubjectById, ongoingSemester, isLoading } = useData();
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const verticalScrollRef = useRef<HTMLDivElement>(null);
+  const horizontalScrollRef = useRef<HTMLDivElement>(null);
   const activeSemesterFilterId = ongoingSemester?.$id ?? null;
+  const currentDay = useMemo(() => {
+    const today = new Date().getDay();
+    return today === 0 ? 7 : today;
+  }, []);
 
   useEffect(() => {
-    const container = scrollRef.current;
+    const container = verticalScrollRef.current;
     if (!container) return;
     const now = new Date();
     const minutes = now.getHours() * 60 + now.getMinutes();
@@ -91,14 +96,6 @@ export default function TimetablePage() {
     const target = ratio * (TIME_SLOTS.length * HOUR_ROW_HEIGHT);
     container.scrollTop = Math.max(0, target - container.clientHeight * 0.35);
   }, []);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[rgb(var(--accent))]" />
-      </div>
-    );
-  }
 
   // Build timetable events from schedules
   const events: TimetableEvent[] = classSchedules
@@ -132,9 +129,21 @@ export default function TimetablePage() {
     return acc;
   }, {} as Record<number, TimetableEvent[]>);
 
-  // Get current day (JS: 0=Sun, convert to our format: 1=Mon)
-  const today = new Date().getDay();
-  const currentDay = today === 0 ? 7 : today;
+  useEffect(() => {
+    const container = horizontalScrollRef.current;
+    if (!container) return;
+    const dayWidth = Math.max(0, (container.scrollWidth - 60) / 7);
+    const targetLeft = Math.max(0, 60 + (currentDay - 1) * dayWidth - container.clientWidth / 2 + dayWidth / 2);
+    container.scrollLeft = targetLeft;
+  }, [currentDay]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[rgb(var(--accent))]" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-24">
@@ -171,7 +180,7 @@ export default function TimetablePage() {
           animate="visible"
           className="glass-card overflow-hidden"
         >
-          <div className="overflow-x-auto">
+          <div ref={horizontalScrollRef} className="overflow-x-auto">
             <div className="min-w-[860px]">
               {/* Day headers */}
               <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-white/10">
@@ -198,7 +207,7 @@ export default function TimetablePage() {
               </div>
 
               {/* Time grid */}
-              <div ref={scrollRef} className="max-h-[72vh] overflow-y-auto">
+               <div ref={verticalScrollRef} className="max-h-[72vh] overflow-y-auto">
                 <div className="grid grid-cols-[64px_repeat(7,1fr)]">
                 {/* Time labels */}
                 <div className="relative">

@@ -296,12 +296,26 @@ export function useData() {
   );
 
   const getHolidaysBySemester = useCallback(
-    (semesterId: string) =>
-      holidays.filter(
-        (holiday) =>
-          !holiday.deleted_at && holiday.description?.startsWith(`semester:${semesterId}`)
-      ),
-    [holidays]
+    (semesterId: string) => {
+      const semester = semesters.find((sem) => sem.$id === semesterId);
+      if (!semester) return [];
+
+      return holidays.filter((holiday) => {
+        if (holiday.deleted_at) return false;
+
+        const isTaggedToSemester =
+          holiday.description?.startsWith(`semester:${semesterId}|`) ||
+          holiday.description === `semester:${semesterId}`;
+        if (isTaggedToSemester) return true;
+
+        const holidayStart = holiday.date;
+        const holidayEnd = holiday.date_end ?? holiday.date;
+
+        // Backward-compatible fallback for older period entries without semester tags.
+        return holidayStart <= semester.end_date && holidayEnd >= semester.start_date;
+      });
+    },
+    [holidays, semesters]
   );
 
   // Calculate attendance stats for a subject

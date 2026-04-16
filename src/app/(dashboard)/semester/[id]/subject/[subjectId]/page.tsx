@@ -112,7 +112,7 @@ export default function SubjectDetailPage(): React.ReactNode {
   const [isConfirmDeleteNoteOpen, setIsConfirmDeleteNoteOpen] = useState(false);
   const [deleteNoteTarget, setDeleteNoteTarget] = useState<{ id: string; preview: string } | null>(null);
 
-  const { 
+  const {
     getSemesterById, 
     getSubjectById, 
     markAttendance, 
@@ -131,6 +131,7 @@ export default function SubjectDetailPage(): React.ReactNode {
     updateNote,
     deleteResourceLink,
     settings,
+    getHolidaysBySemester,
     refetch,
     isLoading
   } = useData();
@@ -142,6 +143,7 @@ export default function SubjectDetailPage(): React.ReactNode {
   // Get data
   const occurrences = getOccurrencesBySubject(subjectId);
   const schedules = getSchedulesBySubject(subjectId);
+  const semesterHolidays = getHolidaysBySemester(semesterId);
   const exams = getExamsBySubject(subjectId);
   const resourceLinks = getLinksBySubject(subjectId);
   const notes = getNotesBySubject(subjectId);
@@ -204,10 +206,18 @@ export default function SubjectDetailPage(): React.ReactNode {
             scheduleWithinRange(schedule.effective_from, schedule.effective_until, date)
         );
         for (const schedule of activeForDate) {
+          const cancelledByNoClass = semesterHolidays.some((holiday) => {
+            if (holiday.date > date) return false;
+            const endDate = holiday.date_end ?? holiday.date;
+            return date <= endDate;
+          });
+          if (cancelledByNoClass) {
+            continue;
+          }
           total += 1;
           const notStartedYet =
             date > currentDate || (date === currentDate && normalizeTimeHM(schedule.start_time) > normalizeTimeHM(currentTime));
-          if (notStartedYet) {
+          if (notStartedYet && !cancelledByNoClass) {
             left += 1;
           }
         }
@@ -215,7 +225,7 @@ export default function SubjectDetailPage(): React.ReactNode {
       cursor = addDays(cursor, 1);
     }
     return { total, left };
-  }, [subjectStartDate, subjectEndDate, schedules, currentDate, currentTime]);
+  }, [subjectStartDate, subjectEndDate, schedules, currentDate, currentTime, semesterHolidays]);
 
   const classesAttended = occurrences.filter(
     (occurrence) =>
