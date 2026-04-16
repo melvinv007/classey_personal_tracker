@@ -15,14 +15,15 @@ import {
 } from "recharts";
 import { useData } from "@/hooks/use-data";
 import {
-  calculateSPI,
   calculateCGPA,
   whatIfCGPA,
   requiredSPI,
   getSPIColor,
-  type SemesterGradeData,
+  resolveSemesterGradeData,
+  type ResolvedSemesterGradeData,
 } from "@/utils/grades";
 import { cn } from "@/lib/utils";
+import { useThemeStore } from "@/stores/theme-store";
 
 const pageVariants = {
   hidden: { opacity: 0 },
@@ -47,6 +48,7 @@ function AnimatedNumber({ value, decimals = 2 }: { value: number; decimals?: num
 
 export default function CGPATrackerPage(): React.ReactNode {
   const { semesters: allSemesters, subjects, ongoingSemester, isLoading } = useData();
+  const themeMode = useThemeStore((state) => state.mode);
   
   const semesters = allSemesters.filter((sem) => !sem.deleted_at);
   
@@ -55,7 +57,7 @@ export default function CGPATrackerPage(): React.ReactNode {
   const [targetCGPA, setTargetCGPA] = useState<string>("8.5");
 
   // Calculate semester data for CGPA
-  const semesterData = useMemo((): SemesterGradeData[] => {
+  const semesterData = useMemo((): ResolvedSemesterGradeData[] => {
     const now = new Date();
     return semesters
       .filter((sem) => {
@@ -64,33 +66,12 @@ export default function CGPATrackerPage(): React.ReactNode {
         const start = new Date(sem.start_date);
         return start <= now;
       })
-      .map((sem) => {
-        // For quick input semesters, use stored SPI
-        if (sem.is_quick_input && sem.spi !== null) {
-          return {
-            id: sem.$id,
-            name: sem.name,
-            spi: sem.spi,
-            credits: sem.credits_total ?? 0,
-            status: sem.status,
-          };
-        }
-        
-        // Calculate SPI from subjects
-        const semSubjects = subjects.filter(
-          (sub) => sub.semester_id === sem.$id && !sub.deleted_at
-        );
-        const spi = calculateSPI(semSubjects);
-        const credits = semSubjects.reduce((sum, s) => sum + s.credits, 0);
-        
-        return {
-          id: sem.$id,
-          name: sem.name,
-          spi,
-          credits,
-          status: sem.status,
-        };
-      })
+      .map((sem) =>
+        resolveSemesterGradeData(
+          sem,
+          subjects.filter((sub) => sub.semester_id === sem.$id)
+        )
+      )
       .sort((a, b) => {
         const aSem = semesters.find((sem) => sem.$id === a.id);
         const bSem = semesters.find((sem) => sem.$id === b.id);
@@ -102,7 +83,7 @@ export default function CGPATrackerPage(): React.ReactNode {
 
   // Calculate current CGPA (excluding ongoing semester for accuracy)
   const completedSemesters = useMemo(
-    () => semesterData.filter((s) => s.status === "completed" && s.spi > 0 && s.credits > 0),
+    () => semesterData.filter((s) => s.status === "completed" && s.includedInCGPA && s.spi > 0 && s.credits > 0),
     [semesterData]
   );
   const currentCGPA = useMemo(
@@ -118,7 +99,7 @@ export default function CGPATrackerPage(): React.ReactNode {
 
   const spiChartData = useMemo(() => {
     const chartSemesters = semesterData.filter(
-      (sem) => sem.status === "completed" && sem.spi > 0 && sem.credits > 0
+      (sem) => sem.status === "completed" && sem.includedInCGPA && sem.spi > 0 && sem.credits > 0
     );
     return chartSemesters.reduce<Array<{ semester: string; spi: number; cgpa: number; _weighted: number; _credits: number }>>((acc, sem) => {
       const prev = acc[acc.length - 1];
@@ -249,19 +230,19 @@ export default function CGPATrackerPage(): React.ReactNode {
               Add semesters with grades to view the SPI trend.
             </div>
           ) : (
-            <div className="h-72 w-full">
+            <div className="h-72 w-full min-w-0 min-h-[288px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={spiChartData} margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
                   <CartesianGrid stroke="rgba(var(--foreground),0.08)" strokeDasharray="3 3" />
                   <XAxis
                     dataKey="semester"
-                    tick={{ fill: "rgba(var(--foreground),0.65)", fontSize: 12 }}
+                    tick={{ fill: themeMode === "dark" ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.78)", fontSize: 12 }}
                     axisLine={{ stroke: "rgba(var(--foreground),0.12)" }}
                     tickLine={{ stroke: "rgba(var(--foreground),0.12)" }}
                   />
                   <YAxis
                     domain={[0, 10]}
-                    tick={{ fill: "rgba(var(--foreground),0.65)", fontSize: 12 }}
+                    tick={{ fill: themeMode === "dark" ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.78)", fontSize: 12 }}
                     axisLine={{ stroke: "rgba(var(--foreground),0.12)" }}
                     tickLine={{ stroke: "rgba(var(--foreground),0.12)" }}
                   />
@@ -344,6 +325,9 @@ export default function CGPATrackerPage(): React.ReactNode {
                       <p className="font-medium text-foreground">{sem.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {sem.credits} credits
+                        <span className="ml-2 px-1.5 py-0.5 rounded bg-white/10 text-[10px] uppercase tracking-wide">
+                          {sem.source === "subjects" ? "Subjects" : "Manual"}
+                        </span>
                         {sem.status === "ongoing" && (
                           <span className="ml-2 px-1.5 py-0.5 rounded bg-[rgba(var(--accent),0.2)] text-[rgb(var(--accent))]">
                             Ongoing
@@ -353,13 +337,19 @@ export default function CGPATrackerPage(): React.ReactNode {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p
-                      className="text-2xl font-bold"
-                      style={{ color: getSPIColor(sem.spi) }}
-                    >
-                      {sem.spi.toFixed(2)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">SPI</p>
+                    {sem.includedInCGPA ? (
+                      <>
+                        <p
+                          className="text-2xl font-bold"
+                          style={{ color: getSPIColor(sem.spi) }}
+                        >
+                          {sem.spi.toFixed(2)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">SPI</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Incomplete</p>
+                    )}
                   </div>
                 </motion.div>
               ))}

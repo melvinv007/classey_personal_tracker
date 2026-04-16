@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, Palette, Target, GraduationCap, Trash2 } from "lucide-react";
+import { X, Calendar, Palette, GraduationCap, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { format, parseISO } from "date-fns";
 import { useUpdateSemester } from "@/hooks/use-appwrite";
 import { useThemeStore } from "@/stores/theme-store";
 import { ThemedDateInput } from "@/components/ui/ThemedDateTimeInput";
@@ -19,10 +18,10 @@ const semesterSchema = z.object({
   start_date: z.string().min(1, "Start date is required"),
   end_date: z.string().min(1, "End date is required"),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid color"),
-  target_spi: z.string().optional(),
   credits_total: z.string().optional(),
   status: z.enum(["upcoming", "ongoing", "completed"]),
   spi: z.string().optional(),
+  is_quick_input: z.boolean(),
 });
 
 type SemesterFormData = z.infer<typeof semesterSchema>;
@@ -70,15 +69,16 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
       start_date: semester.start_date,
       end_date: semester.end_date,
       color: semester.color,
-      target_spi: semester.target_spi?.toString() ?? "",
       credits_total: semester.credits_total?.toString() ?? "",
       status: semester.status,
       spi: semester.spi?.toString() ?? "",
+      is_quick_input: semester.is_quick_input,
     },
   });
 
   const selectedColor = watch("color");
   const status = watch("status");
+  const isQuickInput = watch("is_quick_input");
 
   // Reset form when semester changes
   useEffect(() => {
@@ -88,10 +88,10 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
         start_date: semester.start_date,
         end_date: semester.end_date,
         color: semester.color,
-        target_spi: semester.target_spi?.toString() ?? "",
         credits_total: semester.credits_total?.toString() ?? "",
         status: semester.status,
         spi: semester.spi?.toString() ?? "",
+        is_quick_input: semester.is_quick_input,
       });
     }
   }, [isOpen, semester, reset]);
@@ -104,6 +104,15 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
 
   const onSubmit = async (data: SemesterFormData) => {
     try {
+      const useQuickInput = data.status === "completed" && data.is_quick_input;
+      const spi = parseOptionalNumber(data.spi);
+      const creditsTotal = parseOptionalNumber(data.credits_total);
+
+      if (useQuickInput && (spi === null || creditsTotal === null)) {
+        toast.error("SPI and total credits are required for quick input.");
+        return;
+      }
+
       await updateSemester.mutateAsync({
         id: semester.$id,
         data: {
@@ -111,10 +120,11 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
           start_date: data.start_date,
           end_date: data.end_date,
           color: data.color,
-          target_spi: parseOptionalNumber(data.target_spi),
-          credits_total: parseOptionalNumber(data.credits_total),
+          target_spi: null,
+          credits_total: useQuickInput ? creditsTotal : null,
           status: data.status,
-          spi: parseOptionalNumber(data.spi),
+          spi: useQuickInput ? spi : null,
+          is_quick_input: useQuickInput,
           is_archived: data.status === "completed" && semester.is_archived,
         },
       });
@@ -299,11 +309,16 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
                     </label>
                     <div className="flex gap-2">
                       {(["upcoming", "ongoing", "completed"] as const).map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => setValue("status", s)}
-                          className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-all ${
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => {
+                          setValue("status", s);
+                          if (s !== "completed") {
+                            setValue("is_quick_input", false);
+                          }
+                        }}
+                        className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-all ${
                             status === s
                               ? "bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))] ring-1 ring-[rgba(var(--accent-rgb),0.3)]"
                               : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
@@ -315,8 +330,23 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
                     </div>
                   </div>
 
-                  {/* SPI for completed */}
+                  {/* Quick input toggle (for completed semesters) */}
                   {status === "completed" && (
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+                      <input
+                        type="checkbox"
+                        {...register("is_quick_input")}
+                        id="edit-quick-input"
+                        className="w-4 h-4 rounded accent-[rgb(var(--accent))]"
+                      />
+                      <label htmlFor="edit-quick-input" className="text-sm text-foreground">
+                        Quick input (skip subjects, enter SPI directly)
+                      </label>
+                    </div>
+                  )}
+
+                  {/* SPI for quick-input completed */}
+                  {status === "completed" && isQuickInput && (
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-2">
                         SPI Obtained
@@ -333,35 +363,21 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
                     </div>
                   )}
 
-                  {/* Target SPI and Credits */}
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* Credits for quick-input completed semester */}
+                  {status === "completed" && isQuickInput && (
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-2">
-                        <Target className="inline w-3.5 h-3.5 mr-1.5" />
-                        Target SPI
-                      </label>
-                      <input
-                        {...register("target_spi")}
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="10"
-                        className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent-rgb),0.5)] focus:border-transparent transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">
-                        Total Credits
+                        Total Credits (Completed Semester)
                       </label>
                       <input
                         {...register("credits_total")}
                         type="number"
                         min="0"
-                        max="50"
+                        max="60"
                         className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent-rgb),0.5)] focus:border-transparent transition-all"
                       />
                     </div>
-                  </div>
+                  )}
 
                   {/* Actions */}
                   <div className="flex gap-3 pt-2">

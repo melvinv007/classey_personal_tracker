@@ -25,6 +25,7 @@ import { getDayName } from "@/utils/slots";
 import { toast } from "sonner";
 import { addDays, format, parseISO } from "date-fns";
 import { deleteFile, getFileDownloadUrl, getFileViewUrl } from "@/lib/appwrite-storage";
+import type { ClassOccurrence } from "@/types/database";
 
 const pageVariants = {
   hidden: { opacity: 0, x: -10 },
@@ -117,6 +118,7 @@ export default function SubjectDetailPage(): React.ReactNode {
     getSubjectById, 
     markAttendance, 
     createAndMarkAttendance,
+    addClassOccurrence,
     getOccurrencesBySubject, 
     getSchedulesBySubject, 
     getExamsBySubject, 
@@ -180,6 +182,70 @@ export default function SubjectDetailPage(): React.ReactNode {
 
   const scheduleWithinRange = (effectiveFrom: string, effectiveUntil: string | null, date: string): boolean =>
     effectiveFrom <= date && (!effectiveUntil || effectiveUntil >= date);
+
+  const attendanceHistory = useMemo((): ClassOccurrence[] => {
+    if (!subjectStartDate || !subjectEndDate) return [];
+
+    const existingMap = new Map<string, typeof occurrences[number]>();
+    for (const occurrence of occurrences) {
+      const key = `${occurrence.date}|${normalizeTimeHM(occurrence.start_time)}|${normalizeTimeHM(occurrence.end_time)}`;
+      if (!existingMap.has(key)) {
+        existingMap.set(key, occurrence);
+      }
+    }
+
+    const history: ClassOccurrence[] = [];
+    let cursor = parseISO(subjectStartDate);
+    const end = parseISO(subjectEndDate);
+
+    while (cursor <= end) {
+      const date = format(cursor, "yyyy-MM-dd");
+      const day = cursor.getDay() === 0 ? 7 : cursor.getDay();
+      const activeForDate = schedules.filter(
+        (schedule) =>
+          schedule.day_of_week === day &&
+          scheduleWithinRange(schedule.effective_from, schedule.effective_until, date)
+      );
+
+      for (const schedule of activeForDate) {
+        const key = `${date}|${normalizeTimeHM(schedule.start_time)}|${normalizeTimeHM(schedule.end_time)}`;
+        const existing = existingMap.get(key);
+        if (existing) {
+          history.push(existing);
+          continue;
+        }
+
+        history.push({
+          $id: `expected:${date}:${schedule.$id}`,
+          $createdAt: "",
+          $updatedAt: "",
+          $collectionId: "",
+          $databaseId: "",
+          $permissions: [],
+          subject_id: subjectId,
+          schedule_id: schedule.$id,
+          date,
+          start_time: schedule.start_time,
+          end_time: schedule.end_time,
+          status: "scheduled",
+          cancellation_reason: null,
+          rescheduled_to: null,
+          attendance: null,
+          attendance_marked_at: null,
+          attendance_note: null,
+          is_extra_class: false,
+        });
+      }
+
+      cursor = addDays(cursor, 1);
+    }
+
+    return history.sort((a, b) => {
+      const left = `${a.date}T${a.start_time}`;
+      const right = `${b.date}T${b.start_time}`;
+      return right.localeCompare(left);
+    });
+  }, [occurrences, scheduleWithinRange, schedules, subjectEndDate, subjectId, subjectStartDate]);
 
   const expectedClassStats = useMemo(() => {
     if (!subjectStartDate || !subjectEndDate) {
@@ -1138,11 +1204,11 @@ export default function SubjectDetailPage(): React.ReactNode {
               onClick={() => setIsAttendanceHistoryModalOpen(true)}
               className="text-sm text-[rgb(var(--accent))] hover:underline"
             >
-              Edit History ({occurrences.length})
+              Edit History ({attendanceHistory.length})
             </button>
           </div>
 
-          {occurrences.length === 0 ? (
+          {attendanceHistory.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Calendar className="w-12 h-12 text-muted-foreground mb-4" />
               <p className="text-sm text-muted-foreground">
@@ -1151,7 +1217,7 @@ export default function SubjectDetailPage(): React.ReactNode {
             </div>
           ) : (
             <div className="space-y-2">
-              {occurrences.slice(0, 10).map((occurrence) => {
+              {attendanceHistory.slice(0, 10).map((occurrence) => {
                 const date = parseISO(occurrence.date);
                 const dayOfWeek = date.getDay();
                 const ourDay = dayOfWeek === 0 ? 7 : dayOfWeek;
@@ -1262,6 +1328,7 @@ export default function SubjectDetailPage(): React.ReactNode {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         subject={subject}
+        semesterStatus={semester.status}
         semesterStartDate={semester.start_date}
         semesterEndDate={semester.end_date}
         onDelete={() => setIsConfirmDeleteSubjectOpen(true)}
@@ -1308,14 +1375,36 @@ export default function SubjectDetailPage(): React.ReactNode {
         isOpen={isAttendanceHistoryModalOpen}
         onClose={() => setIsAttendanceHistoryModalOpen(false)}
         subjectColor={subject.color}
-        occurrences={occurrences}
+        occurrences={attendanceHistory}
         onSave={async (occurrenceId, changes) => {
-          await updateClassOccurrence(occurrenceId, changes);
+          if (occurrenceId.startsWith("expected:")) {
+            const scheduleId = occurrenceId.split(":").slice(2).join(":") || null;
+            const status = changes.status ?? "scheduled";
+            const attendance = status === "cancelled" ? null : (changes.attendance ?? null);
+            await addClassOccurrence({
+              subject_id: subjectId,
+              schedule_id: scheduleId,
+              date: changes.date ?? todayDate,
+              start_time: changes.start_time ?? "09:00",
+              end_time: changes.end_time ?? "10:00",
+              status,
+              cancellation_reason: status === "cancelled" ? (changes.cancellation_reason ?? "Edited as cancelled") : null,
+              rescheduled_to: null,
+              attendance,
+              attendance_marked_at: attendance ? (changes.attendance_marked_at ?? new Date().toISOString()) : null,
+              attendance_note: changes.attendance_note ?? null,
+              is_extra_class: false,
+            });
+          } else {
+            await updateClassOccurrence(occurrenceId, changes);
+          }
           await refetch();
         }}
         onDelete={async (occurrenceId) => {
-          await deleteClassOccurrence(occurrenceId);
-          await refetch();
+          if (!occurrenceId.startsWith("expected:")) {
+            await deleteClassOccurrence(occurrenceId);
+            await refetch();
+          }
         }}
       />
 

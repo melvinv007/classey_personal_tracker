@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, Palette, Target, GraduationCap } from "lucide-react";
+import { X, Calendar, Palette, GraduationCap } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,7 +18,6 @@ const semesterSchema = z.object({
   start_date: z.string().min(1, "Start date is required"),
   end_date: z.string().min(1, "End date is required"),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid color"),
-  target_spi: z.string().optional(),
   credits_total: z.string().optional(),
   status: z.enum(["upcoming", "ongoing", "completed"]),
   is_quick_input: z.boolean(),
@@ -75,7 +74,6 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
       start_date: format(new Date(), "yyyy-MM-dd"),
       end_date: format(addMonths(new Date(), 4), "yyyy-MM-dd"),
       color: PRESET_COLORS[0],
-      target_spi: "",
       credits_total: "",
       status: "ongoing",
       is_quick_input: false,
@@ -103,21 +101,25 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
 
   const onSubmit = async (data: SemesterFormData) => {
     try {
-      const targetSpi = parseOptionalNumber(data.target_spi);
       const spi = parseOptionalNumber(data.spi);
       const creditsTotal = parseOptionalNumber(data.credits_total);
+      const useQuickInput = data.status === "completed" && data.is_quick_input;
+      if (useQuickInput && (spi === null || creditsTotal === null)) {
+        toast.error("SPI and total credits are required for quick input.");
+        return;
+      }
 
-      const newSemester = await createSemester.mutateAsync({
+      await createSemester.mutateAsync({
         name: data.name,
         start_date: data.start_date,
         end_date: data.end_date,
         color: data.color,
         icon: null,
-        target_spi: targetSpi,
-        spi: data.is_quick_input ? spi : null,
+        target_spi: null,
+        spi: useQuickInput ? spi : null,
         credits_earned: null,
-        credits_total: creditsTotal,
-        is_quick_input: data.is_quick_input,
+        credits_total: useQuickInput ? creditsTotal : null,
+        is_quick_input: useQuickInput,
         status: data.status,
         is_archived: data.status === "completed",
         sort_order: 0,
@@ -283,7 +285,12 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
                       <button
                         key={s}
                         type="button"
-                        onClick={() => setValue("status", s)}
+                        onClick={() => {
+                          setValue("status", s);
+                          if (s !== "completed") {
+                            setValue("is_quick_input", false);
+                          }
+                        }}
                         className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-all ${
                           status === s
                             ? "bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))] ring-1 ring-[rgba(var(--accent-rgb),0.3)]"
@@ -329,37 +336,22 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
                   </div>
                 )}
 
-                {/* Target SPI and Credits */}
-                <div className="grid grid-cols-2 gap-4">
+                {/* Credits for quick-input completed semester */}
+                {status === "completed" && isQuickInput && (
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
-                      <Target className="inline w-3.5 h-3.5 mr-1.5" />
-                      Target SPI
-                    </label>
-                    <input
-                      {...register("target_spi")}
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="10"
-                      placeholder="e.g., 8.5"
-                      className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent-rgb),0.5)] focus:border-transparent transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">
-                      Total Credits
+                      Total Credits (Completed Semester)
                     </label>
                     <input
                       {...register("credits_total")}
                       type="number"
                       min="0"
-                      max="50"
+                      max="60"
                       placeholder="e.g., 24"
                       className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent-rgb),0.5)] focus:border-transparent transition-all"
                     />
                   </div>
-                </div>
+                )}
 
                 {/* Actions */}
                 <div className="flex gap-3 pt-2">

@@ -148,6 +148,33 @@ export function EditAttendanceHistoryModal({
     }
   };
 
+  const handleBulkSet = async (state: AttendanceDraft["attendanceState"]): Promise<void> => {
+    const targets = sortedOccurrences.filter((occurrence) => {
+      if (state === "cancelled") return occurrence.status !== "cancelled";
+      if (state === "unmarked") return occurrence.attendance !== null || occurrence.status !== "scheduled";
+      return occurrence.attendance !== state || occurrence.status === "cancelled";
+    });
+
+    if (targets.length === 0) {
+      toast.info("No attendance entries needed changes.");
+      return;
+    }
+
+    setSavingId("__bulk__");
+    try {
+      for (const occurrence of targets) {
+        const draft = getDraft(occurrence);
+        await onSave(occurrence.$id, buildChanges({ ...draft, attendanceState: state }));
+      }
+      toast.success(`Updated ${targets.length} attendance entr${targets.length === 1 ? "y" : "ies"}.`);
+    } catch (error) {
+      toast.error("Failed to apply bulk attendance update");
+      console.error(error);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -170,17 +197,40 @@ export function EditAttendanceHistoryModal({
           transition={{ type: "spring", stiffness: 400, damping: 35 }}
           className="mx-auto mt-4 md:mt-10 w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl bg-white/8 backdrop-blur-2xl border border-white/12"
         >
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-            <div>
+          <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-white/10">
+            <div className="min-w-0">
               <h2 className="text-lg font-semibold text-foreground">Edit Attendance History</h2>
               <p className="text-sm text-muted-foreground">Update or delete past attendance records.</p>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => void handleBulkSet("present")}
+                disabled={savingId === "__bulk__"}
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-xs transition-colors disabled:opacity-50"
+              >
+                Mark all Present
+              </button>
+              <button
+                onClick={() => void handleBulkSet("absent")}
+                disabled={savingId === "__bulk__"}
+                className="px-2.5 py-1.5 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 text-xs transition-colors disabled:opacity-50"
+              >
+                Mark all Absent
+              </button>
+              <button
+                onClick={() => void handleBulkSet("cancelled")}
+                disabled={savingId === "__bulk__"}
+                className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-muted-foreground text-xs transition-colors disabled:opacity-50"
+              >
+                Mark all Cancelled
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <div className="p-4 md:p-5 overflow-y-auto max-h-[calc(90vh-74px)] space-y-3">

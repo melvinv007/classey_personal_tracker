@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
       "lucide-react",
       "date-fns",
     ],
+
+    proxyClientMaxBodySize: 100 * 1024 * 1024, // 100MB
   },
 };
 

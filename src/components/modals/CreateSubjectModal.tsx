@@ -18,8 +18,21 @@ const subjectSchema = z.object({
   short_name: z.string().min(1, "Short name is required").max(10),
   code: z.string().optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid color"),
-  credits: z.string().min(1, "Credits required"),
+  credits: z
+    .string()
+    .refine((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 60;
+    }, "Credits must be between 0 and 60"),
   type: z.enum(["theory", "lab", "practical", "project", "other"]),
+  grade_points: z
+    .string()
+    .optional()
+    .refine((value) => {
+      if (!value || value.trim() === "") return true;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 10;
+    }, "Grade points must be between 0 and 10"),
   attendance_requirement: z.string().optional(),
   teacher_name: z.string().optional(),
   teacher_email: z.string().email().optional().or(z.literal("")),
@@ -55,6 +68,7 @@ interface CreateSubjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   semesterId: string;
+  semesterStatus: "upcoming" | "ongoing" | "completed";
   semesterColor?: string;
   semesterStartDate?: string;
   semesterEndDate?: string;
@@ -85,6 +99,7 @@ export function CreateSubjectModal({
   isOpen,
   onClose,
   semesterId,
+  semesterStatus,
   semesterColor = "#8B5CF6",
   semesterStartDate,
   semesterEndDate,
@@ -114,6 +129,7 @@ export function CreateSubjectModal({
       color: semesterColor,
       credits: "3",
       type: "theory",
+      grade_points: "",
       attendance_requirement: "75",
       teacher_name: "",
       teacher_email: "",
@@ -141,6 +157,7 @@ export function CreateSubjectModal({
         color: semesterColor,
         credits: "3",
         type: "theory",
+        grade_points: "",
         attendance_requirement: "75",
         teacher_name: "",
         teacher_email: "",
@@ -193,7 +210,10 @@ export function CreateSubjectModal({
           : 75,
         credits: parseInt(data.credits, 10),
         grade: null,
-        grade_points: null,
+        grade_points:
+          semesterStatus === "completed" && data.grade_points && data.grade_points.trim() !== ""
+            ? parseFloat(data.grade_points)
+            : null,
         grade_scale_id: null,
         type: data.type,
         slot_ids: slotIdsForSubject,
@@ -333,12 +353,33 @@ export function CreateSubjectModal({
                     <input
                       {...register("credits")}
                       type="number"
-                      min="1"
-                      max="10"
+                      min="0"
+                      max="60"
                       className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent-rgb),0.5)] focus:border-transparent transition-all"
                     />
+                    {errors.credits && <p className="mt-1 text-xs text-red-400">{errors.credits.message}</p>}
                   </div>
                 </div>
+
+                {semesterStatus === "completed" ? (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Grade Points (0–10)
+                    </label>
+                    <input
+                      {...register("grade_points")}
+                      type="number"
+                      min="0"
+                      max="10"
+                      step="0.01"
+                      placeholder="e.g., 8.75"
+                      className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent-rgb),0.5)] focus:border-transparent transition-all"
+                    />
+                    {errors.grade_points && (
+                      <p className="mt-1 text-xs text-red-400">{errors.grade_points.message}</p>
+                    )}
+                  </div>
+                ) : null}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -515,7 +556,7 @@ export function CreateSubjectModal({
                     <input
                       {...register("attendance_requirement")}
                       type="range"
-                      min="50"
+                      min="0"
                       max="100"
                       step="5"
                       className="flex-1 h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[rgb(var(--accent))]"

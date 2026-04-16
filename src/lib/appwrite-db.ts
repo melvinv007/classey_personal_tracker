@@ -137,6 +137,15 @@ function getErrorMessage(error: unknown): string {
   return "";
 }
 
+function isUnknownDescriptionError(error: unknown): boolean {
+  return getErrorMessage(error).includes('Unknown attribute: "description"');
+}
+
+function shouldLogAppwriteError(error: unknown): boolean {
+  const message = getErrorMessage(error);
+  return !message.includes('Unknown attribute: "description"');
+}
+
 /**
  * Generic list documents with optional queries
  */
@@ -199,7 +208,9 @@ export async function createDocument<T extends AppwriteDoc>(
     );
     return doc as unknown as T;
   } catch (error) {
-    console.error(`Error creating document in ${collectionId}:`, error);
+    if (shouldLogAppwriteError(error)) {
+      console.error(`Error creating document in ${collectionId}:`, error);
+    }
     throw error;
   }
 }
@@ -221,7 +232,9 @@ export async function updateDocument<T extends AppwriteDoc>(
     );
     return doc as unknown as T;
   } catch (error) {
-    console.error(`Error updating document ${documentId} in ${collectionId}:`, error);
+    if (shouldLogAppwriteError(error)) {
+      console.error(`Error updating document ${documentId} in ${collectionId}:`, error);
+    }
     throw error;
   }
 }
@@ -470,6 +483,18 @@ export const holidayService = {
   list: (queries?: string[]) => listDocuments<Holiday>(COLLECTIONS.HOLIDAYS, queries),
   get: (id: string) => getDocument<Holiday>(COLLECTIONS.HOLIDAYS, id),
   create: async (data: Omit<Holiday, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) => {
+    if ("description" in data && data.description !== null) {
+      try {
+        return await createDocument<Holiday>(COLLECTIONS.HOLIDAYS, { ...data });
+      } catch (error) {
+        if (isUnknownDescriptionError(error)) {
+          return createDocument<Holiday>(COLLECTIONS.HOLIDAYS, {
+            ...data,
+            description: undefined,
+          });
+        }
+      }
+    }
     const payload: Record<string, unknown> = { ...data };
     for (let attempt = 0; attempt < 6; attempt++) {
       try {
@@ -486,6 +511,18 @@ export const holidayService = {
     return createDocument<Holiday>(COLLECTIONS.HOLIDAYS, payload);
   },
   update: async (id: string, data: Partial<Holiday>) => {
+    if ("description" in data && data.description !== undefined) {
+      try {
+        return await updateDocument<Holiday>(COLLECTIONS.HOLIDAYS, id, { ...data });
+      } catch (error) {
+        if (isUnknownDescriptionError(error)) {
+          return updateDocument<Holiday>(COLLECTIONS.HOLIDAYS, id, {
+            ...data,
+            description: undefined,
+          });
+        }
+      }
+    }
     const payload: Record<string, unknown> = { ...data };
     for (let attempt = 0; attempt < 6; attempt++) {
       try {

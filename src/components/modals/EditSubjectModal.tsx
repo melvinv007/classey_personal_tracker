@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, BookOpen, Palette, User, Clock, Award, Trash2, CalendarDays } from "lucide-react";
+import { X, BookOpen, User, Trash2, CalendarDays } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -19,12 +19,24 @@ const subjectSchema = z.object({
   short_name: z.string().min(1, "Short name is required").max(10),
   code: z.string().optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid color"),
-  credits: z.string().min(1, "Credits required"),
+  credits: z
+    .string()
+    .refine((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 60;
+    }, "Credits must be between 0 and 60"),
   type: z.enum(["theory", "lab", "practical", "project", "other"]),
   attendance_requirement: z.string().optional(),
   teacher_name: z.string().optional(),
   teacher_email: z.string().email().optional().or(z.literal("")),
-  grade: z.string().optional(),
+  grade_points: z
+    .string()
+    .optional()
+    .refine((value) => {
+      if (!value || value.trim() === "") return true;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 10;
+    }, "Grade points must be between 0 and 10"),
   start_date: z.string().min(1, "Start date is required"),
   end_date: z.string().min(1, "End date is required"),
 });
@@ -40,12 +52,11 @@ const SUBJECT_TYPES = [
   { value: "project", label: "Project" },
   { value: "other", label: "Other" },
 ] as const;
-const GRADES = ["S", "A", "B", "C", "D", "E", "F", "I", "W"];
-
 interface EditSubjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   subject: Subject;
+  semesterStatus: "upcoming" | "ongoing" | "completed";
   semesterStartDate?: string;
   semesterEndDate?: string;
   onDelete?: () => void | Promise<void>;
@@ -63,6 +74,7 @@ export function EditSubjectModal({
   isOpen,
   onClose,
   subject,
+  semesterStatus,
   semesterStartDate,
   semesterEndDate,
   onDelete,
@@ -110,7 +122,7 @@ export function EditSubjectModal({
       attendance_requirement: (subject.attendance_requirement_percent ?? 75).toString(),
       teacher_name: subject.teacher_name ?? "",
       teacher_email: subject.teacher_email ?? "",
-      grade: subject.grade ?? "",
+      grade_points: subject.grade_points?.toString() ?? "",
       start_date: subject.start_date ?? semesterStartDate ?? "",
       end_date: subject.end_date ?? semesterEndDate ?? "",
     },
@@ -131,7 +143,7 @@ export function EditSubjectModal({
         attendance_requirement: (subject.attendance_requirement_percent ?? 75).toString(),
         teacher_name: subject.teacher_name ?? "",
         teacher_email: subject.teacher_email ?? "",
-        grade: subject.grade ?? "",
+        grade_points: subject.grade_points?.toString() ?? "",
         start_date: subject.start_date ?? semesterStartDate ?? "",
         end_date: subject.end_date ?? semesterEndDate ?? "",
       });
@@ -156,7 +168,10 @@ export function EditSubjectModal({
         attendance_requirement_percent: data.attendance_requirement ? parseInt(data.attendance_requirement, 10) : 75,
         teacher_name: data.teacher_name || null,
         teacher_email: data.teacher_email || null,
-        grade: data.grade || null,
+        grade_points:
+          semesterStatus === "completed" && data.grade_points && data.grade_points.trim() !== ""
+            ? parseFloat(data.grade_points)
+            : null,
       });
       toast.success(`Updated ${data.name}`);
       onClose();
@@ -271,7 +286,10 @@ export function EditSubjectModal({
 
                   <div className="grid grid-cols-2 gap-4">
                     <input {...register("code")} type="text" placeholder="Course Code" className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground" />
-                    <input {...register("credits")} type="number" min="1" max="10" className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground" />
+                    <div>
+                      <input {...register("credits")} type="number" min="0" max="60" className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground" />
+                      {errors.credits && <p className="mt-1 text-xs text-red-400">{errors.credits.message}</p>}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -295,7 +313,7 @@ export function EditSubjectModal({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-4">
                     <div className="flex flex-wrap gap-1.5">
                       {SUBJECT_TYPES.map((type) => (
                         <button key={type.value} type="button" onClick={() => setValue("type", type.value)} className={cn("px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all", selectedType === type.value ? "bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))]" : "bg-white/5 text-muted-foreground hover:bg-white/10")}>
@@ -303,12 +321,21 @@ export function EditSubjectModal({
                         </button>
                       ))}
                     </div>
-                    <ThemedSelect
-                      value={watch("grade") || "__none__"}
-                      onChange={(value) => setValue("grade", value === "__none__" ? "" : value, { shouldValidate: true })}
-                      options={[{ value: "__none__", label: "Not graded" }, ...GRADES.map((g) => ({ value: g, label: g }))]}
-                    />
-                    <input type="hidden" {...register("grade")} />
+
+                    {semesterStatus === "completed" ? (
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">Grade Points (0–10)</label>
+                        <input
+                          {...register("grade_points")}
+                          type="number"
+                          min="0"
+                          max="10"
+                          step="0.01"
+                          className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground"
+                        />
+                        {errors.grade_points && <p className="mt-1 text-xs text-red-400">{errors.grade_points.message}</p>}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -413,6 +440,24 @@ export function EditSubjectModal({
                       <User className="w-4 h-4" />
                       Teacher Info
                     </p>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">
+                        Attendance Requirement (%)
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          {...register("attendance_requirement")}
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="5"
+                          className="flex-1 h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[rgb(var(--accent))]"
+                        />
+                        <span className="w-12 text-center text-sm font-medium text-foreground">
+                          {watch("attendance_requirement") ?? "75"}%
+                        </span>
+                      </div>
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <input {...register("teacher_name")} type="text" placeholder="Name" className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground text-sm" />
                       <input {...register("teacher_email")} type="email" placeholder="Email" className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground text-sm" />

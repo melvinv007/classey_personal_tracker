@@ -326,7 +326,6 @@ export default function Home(): React.ReactNode {
     return () => window.clearInterval(timer);
   }, []);
 
-  // Show loading state while fetching data
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">

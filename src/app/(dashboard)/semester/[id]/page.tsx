@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Plus, Edit3, MoreHorizontal, Calendar, Target, Loader2, Trash2, Sparkles } from "lucide-react";
+import { ArrowLeft, Plus, Edit3, MoreHorizontal, Calendar, Loader2, Trash2, Sparkles } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { addDays, format, parseISO } from "date-fns";
 import { useData } from "@/hooks/use-data";
@@ -15,6 +15,7 @@ import { normalizeTimeHM } from "@/lib/utils";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
 import { ThemedDateInput } from "@/components/ui/ThemedDateTimeInput";
 import { PersistentNotepad } from "@/components/ui/PersistentNotepad";
+import { calculateSPI } from "@/utils/grades";
 
 const containerVariants = {
   hidden: {},
@@ -68,6 +69,13 @@ export default function SemesterDetailPage(): React.ReactNode {
   const semesterHolidays = getHolidaysBySemester(semesterId);
   const setAccentColor = useThemeStore((s) => s.setAccentColor);
   const totalCredits = subjects.reduce((sum, s) => sum + s.credits, 0);
+  const subjectsWithGradePoints = subjects.filter((subject) => subject.grade_points !== null && subject.credits > 0);
+  const hasAllSubjectGrades = subjects.length > 0 && subjectsWithGradePoints.length === subjects.length;
+  const effectiveSemesterSPI = hasAllSubjectGrades
+    ? calculateSPI(subjects)
+    : semester?.is_quick_input && semester.spi !== null
+      ? semester.spi
+      : null;
 
   const toPeriodDescription = useCallback(
     (kind: "holiday" | "exam-time", note: string): string =>
@@ -460,15 +468,9 @@ export default function SemesterDetailPage(): React.ReactNode {
                   <Calendar className="w-3.5 h-3.5" />
                   {format(startDate, "MMM d")} – {format(endDate, "MMM d, yyyy")}
                 </span>
-                {semester.target_spi && (
+                {effectiveSemesterSPI !== null && (
                   <span className="flex items-center gap-1.5">
-                    <Target className="w-3.5 h-3.5" />
-                    Target: {semester.target_spi.toFixed(1)} SPI
-                  </span>
-                )}
-                {semester.spi && (
-                  <span className="flex items-center gap-1.5">
-                    Achieved: {semester.spi.toFixed(1)} SPI
+                    SPI: {effectiveSemesterSPI.toFixed(2)}
                   </span>
                 )}
               </motion.div>
@@ -645,6 +647,7 @@ export default function SemesterDetailPage(): React.ReactNode {
         semesterColor={semester.color}
         semesterStartDate={semester.start_date}
         semesterEndDate={semester.end_date}
+        semesterStatus={semester.status}
       />
 
       {/* Edit Semester Modal */}

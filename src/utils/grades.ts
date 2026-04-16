@@ -124,6 +124,62 @@ export interface SemesterGradeData {
   spi: number;
   credits: number;
   status: string;
+  source: "subjects" | "manual";
+}
+
+export interface ResolvedSemesterGradeData extends SemesterGradeData {
+  includedInCGPA: boolean;
+}
+
+export function resolveSemesterGradeData(
+  semester: Semester,
+  semesterSubjects: Subject[]
+): ResolvedSemesterGradeData {
+  const validSubjects = semesterSubjects.filter((subject) => !subject.deleted_at);
+  const gradedSubjects = validSubjects.filter(
+    (subject) => subject.grade_points !== null && subject.credits > 0
+  );
+  const allSubjectsGraded = validSubjects.length > 0 && gradedSubjects.length === validSubjects.length;
+
+  if (allSubjectsGraded) {
+    return {
+      id: semester.$id,
+      name: semester.name,
+      spi: calculateSPI(validSubjects),
+      credits: validSubjects.reduce((sum, subject) => sum + subject.credits, 0),
+      status: semester.status,
+      source: "subjects",
+      includedInCGPA: semester.status === "completed",
+    };
+  }
+
+  if (
+    semester.is_quick_input &&
+    semester.status === "completed" &&
+    semester.spi !== null &&
+    semester.credits_total !== null &&
+    semester.credits_total > 0
+  ) {
+    return {
+      id: semester.$id,
+      name: semester.name,
+      spi: semester.spi,
+      credits: semester.credits_total,
+      status: semester.status,
+      source: "manual",
+      includedInCGPA: true,
+    };
+  }
+
+  return {
+    id: semester.$id,
+    name: semester.name,
+    spi: 0,
+    credits: validSubjects.reduce((sum, subject) => sum + subject.credits, 0),
+    status: semester.status,
+    source: "subjects",
+    includedInCGPA: false,
+  };
 }
 
 /**
@@ -148,7 +204,14 @@ export function whatIfCGPA(
 ): number {
   return calculateCGPA([
     ...currentSemesters,
-    { id: "hypothetical", name: "Current", spi: hypotheticalSPI, credits: hypotheticalCredits, status: "ongoing" },
+    {
+      id: "hypothetical",
+      name: "Current",
+      spi: hypotheticalSPI,
+      credits: hypotheticalCredits,
+      status: "ongoing",
+      source: "manual",
+    },
   ]);
 }
 
