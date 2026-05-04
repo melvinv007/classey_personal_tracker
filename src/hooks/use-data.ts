@@ -1,101 +1,99 @@
 /**
  * Compatibility layer that provides data from Appwrite
  * via hooks similar to the old useDataStore API.
- * 
+ *
  * This allows gradual migration without rewriting all components.
  */
 
-import { useMemo, useCallback } from "react";
-import { format } from "date-fns";
-import { normalizeTimeHM } from "@/lib/utils";
-import { useSemesterStore } from "@/stores/semester-store";
-import {
-  useSemesters,
-  useSubjects,
-  useClassSchedules,
-  useClassOccurrences,
-  useExams,
-  useTasks,
-  useEvents,
-  useFiles,
-  useResourceLinks,
-  useNotes,
-  useCreateSemester,
-  useUpdateSemester,
-  useDeleteSemester,
-  useCreateSubject,
-  useUpdateSubject,
-  useDeleteSubject,
-  useCreateExam,
-  useUpdateExam,
-  useDeleteExam,
-  useCreateTask,
-  useUpdateTask,
-  useDeleteTask,
-  useToggleTaskComplete,
-  useCreateEvent,
-  useUpdateEvent,
-  useDeleteEvent,
-  useCreateFile,
-  useDeleteFile,
-  useCreateResourceLink,
-  useDeleteResourceLink,
-  useCreateNote,
-  useUpdateNote,
-  useDeleteNote,
-  useMarkAttendance,
-  useCreateClassOccurrence,
-  useUpdateClassOccurrence,
-  useDeleteClassOccurrence,
-  useSlots,
-  useCreateClassSchedule,
-  useUpdateClassSchedule,
-  useDeleteClassSchedule,
-  useSettings,
-  useUpdateSettings,
-  useHolidays,
-  useCreateHoliday,
-  useUpdateHoliday,
-  useDeleteHoliday,
-} from "./use-appwrite";
-import { useQueryClient } from "@tanstack/react-query";
-import type {
-  Semester,
-  Subject,
-  Slot,
-  ClassSchedule,
-  ClassOccurrence,
-  Exam,
-  Task,
-  Event,
-  ClasseyFile,
-  ResourceLink,
-  Note,
-  Settings,
-  ReminderOffset,
-  Holiday,
-} from "@/types/database";
 import {
   parseReminderOffsetsJson,
   serializeReminderOffsetsJson,
 } from "@/lib/appwrite-db";
+import { normalizeTimeHM } from "@/lib/utils";
+import { useSemesterStore } from "@/stores/semester-store";
+import type {
+  ClassOccurrence,
+  ClassSchedule,
+  Event,
+  Exam,
+  Holiday,
+  ReminderOffset,
+  Semester,
+  Settings,
+  Slot,
+  Subject,
+  Task,
+} from "@/types/database";
+import { useCallback, useMemo } from "react";
+import {
+  useClassOccurrences,
+  useClassSchedules,
+  useCreateClassOccurrence,
+  useCreateClassSchedule,
+  useCreateEvent,
+  useCreateExam,
+  useCreateFile,
+  useCreateHoliday,
+  useCreateNote,
+  useCreateResourceLink,
+  useCreateSemester,
+  useCreateSubject,
+  useCreateTask,
+  useDeleteClassOccurrence,
+  useDeleteClassSchedule,
+  useDeleteEvent,
+  useDeleteExam,
+  useDeleteFile,
+  useDeleteHoliday,
+  useDeleteNote,
+  useDeleteResourceLink,
+  useDeleteSemester,
+  useDeleteSubject,
+  useDeleteTask,
+  useEvents,
+  useExams,
+  useFiles,
+  useHolidays,
+  useMarkAttendance,
+  useNotes,
+  useResourceLinks,
+  useSemesters,
+  useSettings,
+  useSlots,
+  useSubjects,
+  useTasks,
+  useToggleTaskComplete,
+  useUpdateClassOccurrence,
+  useUpdateClassSchedule,
+  useUpdateEvent,
+  useUpdateExam,
+  useUpdateHoliday,
+  useUpdateNote,
+  useUpdateSemester,
+  useUpdateSettings,
+  useUpdateSubject,
+  useUpdateTask,
+} from "./use-appwrite";
 
 // Calculate attendance stats from occurrences
 function calculateAttendanceStats(
   occurrences: ClassOccurrence[],
-  requiredPercent: number = 75
+  requiredPercent: number = 75,
 ) {
-  const nonCancelled = occurrences.filter(o => o.status !== "cancelled");
-  const present = occurrences.filter(o => o.attendance === "present").length;
-  const absent = occurrences.filter(o => o.attendance === "absent").length;
-  const cancelled = occurrences.filter(o => o.status === "cancelled").length;
+  const nonCancelled = occurrences.filter((o) => o.status !== "cancelled");
+  const present = occurrences.filter((o) => o.attendance === "present").length;
+  const absent = occurrences.filter((o) => o.attendance === "absent").length;
+  const cancelled = occurrences.filter((o) => o.status === "cancelled").length;
   const total = nonCancelled.length;
   const percentage = total > 0 ? (present / total) * 100 : 0;
 
   // Classes needed to reach required %
-  const classesNeeded = percentage >= requiredPercent
-    ? 0
-    : Math.ceil((requiredPercent * total - 100 * present) / (100 - requiredPercent));
+  const classesNeeded =
+    percentage >= requiredPercent
+      ? 0
+      : Math.ceil(
+          (requiredPercent * total - 100 * present) / (100 - requiredPercent),
+        );
 
   // Classes can bunk while staying safe
   const maxTotal = Math.floor((present * 100) / requiredPercent);
@@ -119,19 +117,65 @@ export function useData() {
   const { activeSemesterId, setActiveSemesterId } = useSemesterStore();
 
   // Fetch all data
-  const { data: semesters = [], isLoading: loadingSemesters, refetch: refetchSemesters } = useSemesters();
-  const { data: subjects = [], isLoading: loadingSubjects, refetch: refetchSubjects } = useSubjects();
-  const { data: classSchedules = [], isLoading: loadingSchedules } = useClassSchedules();
-  const { data: slots = [], isLoading: loadingSlots, refetch: refetchSlots } = useSlots();
-  const { data: classOccurrences = [], isLoading: loadingOccurrences } = useClassOccurrences();
-  const { data: exams = [], isLoading: loadingExams, refetch: refetchExams } = useExams();
-  const { data: tasks = [], isLoading: loadingTasks, refetch: refetchTasks } = useTasks();
-  const { data: events = [], isLoading: loadingEvents, refetch: refetchEvents } = useEvents();
-  const { data: files = [], isLoading: loadingFiles, refetch: refetchFiles } = useFiles();
-  const { data: resourceLinks = [], isLoading: loadingLinks, refetch: refetchLinks } = useResourceLinks();
-  const { data: notes = [], isLoading: loadingNotes, refetch: refetchNotes } = useNotes();
-  const { data: settings, isLoading: loadingSettings, refetch: refetchSettings } = useSettings();
-  const { data: holidays = [], isLoading: loadingHolidays, refetch: refetchHolidays } = useHolidays();
+  const {
+    data: semesters = [],
+    isLoading: loadingSemesters,
+    refetch: refetchSemesters,
+  } = useSemesters();
+  const {
+    data: subjects = [],
+    isLoading: loadingSubjects,
+    refetch: refetchSubjects,
+  } = useSubjects();
+  const { data: classSchedules = [], isLoading: loadingSchedules } =
+    useClassSchedules();
+  const {
+    data: slots = [],
+    isLoading: loadingSlots,
+    refetch: refetchSlots,
+  } = useSlots();
+  const { data: classOccurrences = [], isLoading: loadingOccurrences } =
+    useClassOccurrences();
+  const {
+    data: exams = [],
+    isLoading: loadingExams,
+    refetch: refetchExams,
+  } = useExams();
+  const {
+    data: tasks = [],
+    isLoading: loadingTasks,
+    refetch: refetchTasks,
+  } = useTasks();
+  const {
+    data: events = [],
+    isLoading: loadingEvents,
+    refetch: refetchEvents,
+  } = useEvents();
+  const {
+    data: files = [],
+    isLoading: loadingFiles,
+    refetch: refetchFiles,
+  } = useFiles();
+  const {
+    data: resourceLinks = [],
+    isLoading: loadingLinks,
+    refetch: refetchLinks,
+  } = useResourceLinks();
+  const {
+    data: notes = [],
+    isLoading: loadingNotes,
+    refetch: refetchNotes,
+  } = useNotes();
+  const {
+    data: settings,
+    isLoading: loadingSettings,
+    refetch: refetchSettings,
+  } = useSettings();
+  const {
+    data: holidays = [],
+    isLoading: loadingHolidays,
+    refetch: refetchHolidays,
+  } = useHolidays();
 
   // Mutations
   const createSemesterMutation = useCreateSemester();
@@ -170,28 +214,37 @@ export function useData() {
   const deleteHolidayMutation = useDeleteHoliday();
 
   // Loading state
-  const isLoading = loadingSemesters || loadingSubjects || loadingSchedules || loadingSlots ||
-                    loadingOccurrences || loadingExams || loadingTasks || 
-                    loadingEvents || loadingFiles || loadingLinks || loadingNotes ||
-                    loadingSettings || loadingHolidays;
+  const isLoading =
+    loadingSemesters ||
+    loadingSubjects ||
+    loadingSchedules ||
+    loadingSlots ||
+    loadingOccurrences ||
+    loadingExams ||
+    loadingTasks ||
+    loadingEvents ||
+    loadingFiles ||
+    loadingLinks ||
+    loadingNotes ||
+    loadingSettings ||
+    loadingHolidays;
 
   // Derived data (memoized)
   const activeSemesters = useMemo(
-    () => semesters.filter(s => !s.is_archived && !s.deleted_at),
-    [semesters]
+    () => semesters.filter((s) => !s.is_archived && !s.deleted_at),
+    [semesters],
   );
 
   const archivedSemesters = useMemo(
-    () => semesters.filter(s => s.is_archived && !s.deleted_at),
-    [semesters]
+    () => semesters.filter((s) => s.is_archived && !s.deleted_at),
+    [semesters],
   );
 
   const autoCurrentSemesters = useMemo(() => {
     const now = new Date();
-    return activeSemesters.filter(s => {
-      const start = new Date(s.start_date);
-      const end = new Date(s.end_date);
-      return s.status === "ongoing" || (now >= start && now <= end);
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    return activeSemesters.filter((s) => {
+      return s.start_date <= today && s.end_date >= today;
     });
   }, [activeSemesters]);
 
@@ -200,34 +253,49 @@ export function useData() {
     return activeSemesters.find((s) => s.$id === activeSemesterId) ?? null;
   }, [activeSemesterId, activeSemesters]);
 
+  const selectedCurrentSemester = useMemo(() => {
+    if (!selectedSemester) return null;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    if (
+      selectedSemester.start_date <= today &&
+      selectedSemester.end_date >= today
+    ) {
+      return selectedSemester;
+    }
+    return null;
+  }, [selectedSemester]);
+
   const currentSemesters = useMemo(() => {
-    if (selectedSemester) return [selectedSemester];
+    if (selectedCurrentSemester) return [selectedCurrentSemester];
     return autoCurrentSemesters;
-  }, [selectedSemester, autoCurrentSemesters]);
+  }, [selectedCurrentSemester, autoCurrentSemesters]);
 
   const ongoingSemester = useMemo(() => {
-    return selectedSemester || autoCurrentSemesters[0] || activeSemesters[0] || null;
-  }, [selectedSemester, autoCurrentSemesters, activeSemesters]);
+    return selectedCurrentSemester || autoCurrentSemesters[0] || null;
+  }, [selectedCurrentSemester, autoCurrentSemesters]);
 
   // Getter functions
   const getSemesterById = useCallback(
-    (id: string) => semesters.find(s => s.$id === id),
-    [semesters]
+    (id: string) => semesters.find((s) => s.$id === id),
+    [semesters],
   );
 
   const getSubjectById = useCallback(
-    (id: string) => subjects.find(s => s.$id === id),
-    [subjects]
+    (id: string) => subjects.find((s) => s.$id === id),
+    [subjects],
   );
 
   const getSubjectsBySemester = useCallback(
-    (semesterId: string) => subjects.filter(s => s.semester_id === semesterId && !s.deleted_at),
-    [subjects]
+    (semesterId: string) =>
+      subjects.filter((s) => s.semester_id === semesterId && !s.deleted_at),
+    [subjects],
   );
 
   const getExamsBySubject = useCallback(
-    (subjectId: string) => exams.filter(e => e.subject_id === subjectId && !e.deleted_at),
-    [exams]
+    (subjectId: string) =>
+      exams.filter((e) => e.subject_id === subjectId && !e.deleted_at),
+    [exams],
   );
 
   const getUpcomingExams = useCallback(
@@ -235,64 +303,92 @@ export function useData() {
       const now = new Date();
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + days);
-      return exams.filter(e => {
-        if (e.deleted_at) return false;
-        const examDate = new Date(e.date);
-        return examDate >= now && examDate <= futureDate;
-      }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      return exams
+        .filter((e) => {
+          if (e.deleted_at) return false;
+          const examDate = new Date(e.date);
+          return examDate >= now && examDate <= futureDate;
+        })
+        .sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+        );
     },
-    [exams]
+    [exams],
   );
 
   const getTasksBySemester = useCallback(
-    (semesterId: string) => tasks.filter(t => t.semester_id === semesterId && !t.deleted_at),
-    [tasks]
+    (semesterId: string) =>
+      tasks.filter((t) => t.semester_id === semesterId && !t.deleted_at),
+    [tasks],
   );
 
   const getPendingTasks = useCallback(
-    () => tasks.filter(t => !t.is_completed && !t.deleted_at),
-    [tasks]
+    () => tasks.filter((t) => !t.is_completed && !t.deleted_at),
+    [tasks],
   );
 
   const getOccurrencesBySubject = useCallback(
-    (subjectId: string) => classOccurrences.filter(o => o.subject_id === subjectId),
-    [classOccurrences]
+    (subjectId: string) =>
+      classOccurrences.filter((o) => o.subject_id === subjectId),
+    [classOccurrences],
   );
 
   const getSchedulesBySubject = useCallback(
-    (subjectId: string) => classSchedules.filter(s => s.subject_id === subjectId && !s.deleted_at),
-    [classSchedules]
+    (subjectId: string) =>
+      classSchedules.filter((s) => s.subject_id === subjectId && !s.deleted_at),
+    [classSchedules],
   );
 
   const getSchedulesByDay = useCallback(
-    (dayOfWeek: number) => classSchedules.filter(s => s.day_of_week === dayOfWeek && !s.deleted_at),
-    [classSchedules]
+    (dayOfWeek: number) =>
+      classSchedules.filter(
+        (s) => s.day_of_week === dayOfWeek && !s.deleted_at,
+      ),
+    [classSchedules],
   );
 
   const getTodaySchedules = useCallback(() => {
+    if (!ongoingSemester) return [];
     const today = new Date();
+    const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
-    return getSchedulesByDay(dayOfWeek);
-  }, [getSchedulesByDay]);
+    const activeSubjectIds = new Set(
+      subjects
+        .filter(
+          (subject) =>
+            !subject.deleted_at && subject.semester_id === ongoingSemester.$id,
+        )
+        .map((subject) => subject.$id),
+    );
+    return getSchedulesByDay(dayOfWeek).filter(
+      (schedule) =>
+        activeSubjectIds.has(schedule.subject_id) &&
+        schedule.effective_from <= todayDate &&
+        (!schedule.effective_until || schedule.effective_until >= todayDate),
+    );
+  }, [getSchedulesByDay, ongoingSemester, subjects]);
 
   const getSlotById = useCallback(
     (id: string): Slot | undefined => slots.find((slot) => slot.$id === id),
-    [slots]
+    [slots],
   );
 
   const getFilesBySubject = useCallback(
-    (subjectId: string) => files.filter(f => f.subject_id === subjectId && !f.deleted_at),
-    [files]
+    (subjectId: string) =>
+      files.filter((f) => f.subject_id === subjectId && !f.deleted_at),
+    [files],
   );
 
   const getLinksBySubject = useCallback(
-    (subjectId: string) => resourceLinks.filter(l => l.subject_id === subjectId && !l.deleted_at),
-    [resourceLinks]
+    (subjectId: string) =>
+      resourceLinks.filter((l) => l.subject_id === subjectId && !l.deleted_at),
+    [resourceLinks],
   );
 
   const getNotesBySubject = useCallback(
-    (subjectId: string) => notes.filter(n => n.subject_id === subjectId && !n.deleted_at),
-    [notes]
+    (subjectId: string) =>
+      notes.filter((n) => n.subject_id === subjectId && !n.deleted_at),
+    [notes],
   );
 
   const getHolidaysBySemester = useCallback(
@@ -312,10 +408,12 @@ export function useData() {
         const holidayEnd = holiday.date_end ?? holiday.date;
 
         // Backward-compatible fallback for older period entries without semester tags.
-        return holidayStart <= semester.end_date && holidayEnd >= semester.start_date;
+        return (
+          holidayStart <= semester.end_date && holidayEnd >= semester.start_date
+        );
       });
     },
-    [holidays, semesters]
+    [holidays, semesters],
   );
 
   // Calculate attendance stats for a subject
@@ -324,166 +422,245 @@ export function useData() {
       const subjectOccurrences = getOccurrencesBySubject(subjectId);
       return calculateAttendanceStats(subjectOccurrences, requiredPercent);
     },
-    [getOccurrencesBySubject]
+    [getOccurrencesBySubject],
   );
 
   // CRUD operations
   const addSemester = useCallback(
-    async (data: Omit<Semester, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) => {
+    async (
+      data: Omit<
+        Semester,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => {
       return createSemesterMutation.mutateAsync(data);
     },
-    [createSemesterMutation]
+    [createSemesterMutation],
   );
 
   const updateSemester = useCallback(
     async (id: string, data: Partial<Semester>) => {
       return updateSemesterMutation.mutateAsync({ id, data });
     },
-    [updateSemesterMutation]
+    [updateSemesterMutation],
   );
 
   const deleteSemester = useCallback(
     async (id: string) => {
       return deleteSemesterMutation.mutateAsync(id);
     },
-    [deleteSemesterMutation]
+    [deleteSemesterMutation],
   );
 
   const archiveSemester = useCallback(
     async (id: string) => {
-      return updateSemesterMutation.mutateAsync({ id, data: { is_archived: true } });
+      return updateSemesterMutation.mutateAsync({
+        id,
+        data: { is_archived: true },
+      });
     },
-    [updateSemesterMutation]
+    [updateSemesterMutation],
   );
 
   const unarchiveSemester = useCallback(
     async (id: string) => {
-      return updateSemesterMutation.mutateAsync({ id, data: { is_archived: false } });
+      return updateSemesterMutation.mutateAsync({
+        id,
+        data: { is_archived: false },
+      });
     },
-    [updateSemesterMutation]
+    [updateSemesterMutation],
   );
 
   const addSubject = useCallback(
-    async (data: Omit<Subject, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) => {
+    async (
+      data: Omit<
+        Subject,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => {
       return createSubjectMutation.mutateAsync(data);
     },
-    [createSubjectMutation]
+    [createSubjectMutation],
   );
 
   const updateSubject = useCallback(
     async (id: string, data: Partial<Subject>) => {
       return updateSubjectMutation.mutateAsync({ id, data });
     },
-    [updateSubjectMutation]
+    [updateSubjectMutation],
   );
 
   const deleteSubject = useCallback(
     async (id: string) => {
       return deleteSubjectMutation.mutateAsync(id);
     },
-    [deleteSubjectMutation]
+    [deleteSubjectMutation],
   );
 
   const addExam = useCallback(
-    async (data: Omit<Exam, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) => {
+    async (
+      data: Omit<
+        Exam,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => {
       return createExamMutation.mutateAsync(data);
     },
-    [createExamMutation]
+    [createExamMutation],
   );
 
   const updateExam = useCallback(
     async (id: string, data: Partial<Exam>) => {
       return updateExamMutation.mutateAsync({ id, data });
     },
-    [updateExamMutation]
+    [updateExamMutation],
   );
 
   const deleteExam = useCallback(
     async (id: string) => {
       return deleteExamMutation.mutateAsync(id);
     },
-    [deleteExamMutation]
+    [deleteExamMutation],
   );
 
   const addTask = useCallback(
-    async (data: Omit<Task, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) => {
+    async (
+      data: Omit<
+        Task,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => {
       return createTaskMutation.mutateAsync(data);
     },
-    [createTaskMutation]
+    [createTaskMutation],
   );
 
   const updateTask = useCallback(
     async (id: string, data: Partial<Task>) => {
       return updateTaskMutation.mutateAsync({ id, data });
     },
-    [updateTaskMutation]
+    [updateTaskMutation],
   );
 
   const deleteTask = useCallback(
     async (id: string) => {
       return deleteTaskMutation.mutateAsync(id);
     },
-    [deleteTaskMutation]
+    [deleteTaskMutation],
   );
 
   const toggleTaskComplete = useCallback(
     async (id: string) => {
-      const task = tasks.find(t => t.$id === id);
+      const task = tasks.find((t) => t.$id === id);
       if (task) {
-        return toggleTaskMutation.mutateAsync({ id, isCompleted: !task.is_completed });
+        return toggleTaskMutation.mutateAsync({
+          id,
+          isCompleted: !task.is_completed,
+        });
       }
     },
-    [tasks, toggleTaskMutation]
+    [tasks, toggleTaskMutation],
   );
 
   const addEvent = useCallback(
-    async (data: Omit<Event, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) => {
+    async (
+      data: Omit<
+        Event,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => {
       return createEventMutation.mutateAsync(data);
     },
-    [createEventMutation]
+    [createEventMutation],
   );
 
   const updateEvent = useCallback(
     async (id: string, data: Partial<Event>) => {
       return updateEventMutation.mutateAsync({ id, data });
     },
-    [updateEventMutation]
+    [updateEventMutation],
   );
 
   const deleteEvent = useCallback(
     async (id: string) => {
       return deleteEventMutation.mutateAsync(id);
     },
-    [deleteEventMutation]
+    [deleteEventMutation],
   );
 
   // Class Occurrence CRUD
   const addClassOccurrence = useCallback(
-    async (data: Omit<ClassOccurrence, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) => {
+    async (
+      data: Omit<
+        ClassOccurrence,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => {
       return createClassOccurrenceMutation.mutateAsync(data);
     },
-    [createClassOccurrenceMutation]
+    [createClassOccurrenceMutation],
   );
 
   const addClassSchedule = useCallback(
-    async (data: Omit<ClassSchedule, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) => {
+    async (
+      data: Omit<
+        ClassSchedule,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => {
       return createClassScheduleMutation.mutateAsync(data);
     },
-    [createClassScheduleMutation]
+    [createClassScheduleMutation],
   );
 
   const updateClassSchedule = useCallback(
     async (id: string, data: Partial<ClassSchedule>) => {
       return updateClassScheduleMutation.mutateAsync({ id, data });
     },
-    [updateClassScheduleMutation]
+    [updateClassScheduleMutation],
   );
 
   const deleteClassSchedule = useCallback(
     async (id: string) => {
       return deleteClassScheduleMutation.mutateAsync(id);
     },
-    [deleteClassScheduleMutation]
+    [deleteClassScheduleMutation],
   );
 
   const markAttendance = useCallback(
@@ -491,16 +668,16 @@ export function useData() {
       subjectId: string,
       date: string,
       startTime: string,
-      attendance: "present" | "absent" | "cancelled"
+      attendance: "present" | "absent" | "cancelled",
     ) => {
       // Find existing occurrence or create new one
       const existing = classOccurrences.find(
         (o) =>
           o.subject_id === subjectId &&
           o.date === date &&
-          normalizeTimeHM(o.start_time) === normalizeTimeHM(startTime)
+          normalizeTimeHM(o.start_time) === normalizeTimeHM(startTime),
       );
-      
+
       if (existing) {
         return markAttendanceMutation.mutateAsync({
           id: existing.$id,
@@ -511,7 +688,7 @@ export function useData() {
       // For now, just use the mutation which handles updates
       console.warn("Cannot mark attendance: no existing occurrence found");
     },
-    [classOccurrences, markAttendanceMutation]
+    [classOccurrences, markAttendanceMutation],
   );
 
   const createAndMarkAttendance = useCallback(
@@ -521,7 +698,7 @@ export function useData() {
       startTime: string,
       endTime: string,
       attendance: "present" | "absent" | "cancelled",
-      scheduleId: string | null = null
+      scheduleId: string | null = null,
     ) => {
       return createClassOccurrenceMutation.mutateAsync({
         subject_id: subjectId,
@@ -530,29 +707,31 @@ export function useData() {
         start_time: startTime,
         end_time: endTime,
         status: attendance === "cancelled" ? "cancelled" : "completed",
-        cancellation_reason: attendance === "cancelled" ? "Marked cancelled" : null,
+        cancellation_reason:
+          attendance === "cancelled" ? "Marked cancelled" : null,
         rescheduled_to: null,
         attendance: attendance === "cancelled" ? null : attendance,
-        attendance_marked_at: attendance === "cancelled" ? null : new Date().toISOString(),
+        attendance_marked_at:
+          attendance === "cancelled" ? null : new Date().toISOString(),
         attendance_note: null,
         is_extra_class: false,
       });
     },
-    [createClassOccurrenceMutation]
+    [createClassOccurrenceMutation],
   );
 
   const updateClassOccurrence = useCallback(
     async (id: string, data: Partial<ClassOccurrence>) => {
       return updateClassOccurrenceMutation.mutateAsync({ id, data });
     },
-    [updateClassOccurrenceMutation]
+    [updateClassOccurrenceMutation],
   );
 
   const deleteClassOccurrence = useCallback(
     async (id: string) => {
       return deleteClassOccurrenceMutation.mutateAsync(id);
     },
-    [deleteClassOccurrenceMutation]
+    [deleteClassOccurrenceMutation],
   );
 
   // Note CRUD
@@ -560,14 +739,14 @@ export function useData() {
     async (id: string) => {
       return deleteNoteMutation.mutateAsync(id);
     },
-    [deleteNoteMutation]
+    [deleteNoteMutation],
   );
 
   const updateNote = useCallback(
     async (id: string, data: { content?: string; is_pinned?: boolean }) => {
       return updateNoteMutation.mutateAsync({ id, data });
     },
-    [updateNoteMutation]
+    [updateNoteMutation],
   );
 
   // Resource link CRUD
@@ -575,73 +754,91 @@ export function useData() {
     async (id: string) => {
       return deleteLinkMutation.mutateAsync(id);
     },
-    [deleteLinkMutation]
+    [deleteLinkMutation],
   );
 
   const updateSettings = useCallback(
     async (data: Partial<Settings>) => {
       return updateSettingsMutation.mutateAsync(data);
     },
-    [updateSettingsMutation]
+    [updateSettingsMutation],
   );
 
   const addHoliday = useCallback(
-    async (data: Omit<Holiday, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) => {
+    async (
+      data: Omit<
+        Holiday,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => {
       return createHolidayMutation.mutateAsync(data);
     },
-    [createHolidayMutation]
+    [createHolidayMutation],
   );
 
   const updateHoliday = useCallback(
     async (id: string, data: Partial<Holiday>) => {
       return updateHolidayMutation.mutateAsync({ id, data });
     },
-    [updateHolidayMutation]
+    [updateHolidayMutation],
   );
 
   const deleteHoliday = useCallback(
     async (id: string) => {
       return deleteHolidayMutation.mutateAsync(id);
     },
-    [deleteHolidayMutation]
+    [deleteHolidayMutation],
   );
 
   const getExamReminderOffsets = useCallback(
-    (exam: Exam): ReminderOffset[] => parseReminderOffsetsJson(exam.reminder_offsets_json),
-    []
+    (exam: Exam): ReminderOffset[] =>
+      parseReminderOffsetsJson(exam.reminder_offsets_json),
+    [],
   );
 
   const getTaskReminderOffsets = useCallback(
-    (task: Task): ReminderOffset[] => parseReminderOffsetsJson(task.reminder_offsets_json),
-    []
+    (task: Task): ReminderOffset[] =>
+      parseReminderOffsetsJson(task.reminder_offsets_json),
+    [],
   );
 
   const getDefaultExamReminderOffsets = useCallback((): ReminderOffset[] => {
     if (!settings) return [];
-    return parseReminderOffsetsJson(settings.exam_default_reminder_offsets_json);
+    return parseReminderOffsetsJson(
+      settings.exam_default_reminder_offsets_json,
+    );
   }, [settings]);
 
   const getDefaultTaskReminderOffsets = useCallback((): ReminderOffset[] => {
     if (!settings) return [];
-    return parseReminderOffsetsJson(settings.task_default_reminder_offsets_json);
+    return parseReminderOffsetsJson(
+      settings.task_default_reminder_offsets_json,
+    );
   }, [settings]);
 
   const setDefaultExamReminderOffsets = useCallback(
     async (offsets: ReminderOffset[]) => {
       return updateSettingsMutation.mutateAsync({
-        exam_default_reminder_offsets_json: serializeReminderOffsetsJson(offsets),
+        exam_default_reminder_offsets_json:
+          serializeReminderOffsetsJson(offsets),
       });
     },
-    [updateSettingsMutation]
+    [updateSettingsMutation],
   );
 
   const setDefaultTaskReminderOffsets = useCallback(
     async (offsets: ReminderOffset[]) => {
       return updateSettingsMutation.mutateAsync({
-        task_default_reminder_offsets_json: serializeReminderOffsetsJson(offsets),
+        task_default_reminder_offsets_json:
+          serializeReminderOffsetsJson(offsets),
       });
     },
-    [updateSettingsMutation]
+    [updateSettingsMutation],
   );
 
   // Refetch all data
@@ -657,7 +854,19 @@ export function useData() {
     refetchSlots();
     refetchSettings();
     refetchHolidays();
-  }, [refetchSemesters, refetchSubjects, refetchExams, refetchTasks, refetchEvents, refetchFiles, refetchLinks, refetchNotes, refetchSlots, refetchSettings, refetchHolidays]);
+  }, [
+    refetchSemesters,
+    refetchSubjects,
+    refetchExams,
+    refetchTasks,
+    refetchEvents,
+    refetchFiles,
+    refetchLinks,
+    refetchNotes,
+    refetchSlots,
+    refetchSettings,
+    refetchHolidays,
+  ]);
 
   return {
     // Data
@@ -674,10 +883,10 @@ export function useData() {
     notes,
     settings: settings ?? null,
     holidays,
-    
+
     // Loading
     isLoading,
-    
+
     // Derived
     activeSemesters,
     archivedSemesters,
@@ -685,7 +894,7 @@ export function useData() {
     ongoingSemester,
     activeSemesterId,
     setActiveSemesterId,
-    
+
     // Getters
     getSemesterById,
     getSubjectById,
@@ -704,7 +913,7 @@ export function useData() {
     getNotesBySubject,
     getHolidaysBySemester,
     getAttendanceStats,
-    
+
     // CRUD - async versions
     addSemester,
     updateSemester,
@@ -745,12 +954,12 @@ export function useData() {
     getDefaultTaskReminderOffsets,
     setDefaultExamReminderOffsets,
     setDefaultTaskReminderOffsets,
-    
+
     // Refetch
     refetch,
-    
+
     // Mutation loading states
-    isMutating: 
+    isMutating:
       createSemesterMutation.isPending ||
       updateSemesterMutation.isPending ||
       deleteSemesterMutation.isPending ||

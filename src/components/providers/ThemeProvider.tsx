@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
-import {
-  useThemeStore,
-  fontFamilyMap,
-  type ThemeMode,
-  type FontFamily,
-  type UIStyle,
-  isBackgroundStyle,
-  parseUIStyleToken,
-  isUIStyle,
-} from "@/stores/theme-store";
-import { hexToRgbString, hexToRgbComma } from "@/lib/utils";
 import { useSettings } from "@/hooks/use-appwrite";
+import { hexToRgbComma, hexToRgbString } from "@/lib/utils";
+import {
+  fontFamilyMap,
+  isBackgroundStyle,
+  isFontFamily,
+  isUIStyle,
+  parseUIStyleToken,
+  useThemeStore,
+  type FontFamily,
+  type ThemeMode,
+  type UIStyle,
+} from "@/stores/theme-store";
+import { useEffect } from "react";
 
 /**
  * Props for ThemeProvider component
@@ -35,7 +36,7 @@ function applyTheme(
   mode: ThemeMode,
   accentColor: string,
   fontFamily: FontFamily,
-  uiStyle: UIStyle
+  uiStyle: UIStyle,
 ): void {
   const root = document.documentElement;
   const body = document.body;
@@ -72,7 +73,9 @@ function applyTheme(
  * Handles theme synchronization between Zustand store and DOM.
  * Must wrap the entire app.
  */
-export function ThemeProvider({ children }: ThemeProviderProps): React.ReactNode {
+export function ThemeProvider({
+  children,
+}: ThemeProviderProps): React.ReactNode {
   const {
     mode,
     accentColor,
@@ -85,8 +88,7 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.ReactNode
     setFontFamily,
     setBackground,
     setUIStyle,
-  } =
-    useThemeStore();
+  } = useThemeStore();
   const { data: settings } = useSettings();
 
   // Apply theme on mount and when values change
@@ -98,27 +100,42 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.ReactNode
 
   useIsomorphicLayoutEffect(() => {
     if (!hydrated || !settings) return;
-    const storeFontTitle = fontFamily.charAt(0).toUpperCase() + fontFamily.slice(1);
     if (settings.theme_mode !== mode) {
       setMode(settings.theme_mode);
     }
-    if (settings.accent_color_default.toLowerCase() !== accentColor.toLowerCase()) {
+    if (
+      settings.accent_color_default.toLowerCase() !== accentColor.toLowerCase()
+    ) {
       setAccentColor(settings.accent_color_default);
     }
-    if (isBackgroundStyle(settings.background_style) && settings.background_style !== background) {
+    if (
+      isBackgroundStyle(settings.background_style) &&
+      settings.background_style !== background
+    ) {
       setBackground(settings.background_style);
     }
     const parsedStyle = parseUIStyleToken(settings.background_custom_css);
     if (parsedStyle && parsedStyle !== uiStyle && isUIStyle(parsedStyle)) {
       setUIStyle(parsedStyle);
     }
-    if (settings.font_family !== storeFontTitle) {
-      const next = settings.font_family.toLowerCase();
-      if (next === "nunito" || next === "poppins" || next === "quicksand") {
-        setFontFamily(next);
-      }
+    const next = settings.font_family.trim().toLowerCase().replace(/\s+/g, "-");
+    if (next !== fontFamily && isFontFamily(next)) {
+      setFontFamily(next);
     }
-  }, [hydrated, settings, mode, accentColor, background, fontFamily, uiStyle, setAccentColor, setBackground, setFontFamily, setMode, setUIStyle]);
+  }, [
+    hydrated,
+    settings,
+    mode,
+    accentColor,
+    background,
+    fontFamily,
+    uiStyle,
+    setAccentColor,
+    setBackground,
+    setFontFamily,
+    setMode,
+    setUIStyle,
+  ]);
 
   // Handle initial theme application before hydration
   useIsomorphicLayoutEffect(() => {

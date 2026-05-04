@@ -1,18 +1,30 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
-import { X, Calendar, Flag, Folder, AlignLeft } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useCreateTask, useSettings, useSubjects } from "@/hooks/use-appwrite";
-import { ThemedSelect } from "@/components/ui/ThemedSelect";
-import { ThemedDateTimeInput } from "@/components/ui/ThemedDateTimeInput";
-import { toast } from "sonner";
 import { ReminderOffsetsEditor } from "@/components/forms/ReminderOffsetsEditor";
+import { ThemedDateTimeInput } from "@/components/ui/ThemedDateTimeInput";
+import { ThemedSelect } from "@/components/ui/ThemedSelect";
+import { useCreateTask, useSettings, useSubjects } from "@/hooks/use-appwrite";
+import {
+  parseReminderOffsetsJson,
+  serializeReminderOffsetsJson,
+} from "@/lib/appwrite-db";
+import { formatFileSize, uploadFile } from "@/lib/appwrite-storage";
 import type { ReminderOffset } from "@/types/database";
-import { parseReminderOffsetsJson, serializeReminderOffsetsJson } from "@/lib/appwrite-db";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  AlignLeft,
+  Calendar,
+  Flag,
+  Folder,
+  Paperclip,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 
 const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -45,23 +57,47 @@ const overlayVariants = {
 
 const PRIORITIES = [
   { value: "low", label: "Low", color: "#6B7280", bg: "rgba(107,114,128,0.2)" },
-  { value: "medium", label: "Medium", color: "#3B82F6", bg: "rgba(59,130,246,0.2)" },
-  { value: "high", label: "High", color: "#F59E0B", bg: "rgba(245,158,11,0.2)" },
-  { value: "urgent", label: "Urgent", color: "#EF4444", bg: "rgba(239,68,68,0.2)" },
+  {
+    value: "medium",
+    label: "Medium",
+    color: "#3B82F6",
+    bg: "rgba(59,130,246,0.2)",
+  },
+  {
+    value: "high",
+    label: "High",
+    color: "#F59E0B",
+    bg: "rgba(245,158,11,0.2)",
+  },
+  {
+    value: "urgent",
+    label: "Urgent",
+    color: "#EF4444",
+    bg: "rgba(239,68,68,0.2)",
+  },
 ];
 
-export function CreateTaskModal({ isOpen, onClose, semesterId, preselectedSubjectId }: CreateTaskModalProps): React.ReactNode {
+export function CreateTaskModal({
+  isOpen,
+  onClose,
+  semesterId,
+  preselectedSubjectId,
+}: CreateTaskModalProps): React.ReactNode {
   const createTask = useCreateTask();
   const { data: settings } = useSettings();
   const { data: subjectsData } = useSubjects(semesterId);
   const subjects = subjectsData?.filter((sub) => !sub.deleted_at) ?? [];
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [reminderOffsets, setReminderOffsets] = useState<ReminderOffset[]>([
     { value: 24, unit: "hours" },
     { value: 2, unit: "hours" },
   ]);
+  const [attachments, setAttachments] = useState<File[]>([]);
 
   useEffect(() => {
-    const parsed = parseReminderOffsetsJson(settings?.task_default_reminder_offsets_json ?? null);
+    const parsed = parseReminderOffsetsJson(
+      settings?.task_default_reminder_offsets_json ?? null,
+    );
     if (parsed.length > 0) {
       setReminderOffsets(parsed);
     }
@@ -91,7 +127,7 @@ export function CreateTaskModal({ isOpen, onClose, semesterId, preselectedSubjec
       const normalizedDeadline = data.deadline
         ? new Date(data.deadline).toISOString()
         : null;
-      await createTask.mutateAsync({
+      const createdTask = await createTask.mutateAsync({
         semester_id: semesterId,
         subject_id: data.subject_id || null,
         title: data.title,
@@ -107,7 +143,34 @@ export function CreateTaskModal({ isOpen, onClose, semesterId, preselectedSubjec
         deleted_at: null,
       });
 
-      toast.success("Task created");
+      let failedUploads = 0;
+      if (attachments.length > 0) {
+        const uploadResults = await Promise.allSettled(
+          attachments.map((file) =>
+            uploadFile(file, {
+              file_name: file.name,
+              subject_id: data.subject_id || undefined,
+              task_id: createdTask.$id,
+            }),
+          ),
+        );
+        failedUploads = uploadResults.filter(
+          (result) => result.status === "rejected",
+        ).length;
+      }
+
+      if (attachments.length > 0 && failedUploads === 0) {
+        toast.success(
+          `Task created with ${attachments.length} attachment${attachments.length > 1 ? "s" : ""}`,
+        );
+      } else if (attachments.length > 0 && failedUploads > 0) {
+        toast.warning(
+          `Task created, but ${failedUploads} attachment${failedUploads > 1 ? "s" : ""} failed to upload.`,
+        );
+      } else {
+        toast.success("Task created");
+      }
+      setAttachments([]);
       reset();
       onClose();
     } catch {
@@ -116,8 +179,24 @@ export function CreateTaskModal({ isOpen, onClose, semesterId, preselectedSubjec
   };
 
   const handleClose = () => {
+    setAttachments([]);
     reset();
     onClose();
+  };
+
+  const handleAttachmentSelect = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const selected = event.target.files ? Array.from(event.target.files) : [];
+    if (selected.length === 0) return;
+    setAttachments((prev) => [...prev, ...selected]);
+    event.target.value = "";
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) =>
+      prev.filter((_, fileIndex) => fileIndex !== index),
+    );
   };
 
   return (
@@ -168,7 +247,9 @@ export function CreateTaskModal({ isOpen, onClose, semesterId, preselectedSubjec
                   className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)] transition-all"
                 />
                 {errors.title && (
-                  <p className="text-red-400 text-xs mt-1">{errors.title.message}</p>
+                  <p className="text-red-400 text-xs mt-1">
+                    {errors.title.message}
+                  </p>
                 )}
               </div>
 
@@ -183,15 +264,26 @@ export function CreateTaskModal({ isOpen, onClose, semesterId, preselectedSubjec
                     <button
                       key={priority.value}
                       type="button"
-                      onClick={() => setValue("priority", priority.value as TaskFormData["priority"])}
+                      onClick={() =>
+                        setValue(
+                          "priority",
+                          priority.value as TaskFormData["priority"],
+                        )
+                      }
                       className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                         selectedPriority === priority.value
                           ? "ring-2 ring-offset-2 ring-offset-background"
                           : "hover:bg-white/10"
                       }`}
                       style={{
-                        backgroundColor: selectedPriority === priority.value ? priority.bg : "rgba(255,255,255,0.05)",
-                        color: selectedPriority === priority.value ? priority.color : "inherit",
+                        backgroundColor:
+                          selectedPriority === priority.value
+                            ? priority.bg
+                            : "rgba(255,255,255,0.05)",
+                        color:
+                          selectedPriority === priority.value
+                            ? priority.color
+                            : "inherit",
                         // @ts-expect-error CSS custom property
                         "--tw-ring-color": priority.color,
                       }}
@@ -211,10 +303,19 @@ export function CreateTaskModal({ isOpen, onClose, semesterId, preselectedSubjec
                   </label>
                   <ThemedSelect
                     value={selectedSubjectId}
-                    onChange={(value) => setValue("subject_id", value === "__none__" ? "" : value, { shouldValidate: true })}
+                    onChange={(value) =>
+                      setValue(
+                        "subject_id",
+                        value === "__none__" ? "" : value,
+                        { shouldValidate: true },
+                      )
+                    }
                     options={[
                       { value: "__none__", label: "No subject" },
-                      ...subjects.map((subject) => ({ value: subject.$id, label: subject.name })),
+                      ...subjects.map((subject) => ({
+                        value: subject.$id,
+                        label: subject.name,
+                      })),
                     ]}
                   />
                   <input type="hidden" {...register("subject_id")} />
@@ -229,7 +330,9 @@ export function CreateTaskModal({ isOpen, onClose, semesterId, preselectedSubjec
                 </label>
                 <ThemedDateTimeInput
                   value={deadlineValue}
-                  onChange={(value) => setValue("deadline", value, { shouldValidate: true })}
+                  onChange={(value) =>
+                    setValue("deadline", value, { shouldValidate: true })
+                  }
                 />
                 <input type="hidden" {...register("deadline")} />
               </div>
@@ -246,6 +349,58 @@ export function CreateTaskModal({ isOpen, onClose, semesterId, preselectedSubjec
                   placeholder="Add more details..."
                   className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)] transition-all resize-none"
                 />
+              </div>
+
+              {/* Attachments */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  <Paperclip className="w-4 h-4 inline mr-1.5" />
+                  Attachments (optional)
+                </label>
+                <input
+                  ref={attachmentInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handleAttachmentSelect}
+                />
+                <button
+                  type="button"
+                  onClick={() => attachmentInputRef.current?.click()}
+                  className="w-full rounded-xl border border-dashed border-white/20 bg-white/5 px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+                >
+                  Add file attachments
+                </button>
+                {attachments.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {attachments.map((file, index) => (
+                      <div
+                        key={`${file.name}-${file.size}-${index}`}
+                        className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-medium text-foreground">
+                            {file.name}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {formatFileSize(file.size)}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(index)}
+                          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-red-500/15 hover:text-red-400"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <p className="text-[11px] text-muted-foreground">
+                      Attachments are uploaded after task creation and shown
+                      under Task Attachments in Files.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <ReminderOffsetsEditor

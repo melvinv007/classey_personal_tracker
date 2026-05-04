@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, Palette, GraduationCap } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { format, addMonths } from "date-fns";
+import { ThemedColorPicker } from "@/components/ui/ThemedColorPicker";
+import { ThemedDateInput } from "@/components/ui/ThemedDateTimeInput";
 import { useCreateSemester } from "@/hooks/use-appwrite";
 import { useThemeStore } from "@/stores/theme-store";
-import { ThemedDateInput } from "@/components/ui/ThemedDateTimeInput";
-import { ThemedColorPicker } from "@/components/ui/ThemedColorPicker";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { addMonths, format } from "date-fns";
+import { AnimatePresence, motion } from "framer-motion";
+import { Calendar, GraduationCap, Palette, X } from "lucide-react";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 
 const semesterSchema = z.object({
   name: z.string().min(1, "Name is required").max(50),
@@ -39,6 +39,9 @@ const PRESET_COLORS = [
   "#F97316", // Orange
 ];
 
+const pickRandomColor = (): string =>
+  PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)] ?? "#8B5CF6";
+
 interface CreateSemesterModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -56,7 +59,10 @@ const modalVariants = {
   exit: { opacity: 0, scale: 0.95, y: 10 },
 };
 
-export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProps) {
+export function CreateSemesterModal({
+  isOpen,
+  onClose,
+}: CreateSemesterModalProps) {
   const createSemester = useCreateSemester();
   const setAccentColor = useThemeStore((s) => s.setAccentColor);
 
@@ -73,7 +79,7 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
       name: "",
       start_date: format(new Date(), "yyyy-MM-dd"),
       end_date: format(addMonths(new Date(), 4), "yyyy-MM-dd"),
-      color: PRESET_COLORS[0],
+      color: pickRandomColor(),
       credits_total: "",
       status: "ongoing",
       is_quick_input: false,
@@ -87,8 +93,17 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
 
   // Reset form when modal closes
   useEffect(() => {
-    if (!isOpen) {
-      reset();
+    if (isOpen) {
+      reset({
+        name: "",
+        start_date: format(new Date(), "yyyy-MM-dd"),
+        end_date: format(addMonths(new Date(), 4), "yyyy-MM-dd"),
+        color: pickRandomColor(),
+        credits_total: "",
+        status: "ongoing",
+        is_quick_input: false,
+        spi: "",
+      });
     }
   }, [isOpen, reset]);
 
@@ -181,11 +196,18 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
                     className="w-10 h-10 rounded-xl flex items-center justify-center"
                     style={{ backgroundColor: `${selectedColor}20` }}
                   >
-                    <GraduationCap className="w-5 h-5" style={{ color: selectedColor }} />
+                    <GraduationCap
+                      className="w-5 h-5"
+                      style={{ color: selectedColor }}
+                    />
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-foreground">New Semester</h2>
-                    <p className="text-xs text-muted-foreground">Add a new semester to track</p>
+                    <h2 className="text-lg font-semibold text-foreground">
+                      New Semester
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      Add a new semester to track
+                    </p>
                   </div>
                 </div>
                 <button
@@ -209,7 +231,9 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
                     className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent-rgb),0.5)] focus:border-transparent transition-all"
                   />
                   {errors.name && (
-                    <p className="mt-1 text-xs text-red-400">{errors.name.message}</p>
+                    <p className="mt-1 text-xs text-red-400">
+                      {errors.name.message}
+                    </p>
                   )}
                 </div>
 
@@ -222,11 +246,15 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
                     </label>
                     <ThemedDateInput
                       value={watch("start_date")}
-                      onChange={(value) => setValue("start_date", value, { shouldValidate: true })}
+                      onChange={(value) =>
+                        setValue("start_date", value, { shouldValidate: true })
+                      }
                     />
                     <input type="hidden" {...register("start_date")} />
                     {errors.start_date && (
-                      <p className="mt-1 text-xs text-red-400">{errors.start_date.message}</p>
+                      <p className="mt-1 text-xs text-red-400">
+                        {errors.start_date.message}
+                      </p>
                     )}
                   </div>
                   <div>
@@ -235,11 +263,15 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
                     </label>
                     <ThemedDateInput
                       value={watch("end_date")}
-                      onChange={(value) => setValue("end_date", value, { shouldValidate: true })}
+                      onChange={(value) =>
+                        setValue("end_date", value, { shouldValidate: true })
+                      }
                     />
                     <input type="hidden" {...register("end_date")} />
                     {errors.end_date && (
-                      <p className="mt-1 text-xs text-red-400">{errors.end_date.message}</p>
+                      <p className="mt-1 text-xs text-red-400">
+                        {errors.end_date.message}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -269,7 +301,9 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
                     ))}
                     <ThemedColorPicker
                       value={selectedColor}
-                      onChange={(value) => setValue("color", value, { shouldValidate: true })}
+                      onChange={(value) =>
+                        setValue("color", value, { shouldValidate: true })
+                      }
                       colors={PRESET_COLORS}
                     />
                   </div>
@@ -281,25 +315,27 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
                     Status
                   </label>
                   <div className="flex gap-2">
-                    {(["upcoming", "ongoing", "completed"] as const).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => {
-                          setValue("status", s);
-                          if (s !== "completed") {
-                            setValue("is_quick_input", false);
-                          }
-                        }}
-                        className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-all ${
-                          status === s
-                            ? "bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))] ring-1 ring-[rgba(var(--accent-rgb),0.3)]"
-                            : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
-                        }`}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                    {(["upcoming", "ongoing", "completed"] as const).map(
+                      (s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => {
+                            setValue("status", s);
+                            if (s !== "completed") {
+                              setValue("is_quick_input", false);
+                            }
+                          }}
+                          className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-all ${
+                            status === s
+                              ? "bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))] ring-1 ring-[rgba(var(--accent-rgb),0.3)]"
+                              : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ),
+                    )}
                   </div>
                 </div>
 
@@ -312,7 +348,10 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
                       id="quick-input"
                       className="w-4 h-4 rounded accent-[rgb(var(--accent))]"
                     />
-                    <label htmlFor="quick-input" className="text-sm text-foreground">
+                    <label
+                      htmlFor="quick-input"
+                      className="text-sm text-foreground"
+                    >
                       Quick input (skip subjects, enter SPI directly)
                     </label>
                   </div>
@@ -327,7 +366,7 @@ export function CreateSemesterModal({ isOpen, onClose }: CreateSemesterModalProp
                     <input
                       {...register("spi")}
                       type="number"
-                      step="0.01"
+                      step="0.001"
                       min="0"
                       max="10"
                       placeholder="e.g., 8.5"

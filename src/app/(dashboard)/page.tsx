@@ -1,19 +1,31 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { 
-  Plus, Archive, Settings, Clock, CheckCircle2, XCircle, 
-  MinusCircle, Calendar, TrendingUp, AlertCircle, Coffee, Loader2
-} from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
-import { useData } from "@/hooks/use-data";
 import { SemesterCard } from "@/components/cards";
-import { CreateSemesterModal } from "@/components/modals";
+import { CreateSemesterModal, SemesterHolidaysModal } from "@/components/modals";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
+import { useData } from "@/hooks/use-data";
+import { getSemesterDisplayStatus } from "@/lib/semester-status";
 import { cn, normalizeTimeHM } from "@/lib/utils";
-import { toast } from "sonner";
+import type { Semester } from "@/types/database";
 import { format, isToday, parseISO } from "date-fns";
+import { motion } from "framer-motion";
+import {
+  AlertCircle,
+  Archive,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Coffee,
+  Loader2,
+  MinusCircle,
+  Plus,
+  Settings,
+  TrendingUp,
+  XCircle,
+} from "lucide-react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 const containerVariants = {
   hidden: {},
@@ -55,6 +67,9 @@ interface TodayClass {
 export default function Home(): React.ReactNode {
   const [showArchived, setShowArchived] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSemesterHolidaysModalOpen, setIsSemesterHolidaysModalOpen] =
+    useState(false);
+  const [holidaySemester, setHolidaySemester] = useState<Semester | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());
 
   // Use Appwrite data via useData hook
@@ -69,11 +84,16 @@ export default function Home(): React.ReactNode {
     classOccurrences,
     getTodaySchedules,
     getSubjectById,
+    getHolidaysBySemester,
+    addHoliday,
+    updateHoliday,
+    deleteHoliday,
     markAttendance,
     createAndMarkAttendance,
     toggleTaskComplete,
     archiveSemester,
     unarchiveSemester,
+    refetch,
     isLoading,
   } = useData();
 
@@ -87,11 +107,33 @@ export default function Home(): React.ReactNode {
         label: semester.name,
       })),
     ],
-    [activeSemesters]
+    [activeSemesters],
   );
+
+  const noClassSemesterIdsToday = useMemo(() => {
+    if (!activeSemesterFilterId) {
+      return new Set<string>();
+    }
+    const today = format(now, "yyyy-MM-dd");
+    const semesterIds = new Set([activeSemesterFilterId]);
+    const blockedSemesters = new Set<string>();
+    semesterIds.forEach((semesterId) => {
+      const hasNoClassToday = getHolidaysBySemester(semesterId).some(
+        (holiday) => {
+          const endDate = holiday.date_end ?? holiday.date;
+          return holiday.date <= today && today <= endDate;
+        },
+      );
+      if (hasNoClassToday) {
+        blockedSemesters.add(semesterId);
+      }
+    });
+    return blockedSemesters;
+  }, [activeSemesterFilterId, getHolidaysBySemester, now]);
 
   // Get today's classes with status
   const todayClasses = useMemo((): TodayClass[] => {
+    if (!activeSemesterFilterId) return [];
     const schedules = getTodaySchedules();
     const today = format(now, "yyyy-MM-dd");
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -100,7 +142,7 @@ export default function Home(): React.ReactNode {
       .filter((schedule) => {
         const subject = getSubjectById(schedule.subject_id);
         if (!subject || subject.deleted_at) return false;
-        return activeSemesterFilterId ? subject.semester_id === activeSemesterFilterId : true;
+        return subject.semester_id === activeSemesterFilterId;
       })
       .map((schedule) => {
         const subject = getSubjectById(schedule.subject_id)!;
@@ -111,9 +153,12 @@ export default function Home(): React.ReactNode {
 
         // Check if already marked
         const occurrence = classOccurrences.find(
-          (o) => o.subject_id === schedule.subject_id && 
-                 o.date === today && 
-                 normalizeTimeHM(o.start_time) === normalizeTimeHM(schedule.start_time)
+          (o) =>
+            o.subject_id === schedule.subject_id &&
+            o.date === today &&
+            normalizeTimeHM(o.start_time) ===
+              normalizeTimeHM(schedule.start_time) &&
+            normalizeTimeHM(o.end_time) === normalizeTimeHM(schedule.end_time),
         );
 
         let status: "upcoming" | "ongoing" | "ended" = "upcoming";
@@ -133,32 +178,46 @@ export default function Home(): React.ReactNode {
           endTime: schedule.end_time,
           room: schedule.room,
           status,
-          isMarked: !!occurrence,
-          markedState: (occurrence
-            ? occurrence.status === "cancelled"
-              ? "cancelled"
-              : occurrence.attendance
-            : null) as TodayClass["markedState"],
+          isMarked:
+            noClassSemesterIdsToday.has(subject.semester_id) || !!occurrence,
+          markedState: (noClassSemesterIdsToday.has(subject.semester_id)
+            ? "cancelled"
+            : occurrence
+              ? occurrence.status === "cancelled"
+                ? "cancelled"
+                : occurrence.attendance
+              : null) as TodayClass["markedState"],
           minutesUntil: startMinutes - currentMinutes,
           minutesSinceEnd: currentMinutes - endMinutes,
         };
       })
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [now, getTodaySchedules, getSubjectById, classOccurrences, activeSemesterFilterId]);
+  }, [
+    now,
+    getTodaySchedules,
+    getSubjectById,
+    classOccurrences,
+    activeSemesterFilterId,
+    noClassSemesterIdsToday,
+  ]);
 
   // Classes that need attendance marking (ended 30+ min ago, not marked)
   const pendingAttendance = useMemo(() => {
     return todayClasses.filter(
-      (c) => c.status === "ended" && !c.isMarked && c.minutesSinceEnd >= 30 && c.minutesSinceEnd <= 120
+      (c) =>
+        c.status === "ended" &&
+        !c.isMarked &&
+        c.minutesSinceEnd >= 30 &&
+        c.minutesSinceEnd <= 120,
     );
   }, [todayClasses]);
 
   // Find free time slots (gaps > 1h 15min)
   const freeTimeSlots = useMemo(() => {
     const gaps: { start: string; end: string; duration: number }[] = [];
-    const sortedClasses = [...todayClasses].sort((a, b) => 
-      a.startTime.localeCompare(b.startTime)
-    );
+    const sortedClasses = [...todayClasses]
+      .filter((cls) => cls.markedState !== "cancelled")
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
     // Check from 8 AM
@@ -211,11 +270,17 @@ export default function Home(): React.ReactNode {
           duration: adjustedDuration,
         };
       })
-      .filter((gap): gap is { start: string; end: string; duration: number } => Boolean(gap));
+      .filter((gap): gap is { start: string; end: string; duration: number } =>
+        Boolean(gap),
+      );
   }, [todayClasses, now]);
 
   const visibleTodayClasses = useMemo(() => {
-    return todayClasses.filter((cls) => cls.status !== "ended" || cls.minutesSinceEnd <= 60);
+    return todayClasses.filter(
+      (cls) =>
+        cls.markedState !== "cancelled" &&
+        (cls.status !== "ended" || cls.minutesSinceEnd <= 60),
+    );
   }, [todayClasses]);
 
   const pendingTasksForActiveSemester = useMemo(() => {
@@ -223,24 +288,25 @@ export default function Home(): React.ReactNode {
       (task) =>
         !task.deleted_at &&
         !task.is_completed &&
-        (!activeSemesterFilterId || task.semester_id === activeSemesterFilterId)
+        (!activeSemesterFilterId ||
+          task.semester_id === activeSemesterFilterId),
     );
   }, [tasks, activeSemesterFilterId]);
 
   const dueTodayTasks = useMemo(
     () =>
       pendingTasksForActiveSemester.filter(
-        (task) => task.deadline && isToday(parseISO(task.deadline))
+        (task) => task.deadline && isToday(parseISO(task.deadline)),
       ),
-    [pendingTasksForActiveSemester]
+    [pendingTasksForActiveSemester],
   );
 
   const otherPendingTasks = useMemo(
     () =>
       pendingTasksForActiveSemester.filter(
-        (task) => !task.deadline || !isToday(parseISO(task.deadline))
+        (task) => !task.deadline || !isToday(parseISO(task.deadline)),
       ),
-    [pendingTasksForActiveSemester]
+    [pendingTasksForActiveSemester],
   );
   const hasPendingTasks = pendingTasksForActiveSemester.length > 0;
 
@@ -258,9 +324,8 @@ export default function Home(): React.ReactNode {
 
   // Count subjects per semester
   const getSubjectCount = (semesterId: string): number => {
-    return subjects.filter(
-      (s) => s.semester_id === semesterId && !s.deleted_at
-    ).length;
+    return subjects.filter((s) => s.semester_id === semesterId && !s.deleted_at)
+      .length;
   };
 
   const handleArchive = (semester: { $id: string; is_archived: boolean }) => {
@@ -271,10 +336,21 @@ export default function Home(): React.ReactNode {
     }
   };
 
-  const handleMarkAttendance = async (cls: TodayClass, attendance: "present" | "absent" | "cancelled") => {
+  const openSemesterHolidays = (semester: Semester): void => {
+    setHolidaySemester(semester);
+    setIsSemesterHolidaysModalOpen(true);
+  };
+
+  const handleMarkAttendance = async (
+    cls: TodayClass,
+    attendance: "present" | "absent" | "cancelled",
+  ) => {
     const today = format(now, "yyyy-MM-dd");
     const existingOccurrence = classOccurrences.find(
-      (o) => o.subject_id === cls.subjectId && o.date === today && normalizeTimeHM(o.start_time) === normalizeTimeHM(cls.startTime)
+      (o) =>
+        o.subject_id === cls.subjectId &&
+        o.date === today &&
+        normalizeTimeHM(o.start_time) === normalizeTimeHM(cls.startTime),
     );
 
     if (existingOccurrence) {
@@ -286,20 +362,29 @@ export default function Home(): React.ReactNode {
         cls.startTime,
         cls.endTime,
         attendance,
-        cls.scheduleId
+        cls.scheduleId,
       );
     }
-    
+
     if (attendance === "absent") {
       toast("Marked as Absent", {
         action: {
           label: "Undo",
           onClick: () => {
             const occurrence = classOccurrences.find(
-              (o) => o.subject_id === cls.subjectId && o.date === today && normalizeTimeHM(o.start_time) === normalizeTimeHM(cls.startTime)
+              (o) =>
+                o.subject_id === cls.subjectId &&
+                o.date === today &&
+                normalizeTimeHM(o.start_time) ===
+                  normalizeTimeHM(cls.startTime),
             );
             if (occurrence) {
-              return markAttendance(cls.subjectId, today, cls.startTime, "present");
+              return markAttendance(
+                cls.subjectId,
+                today,
+                cls.startTime,
+                "present",
+              );
             }
             return createAndMarkAttendance(
               cls.subjectId,
@@ -307,19 +392,17 @@ export default function Home(): React.ReactNode {
               cls.startTime,
               cls.endTime,
               "present",
-              cls.scheduleId
+              cls.scheduleId,
             );
           },
         },
       });
     } else {
-      toast.success(`Marked as ${attendance === "present" ? "Present" : "Cancelled"}`);
+      toast.success(
+        `Marked as ${attendance === "present" ? "Present" : "Cancelled"}`,
+      );
     }
   };
-
-  // Get current day name
-  const dayOfWeek = now.getDay();
-  const currentDay = dayOfWeek === 0 ? 7 : dayOfWeek;
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
@@ -359,17 +442,26 @@ export default function Home(): React.ReactNode {
 
             <div className="text-left md:text-center">
               <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-                Good {now.getHours() < 12 ? "Morning" : now.getHours() < 17 ? "Afternoon" : "Evening"}, Melvin
+                Good{" "}
+                {now.getHours() < 12
+                  ? "Morning"
+                  : now.getHours() < 17
+                    ? "Afternoon"
+                    : "Evening"}
+                , Melvin
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                {format(now, "EEEE, MMMM d")} • {ongoingSemester?.name ?? "No active semester"}
+                {format(now, "EEEE, MMMM d")} •{" "}
+                {ongoingSemester?.name ?? "No active semester"}
               </p>
             </div>
 
             <div className="md:justify-self-end w-full md:w-64">
               <ThemedSelect
                 value={activeSemesterId ?? "__auto__"}
-                onChange={(value) => setActiveSemesterId(value === "__auto__" ? null : value)}
+                onChange={(value) =>
+                  setActiveSemesterId(value === "__auto__" ? null : value)
+                }
                 options={activeSemesterOptions}
                 placeholder="Select active semester"
               />
@@ -404,10 +496,12 @@ export default function Home(): React.ReactNode {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-foreground">
-                            {cls.shortName} class ended {cls.minutesSinceEnd} min ago
+                            {cls.shortName} class ended {cls.minutesSinceEnd}{" "}
+                            min ago
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {cls.startTime} - {cls.endTime} {cls.room && `• ${cls.room}`}
+                            {cls.startTime} - {cls.endTime}{" "}
+                            {cls.room && `• ${cls.room}`}
                           </p>
                         </div>
                       </div>
@@ -450,7 +544,9 @@ export default function Home(): React.ReactNode {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-[rgb(var(--accent))]" />
-                  <h2 className="text-lg font-semibold text-foreground">Today&apos;s Classes</h2>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    Today&apos;s Classes
+                  </h2>
                 </div>
                 <Link
                   href="/timetable"
@@ -477,8 +573,8 @@ export default function Home(): React.ReactNode {
                         cls.status === "ongoing"
                           ? "bg-[rgba(var(--accent),0.1)] border-[rgba(var(--accent),0.3)]"
                           : cls.status === "ended"
-                          ? "bg-white/3 border-white/5 opacity-60"
-                          : "bg-white/5 border-white/10"
+                            ? "bg-white/3 border-white/5 opacity-60"
+                            : "bg-white/5 border-white/10",
                       )}
                     >
                       <div
@@ -514,30 +610,39 @@ export default function Home(): React.ReactNode {
                           <span
                             className={cn(
                               "px-2 py-0.5 text-[11px] rounded-full capitalize",
-                              cls.markedState === "present" && "bg-emerald-500/20 text-emerald-400",
-                              cls.markedState === "absent" && "bg-red-500/20 text-red-400",
-                              cls.markedState === "cancelled" && "bg-white/10 text-muted-foreground"
+                              cls.markedState === "present" &&
+                                "bg-emerald-500/20 text-emerald-400",
+                              cls.markedState === "absent" &&
+                                "bg-red-500/20 text-red-400",
+                              cls.markedState === "cancelled" &&
+                                "bg-white/10 text-muted-foreground",
                             )}
                           >
                             {cls.markedState}
                           </span>
                         )}
                         <button
-                          onClick={() => void handleMarkAttendance(cls, "present")}
+                          onClick={() =>
+                            void handleMarkAttendance(cls, "present")
+                          }
                           className="p-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 transition-colors"
                           title="Present"
                         >
                           <CheckCircle2 className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => void handleMarkAttendance(cls, "absent")}
+                          onClick={() =>
+                            void handleMarkAttendance(cls, "absent")
+                          }
                           className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors"
                           title="Absent"
                         >
                           <XCircle className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => void handleMarkAttendance(cls, "cancelled")}
+                          onClick={() =>
+                            void handleMarkAttendance(cls, "cancelled")
+                          }
                           className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-muted-foreground transition-colors"
                           title="Cancelled"
                         >
@@ -579,7 +684,7 @@ export default function Home(): React.ReactNode {
                       "p-2 rounded-xl transition-all",
                       showArchived
                         ? "bg-[rgba(var(--accent),0.2)] text-[rgb(var(--accent))]"
-                        : "bg-white/5 text-muted-foreground hover:text-foreground hover:bg-white/10"
+                        : "bg-white/5 text-muted-foreground hover:text-foreground hover:bg-white/10",
                     )}
                     title={showArchived ? "Show active" : "Show archived"}
                   >
@@ -606,8 +711,10 @@ export default function Home(): React.ReactNode {
                     <SemesterCard
                       key={semester.$id}
                       semester={semester}
+                      displayStatus={getSemesterDisplayStatus(semester, subjects)}
                       subjectCount={getSubjectCount(semester.$id)}
                       onArchive={handleArchive}
+                      onManageHolidays={openSemesterHolidays}
                     />
                   ))}
                 </motion.div>
@@ -621,7 +728,9 @@ export default function Home(): React.ReactNode {
                     )}
                   </div>
                   <h3 className="text-sm font-medium text-foreground mb-1">
-                    {showArchived ? "No archived semesters" : "No semesters yet"}
+                    {showArchived
+                      ? "No archived semesters"
+                      : "No semesters yet"}
                   </h3>
                   <p className="text-xs text-muted-foreground max-w-xs mb-4">
                     {showArchived
@@ -664,15 +773,17 @@ export default function Home(): React.ReactNode {
             >
               <div className="flex items-center gap-2 mb-4">
                 <Coffee className="w-4 h-4 text-[rgb(var(--accent))]" />
-                <h3 className="text-sm font-medium text-muted-foreground">Free Time Today</h3>
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  Free Time Today
+                </h3>
               </div>
 
               {freeTimeSlots.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {visibleTodayClasses.length === 0
-                      ? "You're free all day! 🎉"
-                      : "No significant breaks between classes."}
-                  </p>
+                <p className="text-sm text-muted-foreground">
+                  {visibleTodayClasses.length === 0
+                    ? "You're free all day! 🎉"
+                    : "No significant breaks between classes."}
+                </p>
               ) : (
                 <div className="space-y-2">
                   {freeTimeSlots.map((slot, i) => (
@@ -712,13 +823,19 @@ export default function Home(): React.ReactNode {
                       className="w-10 h-10 rounded-xl flex items-center justify-center"
                       style={{ backgroundColor: `${ongoingSemester.color}30` }}
                     >
-                      <TrendingUp className="w-5 h-5" style={{ color: ongoingSemester.color }} />
+                      <TrendingUp
+                        className="w-5 h-5"
+                        style={{ color: ongoingSemester.color }}
+                      />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-foreground">{ongoingSemester.name}</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {ongoingSemester.name}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {getSubjectCount(ongoingSemester.$id)} subjects
-                        {ongoingSemester.target_spi && ` • Target: ${ongoingSemester.target_spi} SPI`}
+                        {ongoingSemester.target_spi &&
+                          ` • Target: ${ongoingSemester.target_spi} SPI`}
                       </p>
                     </div>
                   </div>
@@ -730,17 +847,54 @@ export default function Home(): React.ReactNode {
       </div>
 
       {/* Create Semester Modal */}
-      <CreateSemesterModal 
-        isOpen={isCreateModalOpen} 
-        onClose={() => setIsCreateModalOpen(false)} 
+      <CreateSemesterModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+      />
+
+      <SemesterHolidaysModal
+        isOpen={isSemesterHolidaysModalOpen}
+        onClose={() => {
+          setIsSemesterHolidaysModalOpen(false);
+          setHolidaySemester(null);
+        }}
+        semester={holidaySemester}
+        holidays={
+          holidaySemester ? getHolidaysBySemester(holidaySemester.$id) : []
+        }
+        onCreateHoliday={async (payload) => {
+          await addHoliday({
+            ...payload,
+            deleted_at: null,
+          });
+          await refetch();
+        }}
+        onUpdateHoliday={async (id, payload) => {
+          await updateHoliday(id, payload);
+          await refetch();
+        }}
+        onDeleteHoliday={async (id) => {
+          await deleteHoliday(id);
+          await refetch();
+        }}
       />
     </motion.main>
   );
 }
 
 interface DashboardTasksCardProps {
-  dueTodayTasks: Array<{ $id: string; title: string; deadline: string | null; subject_id: string | null }>;
-  otherPendingTasks: Array<{ $id: string; title: string; deadline: string | null; subject_id: string | null }>;
+  dueTodayTasks: Array<{
+    $id: string;
+    title: string;
+    deadline: string | null;
+    subject_id: string | null;
+  }>;
+  otherPendingTasks: Array<{
+    $id: string;
+    title: string;
+    deadline: string | null;
+    subject_id: string | null;
+  }>;
   getSubjectById: (id: string) => { short_name: string } | undefined;
   onCompleteTask: (taskId: string) => void;
   className?: string;
@@ -773,20 +927,33 @@ function DashboardTasksCard({
 
       <div className="space-y-4 max-h-[320px] overflow-y-auto pr-1">
         <div>
-          <p className="text-xs uppercase tracking-wide text-amber-300 mb-2">Due Today</p>
+          <p className="text-xs uppercase tracking-wide text-amber-300 mb-2">
+            Due Today
+          </p>
           {dueTodayTasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No pending tasks due today.</p>
+            <p className="text-sm text-muted-foreground">
+              No pending tasks due today.
+            </p>
           ) : (
             <div className="space-y-2">
               {dueTodayTasks.map((task) => {
-                const subject = task.subject_id ? getSubjectById(task.subject_id) : undefined;
+                const subject = task.subject_id
+                  ? getSubjectById(task.subject_id)
+                  : undefined;
                 return (
-                  <div key={task.$id} className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                  <div
+                    key={task.$id}
+                    className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3"
+                  >
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {task.title}
+                        </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {task.deadline ? `Today ${format(parseISO(task.deadline), "HH:mm")}` : "Today"}
+                          {task.deadline
+                            ? `Today ${format(parseISO(task.deadline), "HH:mm")}`
+                            : "Today"}
                           {subject ? ` • ${subject.short_name}` : ""}
                         </p>
                       </div>
@@ -806,20 +973,33 @@ function DashboardTasksCard({
         </div>
 
         <div>
-          <p className="text-xs uppercase tracking-wide text-white/60 mb-2">Other Pending</p>
+          <p className="text-xs uppercase tracking-wide text-white/60 mb-2">
+            Other Pending
+          </p>
           {otherPendingTasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No other pending tasks.</p>
+            <p className="text-sm text-muted-foreground">
+              No other pending tasks.
+            </p>
           ) : (
             <div className="space-y-2">
               {otherPendingTasks.map((task) => {
-                const subject = task.subject_id ? getSubjectById(task.subject_id) : undefined;
+                const subject = task.subject_id
+                  ? getSubjectById(task.subject_id)
+                  : undefined;
                 return (
-                  <div key={task.$id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div
+                    key={task.$id}
+                    className="rounded-xl border border-white/10 bg-white/5 p-3"
+                  >
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {task.title}
+                        </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {task.deadline ? format(parseISO(task.deadline), "MMM d, HH:mm") : "No deadline"}
+                          {task.deadline
+                            ? format(parseISO(task.deadline), "MMM d, HH:mm")
+                            : "No deadline"}
                           {subject ? ` • ${subject.short_name}` : ""}
                         </p>
                       </div>

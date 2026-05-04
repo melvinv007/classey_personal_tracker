@@ -1,29 +1,37 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { ArrowLeft, TrendingUp, Target, Calculator, Award, Info, Loader2 } from "lucide-react";
-import Link from "next/link";
-import { useState, useMemo } from "react";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-} from "recharts";
 import { useData } from "@/hooks/use-data";
-import {
-  calculateCGPA,
-  whatIfCGPA,
-  requiredSPI,
-  getSPIColor,
-  resolveSemesterGradeData,
-  type ResolvedSemesterGradeData,
-} from "@/utils/grades";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/stores/theme-store";
+import {
+  calculateCGPA,
+  getSPIColor,
+  GPA_PRECISION_DECIMALS,
+  requiredSPI,
+  resolveSemesterGradeData,
+  whatIfCGPA,
+  type ResolvedSemesterGradeData,
+} from "@/utils/grades";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft,
+  Award,
+  Calculator,
+  Info,
+  Loader2,
+  Target,
+  TrendingUp,
+} from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 const pageVariants = {
   hidden: { opacity: 0 },
@@ -33,7 +41,13 @@ const pageVariants = {
 /**
  * Animated counter component for CGPA display
  */
-function AnimatedNumber({ value, decimals = 2 }: { value: number; decimals?: number }) {
+function AnimatedNumber({
+  value,
+  decimals = GPA_PRECISION_DECIMALS,
+}: {
+  value: number;
+  decimals?: number;
+}) {
   return (
     <motion.span
       key={value}
@@ -47,14 +61,41 @@ function AnimatedNumber({ value, decimals = 2 }: { value: number; decimals?: num
 }
 
 export default function CGPATrackerPage(): React.ReactNode {
-  const { semesters: allSemesters, subjects, ongoingSemester, isLoading } = useData();
+  const {
+    semesters: allSemesters,
+    subjects,
+    ongoingSemester,
+    isLoading,
+  } = useData();
   const themeMode = useThemeStore((state) => state.mode);
-  
+
   const semesters = allSemesters.filter((sem) => !sem.deleted_at);
-  
+
   // What-if calculator state
   const [whatIfSPI, setWhatIfSPI] = useState<string>("8.0");
   const [targetCGPA, setTargetCGPA] = useState<string>("8.5");
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const [chartWidth, setChartWidth] = useState(0);
+
+  useEffect(() => {
+    const element = chartContainerRef.current;
+    if (!element) return;
+
+    const updateWidth = () => {
+      const width = Math.floor(element.getBoundingClientRect().width);
+      setChartWidth(width > 0 ? width : 0);
+    };
+
+    updateWidth();
+    if (typeof ResizeObserver === "undefined") return;
+    const resizeObserver = new ResizeObserver(() => {
+      updateWidth();
+    });
+    resizeObserver.observe(element);
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   // Calculate semester data for CGPA
   const semesterData = useMemo((): ResolvedSemesterGradeData[] => {
@@ -69,8 +110,8 @@ export default function CGPATrackerPage(): React.ReactNode {
       .map((sem) =>
         resolveSemesterGradeData(
           sem,
-          subjects.filter((sub) => sub.semester_id === sem.$id)
-        )
+          subjects.filter((sub) => sub.semester_id === sem.$id),
+        ),
       )
       .sort((a, b) => {
         const aSem = semesters.find((sem) => sem.$id === a.id);
@@ -83,38 +124,59 @@ export default function CGPATrackerPage(): React.ReactNode {
 
   // Calculate current CGPA (excluding ongoing semester for accuracy)
   const completedSemesters = useMemo(
-    () => semesterData.filter((s) => s.status === "completed" && s.includedInCGPA && s.spi > 0 && s.credits > 0),
-    [semesterData]
+    () =>
+      semesterData.filter(
+        (s) =>
+          s.status === "completed" &&
+          s.includedInCGPA &&
+          s.spi > 0 &&
+          s.credits > 0,
+      ),
+    [semesterData],
   );
   const currentCGPA = useMemo(
     () => calculateCGPA(completedSemesters),
-    [completedSemesters]
+    [completedSemesters],
   );
 
   // Calculate including ongoing semester
   const allSemestersCGPA = useMemo(
     () => calculateCGPA(semesterData),
-    [semesterData]
+    [semesterData],
   );
 
   const spiChartData = useMemo(() => {
     const chartSemesters = semesterData.filter(
-      (sem) => sem.status === "completed" && sem.includedInCGPA && sem.spi > 0 && sem.credits > 0
+      (sem) =>
+        sem.status === "completed" &&
+        sem.includedInCGPA &&
+        sem.spi > 0 &&
+        sem.credits > 0,
     );
-    return chartSemesters.reduce<Array<{ semester: string; spi: number; cgpa: number; _weighted: number; _credits: number }>>((acc, sem) => {
-      const prev = acc[acc.length - 1];
-      const weighted = (prev?._weighted ?? 0) + sem.spi * sem.credits;
-      const credits = (prev?._credits ?? 0) + sem.credits;
-      const runningCgpa = credits > 0 ? weighted / credits : 0;
-      acc.push({
-        semester: sem.name,
-        spi: Number(sem.spi.toFixed(2)),
-        cgpa: Number(runningCgpa.toFixed(2)),
-        _weighted: weighted,
-        _credits: credits,
-      });
-      return acc;
-    }, []).map(({ semester, spi, cgpa }) => ({ semester, spi, cgpa }));
+    return chartSemesters
+      .reduce<
+        Array<{
+          semester: string;
+          spi: number;
+          cgpa: number;
+          _weighted: number;
+          _credits: number;
+        }>
+      >((acc, sem) => {
+        const prev = acc[acc.length - 1];
+        const weighted = (prev?._weighted ?? 0) + sem.spi * sem.credits;
+        const credits = (prev?._credits ?? 0) + sem.credits;
+        const runningCgpa = credits > 0 ? weighted / credits : 0;
+        acc.push({
+          semester: sem.name,
+          spi: Number(sem.spi.toFixed(GPA_PRECISION_DECIMALS)),
+          cgpa: Number(runningCgpa.toFixed(GPA_PRECISION_DECIMALS)),
+          _weighted: weighted,
+          _credits: credits,
+        });
+        return acc;
+      }, [])
+      .map(({ semester, spi, cgpa }) => ({ semester, spi, cgpa }));
   }, [semesterData]);
 
   // What-if calculation
@@ -142,7 +204,7 @@ export default function CGPATrackerPage(): React.ReactNode {
   // Total credits
   const totalCredits = useMemo(
     () => completedSemesters.reduce((sum, s) => sum + s.credits, 0),
-    [completedSemesters]
+    [completedSemesters],
   );
 
   // Loading state - AFTER all hooks
@@ -209,7 +271,10 @@ export default function CGPATrackerPage(): React.ReactNode {
           </p>
           {semesterData.some((s) => s.status === "ongoing") && (
             <p className="text-xs text-muted-foreground mt-2">
-              Including ongoing: <span className="text-foreground font-medium">{allSemestersCGPA.toFixed(2)}</span>
+              Including ongoing:{" "}
+              <span className="text-foreground font-medium">
+                {allSemestersCGPA.toFixed(GPA_PRECISION_DECIMALS)}
+              </span>
             </p>
           )}
         </motion.div>
@@ -223,26 +288,51 @@ export default function CGPATrackerPage(): React.ReactNode {
         >
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-muted-foreground" />
-            <h2 className="text-lg font-semibold text-foreground">SPI Trend (Semester-wise)</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              SPI Trend (Semester-wise)
+            </h2>
           </div>
           {spiChartData.length === 0 ? (
             <div className="text-center py-8 text-sm text-muted-foreground">
               Add semesters with grades to view the SPI trend.
             </div>
           ) : (
-            <div className="h-72 w-full min-w-0 min-h-[288px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={spiChartData} margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
-                  <CartesianGrid stroke="rgba(var(--foreground),0.08)" strokeDasharray="3 3" />
+            <div
+              ref={chartContainerRef}
+              className="h-72 w-full min-w-0 min-h-[288px] overflow-hidden"
+            >
+              {chartWidth > 0 ? (
+                <LineChart
+                  width={chartWidth}
+                  height={288}
+                  data={spiChartData}
+                  margin={{ left: 8, right: 16, top: 8, bottom: 8 }}
+                >
+                  <CartesianGrid
+                    stroke="rgba(var(--foreground),0.08)"
+                    strokeDasharray="3 3"
+                  />
                   <XAxis
                     dataKey="semester"
-                    tick={{ fill: themeMode === "dark" ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.78)", fontSize: 12 }}
+                    tick={{
+                      fill:
+                        themeMode === "dark"
+                          ? "rgba(255,255,255,0.88)"
+                          : "rgba(0,0,0,0.78)",
+                      fontSize: 12,
+                    }}
                     axisLine={{ stroke: "rgba(var(--foreground),0.12)" }}
                     tickLine={{ stroke: "rgba(var(--foreground),0.12)" }}
                   />
                   <YAxis
                     domain={[0, 10]}
-                    tick={{ fill: themeMode === "dark" ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.78)", fontSize: 12 }}
+                    tick={{
+                      fill:
+                        themeMode === "dark"
+                          ? "rgba(255,255,255,0.88)"
+                          : "rgba(0,0,0,0.78)",
+                      fontSize: 12,
+                    }}
                     axisLine={{ stroke: "rgba(var(--foreground),0.12)" }}
                     tickLine={{ stroke: "rgba(var(--foreground),0.12)" }}
                   />
@@ -261,7 +351,12 @@ export default function CGPATrackerPage(): React.ReactNode {
                     name="SPI"
                     stroke="rgb(var(--accent))"
                     strokeWidth={3}
-                    dot={{ r: 4, fill: "rgb(var(--accent))", stroke: "rgba(255,255,255,0.9)", strokeWidth: 1 }}
+                    dot={{
+                      r: 4,
+                      fill: "rgb(var(--accent))",
+                      stroke: "rgba(255,255,255,0.9)",
+                      strokeWidth: 1,
+                    }}
                     activeDot={{ r: 6 }}
                   />
                   <Line
@@ -273,7 +368,7 @@ export default function CGPATrackerPage(): React.ReactNode {
                     dot={{ r: 3, fill: "rgba(var(--foreground),0.75)" }}
                   />
                 </LineChart>
-              </ResponsiveContainer>
+              ) : null}
             </div>
           )}
         </motion.div>
@@ -287,13 +382,16 @@ export default function CGPATrackerPage(): React.ReactNode {
         >
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-muted-foreground" />
-            <h2 className="text-lg font-semibold text-foreground">Semester Breakdown</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              Semester Breakdown
+            </h2>
           </div>
 
           {semesterData.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-muted-foreground">
-                No semesters with grades yet. Add subjects with grades to see your CGPA.
+                No semesters with grades yet. Add subjects with grades to see
+                your CGPA.
               </p>
             </div>
           ) : (
@@ -308,13 +406,13 @@ export default function CGPATrackerPage(): React.ReactNode {
                     "flex items-center justify-between p-4 rounded-xl border transition-all",
                     sem.status === "ongoing"
                       ? "bg-[rgba(var(--accent),0.05)] border-[rgba(var(--accent),0.2)]"
-                      : "bg-white/5 border-white/10"
+                      : "bg-white/5 border-white/10",
                   )}
                 >
                   <div className="flex items-center gap-3">
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold"
-                      style={{ 
+                      style={{
                         backgroundColor: `${getSPIColor(sem.spi)}20`,
                         color: getSPIColor(sem.spi),
                       }}
@@ -343,12 +441,14 @@ export default function CGPATrackerPage(): React.ReactNode {
                           className="text-2xl font-bold"
                           style={{ color: getSPIColor(sem.spi) }}
                         >
-                          {sem.spi.toFixed(2)}
+                          {sem.spi.toFixed(GPA_PRECISION_DECIMALS)}
                         </p>
                         <p className="text-xs text-muted-foreground">SPI</p>
                       </>
                     ) : (
-                      <p className="text-xs text-muted-foreground">Incomplete</p>
+                      <p className="text-xs text-muted-foreground">
+                        Incomplete
+                      </p>
                     )}
                   </div>
                 </motion.div>
@@ -368,7 +468,9 @@ export default function CGPATrackerPage(): React.ReactNode {
           >
             <div className="flex items-center gap-2 mb-4">
               <Calculator className="w-5 h-5 text-muted-foreground" />
-              <h2 className="text-lg font-semibold text-foreground">What If?</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                What If?
+              </h2>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
               If I score this SPI this semester...
@@ -380,18 +482,20 @@ export default function CGPATrackerPage(): React.ReactNode {
                 onChange={(e) => setWhatIfSPI(e.target.value)}
                 min="0"
                 max="10"
-                step="0.1"
+                step="0.001"
                 className="flex-1 px-4 py-3 rounded-xl bg-white/6 border border-white/10 text-foreground text-lg font-medium text-center focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)]"
               />
               <span className="text-muted-foreground">SPI</span>
             </div>
             <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
-              <p className="text-xs text-muted-foreground mb-1">Your CGPA will be</p>
+              <p className="text-xs text-muted-foreground mb-1">
+                Your CGPA will be
+              </p>
               <p
                 className="text-3xl font-bold"
                 style={{ color: getSPIColor(whatIfResult) }}
               >
-                {whatIfResult.toFixed(2)}
+                {whatIfResult.toFixed(GPA_PRECISION_DECIMALS)}
               </p>
             </div>
           </motion.div>
@@ -405,7 +509,9 @@ export default function CGPATrackerPage(): React.ReactNode {
           >
             <div className="flex items-center gap-2 mb-4">
               <Target className="w-5 h-5 text-muted-foreground" />
-              <h2 className="text-lg font-semibold text-foreground">Target CGPA</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                Target CGPA
+              </h2>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
               To reach this CGPA, I need...
@@ -417,24 +523,28 @@ export default function CGPATrackerPage(): React.ReactNode {
                 onChange={(e) => setTargetCGPA(e.target.value)}
                 min="0"
                 max="10"
-                step="0.1"
+                step="0.001"
                 className="flex-1 px-4 py-3 rounded-xl bg-white/6 border border-white/10 text-foreground text-lg font-medium text-center focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)]"
               />
               <span className="text-muted-foreground">CGPA</span>
             </div>
             <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
-              <p className="text-xs text-muted-foreground mb-1">You need SPI of</p>
+              <p className="text-xs text-muted-foreground mb-1">
+                You need SPI of
+              </p>
               {requiredResult.achievable ? (
                 <p
                   className="text-3xl font-bold"
                   style={{ color: getSPIColor(requiredResult.required) }}
                 >
-                  {requiredResult.required.toFixed(2)}
+                  {requiredResult.required.toFixed(GPA_PRECISION_DECIMALS)}
                 </p>
               ) : (
                 <div>
                   <p className="text-2xl font-bold text-red-400">
-                    {requiredResult.required > 10 ? "Not Possible" : requiredResult.required.toFixed(2)}
+                    {requiredResult.required > 10
+                      ? "Not Possible"
+                      : requiredResult.required.toFixed(GPA_PRECISION_DECIMALS)}
                   </p>
                   <p className="text-xs text-red-400 mt-1">
                     {requiredResult.required > 10
@@ -457,10 +567,12 @@ export default function CGPATrackerPage(): React.ReactNode {
           <Info className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
           <div className="text-sm text-muted-foreground">
             <p className="mb-1">
-              <strong>SPI</strong> (Semester Performance Index) is calculated as the weighted average of grade points for a semester.
+              <strong>SPI</strong> (Semester Performance Index) is calculated as
+              the weighted average of grade points for a semester.
             </p>
             <p>
-              <strong>CGPA</strong> (Cumulative GPA) is the weighted average of all SPIs across semesters, weighted by credits.
+              <strong>CGPA</strong> (Cumulative GPA) is the weighted average of
+              all SPIs across semesters, weighted by credits.
             </p>
           </div>
         </motion.div>

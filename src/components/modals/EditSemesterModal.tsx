@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, Palette, GraduationCap, Trash2 } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useUpdateSemester } from "@/hooks/use-appwrite";
-import { useThemeStore } from "@/stores/theme-store";
-import { ThemedDateInput } from "@/components/ui/ThemedDateTimeInput";
 import { ThemedColorPicker } from "@/components/ui/ThemedColorPicker";
-import { toast } from "sonner";
+import { ThemedDateInput } from "@/components/ui/ThemedDateTimeInput";
+import { useUpdateSemester } from "@/hooks/use-appwrite";
+import type { SemesterDisplayStatus } from "@/lib/semester-status";
+import { useThemeStore } from "@/stores/theme-store";
 import type { Semester } from "@/types/database";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AnimatePresence, motion } from "framer-motion";
+import { Calendar, GraduationCap, Palette, Trash2, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 
 const semesterSchema = z.object({
   name: z.string().min(1, "Name is required").max(50),
@@ -27,14 +28,23 @@ const semesterSchema = z.object({
 type SemesterFormData = z.infer<typeof semesterSchema>;
 
 const PRESET_COLORS = [
-  "#8B5CF6", "#EC4899", "#EF4444", "#F59E0B", "#10B981",
-  "#06B6D4", "#3B82F6", "#6366F1", "#84CC16", "#F97316",
+  "#8B5CF6",
+  "#EC4899",
+  "#EF4444",
+  "#F59E0B",
+  "#10B981",
+  "#06B6D4",
+  "#3B82F6",
+  "#6366F1",
+  "#84CC16",
+  "#F97316",
 ];
 
 interface EditSemesterModalProps {
   isOpen: boolean;
   onClose: () => void;
   semester: Semester;
+  displayStatus?: SemesterDisplayStatus;
   onDelete?: () => void;
 }
 
@@ -50,7 +60,13 @@ const modalVariants = {
   exit: { opacity: 0, scale: 0.95, y: 10 },
 };
 
-export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditSemesterModalProps) {
+export function EditSemesterModal({
+  isOpen,
+  onClose,
+  semester,
+  displayStatus,
+  onDelete,
+}: EditSemesterModalProps) {
   const updateSemester = useUpdateSemester();
   const setAccentColor = useThemeStore((s) => s.setAccentColor);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -186,11 +202,18 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
                     className="w-10 h-10 rounded-xl flex items-center justify-center"
                     style={{ backgroundColor: `${selectedColor}20` }}
                   >
-                    <GraduationCap className="w-5 h-5" style={{ color: selectedColor }} />
+                    <GraduationCap
+                      className="w-5 h-5"
+                      style={{ color: selectedColor }}
+                    />
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-foreground">Edit Semester</h2>
-                    <p className="text-xs text-muted-foreground">Modify semester details</p>
+                    <h2 className="text-lg font-semibold text-foreground">
+                      Edit Semester
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      Modify semester details
+                    </p>
                   </div>
                 </div>
                 <button
@@ -205,10 +228,12 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
                 <div className="space-y-4">
                   <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
                     <p className="text-sm text-foreground mb-2">
-                      Are you sure you want to delete <strong>{semester.name}</strong>?
+                      Are you sure you want to delete{" "}
+                      <strong>{semester.name}</strong>?
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      This will also delete all subjects and attendance data. This action cannot be undone.
+                      This will also delete all subjects and attendance data.
+                      This action cannot be undone.
                     </p>
                   </div>
                   <div className="flex gap-3">
@@ -242,7 +267,9 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
                       className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent-rgb),0.5)] focus:border-transparent transition-all"
                     />
                     {errors.name && (
-                      <p className="mt-1 text-xs text-red-400">{errors.name.message}</p>
+                      <p className="mt-1 text-xs text-red-400">
+                        {errors.name.message}
+                      </p>
                     )}
                   </div>
 
@@ -255,7 +282,11 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
                       </label>
                       <ThemedDateInput
                         value={watch("start_date")}
-                        onChange={(value) => setValue("start_date", value, { shouldValidate: true })}
+                        onChange={(value) =>
+                          setValue("start_date", value, {
+                            shouldValidate: true,
+                          })
+                        }
                       />
                       <input type="hidden" {...register("start_date")} />
                     </div>
@@ -265,7 +296,9 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
                       </label>
                       <ThemedDateInput
                         value={watch("end_date")}
-                        onChange={(value) => setValue("end_date", value, { shouldValidate: true })}
+                        onChange={(value) =>
+                          setValue("end_date", value, { shouldValidate: true })
+                        }
                       />
                       <input type="hidden" {...register("end_date")} />
                     </div>
@@ -296,7 +329,9 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
                       ))}
                       <ThemedColorPicker
                         value={selectedColor}
-                        onChange={(value) => setValue("color", value, { shouldValidate: true })}
+                        onChange={(value) =>
+                          setValue("color", value, { shouldValidate: true })
+                        }
                         colors={PRESET_COLORS}
                       />
                     </div>
@@ -308,26 +343,34 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
                       Status
                     </label>
                     <div className="flex gap-2">
-                      {(["upcoming", "ongoing", "completed"] as const).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => {
-                          setValue("status", s);
-                          if (s !== "completed") {
-                            setValue("is_quick_input", false);
-                          }
-                        }}
-                        className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-all ${
-                            status === s
-                              ? "bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))] ring-1 ring-[rgba(var(--accent-rgb),0.3)]"
-                              : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
-                          }`}
-                        >
-                          {s}
-                        </button>
-                      ))}
+                      {(["upcoming", "ongoing", "completed"] as const).map(
+                        (s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => {
+                              setValue("status", s);
+                              if (s !== "completed") {
+                                setValue("is_quick_input", false);
+                              }
+                            }}
+                            className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-all ${
+                              status === s
+                                ? "bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))] ring-1 ring-[rgba(var(--accent-rgb),0.3)]"
+                                : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ),
+                      )}
                     </div>
+                    <p className="mt-2 text-xs text-muted-foreground capitalize">
+                      Current phase: {displayStatus ?? semester.status}
+                      {displayStatus === "over"
+                        ? " (automatic: ended, pending final grades/SPI)"
+                        : ""}
+                    </p>
                   </div>
 
                   {/* Quick input toggle (for completed semesters) */}
@@ -339,7 +382,10 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
                         id="edit-quick-input"
                         className="w-4 h-4 rounded accent-[rgb(var(--accent))]"
                       />
-                      <label htmlFor="edit-quick-input" className="text-sm text-foreground">
+                      <label
+                        htmlFor="edit-quick-input"
+                        className="text-sm text-foreground"
+                      >
                         Quick input (skip subjects, enter SPI directly)
                       </label>
                     </div>
@@ -354,7 +400,7 @@ export function EditSemesterModal({ isOpen, onClose, semester, onDelete }: EditS
                       <input
                         {...register("spi")}
                         type="number"
-                        step="0.01"
+                        step="0.001"
                         min="0"
                         max="10"
                         placeholder="e.g., 8.5"

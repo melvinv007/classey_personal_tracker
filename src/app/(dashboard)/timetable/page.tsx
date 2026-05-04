@@ -1,21 +1,23 @@
 "use client";
 
+import { useData } from "@/hooks/use-data";
+import { useTimetableWeekendSetting } from "@/hooks/use-timetable-weekend-setting";
+import { cn, DAY_SHORT_NAMES, normalizeTimeHM } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { ArrowLeft, MapPin, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
-import { useData } from "@/hooks/use-data";
-import { cn, DAY_SHORT_NAMES, normalizeTimeHM } from "@/lib/utils";
 
 const GRID_START = "00:00";
 const GRID_END = "23:55";
-const HOUR_ROW_HEIGHT = 56;
-const TIME_SLOTS = Array.from({ length: 24 }, (_, hour) =>
-  `${String(hour).padStart(2, "0")}:00`
+const HOUR_ROW_HEIGHT = 72;
+const TIME_SLOTS = Array.from(
+  { length: 24 },
+  (_, hour) => `${String(hour).padStart(2, "0")}:00`,
 );
 
-// Days of the week (1-7, Monday to Sunday)
-const DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
+const ALL_DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
+const WEEKDAY_DAYS = [1, 2, 3, 4, 5] as const;
 
 interface TimetableEvent {
   id: string;
@@ -43,7 +45,10 @@ function timeToMinutes(time: string): number {
 /**
  * Calculate position and height for a timetable event
  */
-function getEventStyle(startTime: string, endTime: string): React.CSSProperties {
+function getEventStyle(
+  startTime: string,
+  endTime: string,
+): React.CSSProperties {
   const startMinutes = timeToMinutes(startTime);
   const endMinutes = timeToMinutes(endTime);
   const gridStartMinutes = timeToMinutes(GRID_START);
@@ -77,7 +82,13 @@ const itemVariants = {
 };
 
 export default function TimetablePage() {
-  const { classSchedules, subjects, getSubjectById, ongoingSemester, isLoading } = useData();
+  const {
+    classSchedules,
+    subjects,
+    getSubjectById,
+    ongoingSemester,
+    isLoading,
+  } = useData();
   const verticalScrollRef = useRef<HTMLDivElement>(null);
   const horizontalScrollRef = useRef<HTMLDivElement>(null);
   const activeSemesterFilterId = ongoingSemester?.$id ?? null;
@@ -85,6 +96,11 @@ export default function TimetablePage() {
     const today = new Date().getDay();
     return today === 0 ? 7 : today;
   }, []);
+  const showWeekends = useTimetableWeekendSetting();
+  const visibleDays: readonly number[] = showWeekends ? ALL_DAYS : WEEKDAY_DAYS;
+  const focusedDay = visibleDays.includes(currentDay)
+    ? currentDay
+    : visibleDays[visibleDays.length - 1];
 
   useEffect(() => {
     const container = verticalScrollRef.current;
@@ -92,7 +108,10 @@ export default function TimetablePage() {
     const now = new Date();
     const minutes = now.getHours() * 60 + now.getMinutes();
     const total = timeToMinutes(GRID_END) - timeToMinutes(GRID_START);
-    const ratio = Math.max(0, Math.min(1, (minutes - timeToMinutes(GRID_START)) / total));
+    const ratio = Math.max(
+      0,
+      Math.min(1, (minutes - timeToMinutes(GRID_START)) / total),
+    );
     const target = ratio * (TIME_SLOTS.length * HOUR_ROW_HEIGHT);
     container.scrollTop = Math.max(0, target - container.clientHeight * 0.35);
   }, []);
@@ -100,15 +119,16 @@ export default function TimetablePage() {
   // Build timetable events from schedules
   const events: TimetableEvent[] = classSchedules
     .filter((schedule) => {
+      if (!activeSemesterFilterId) return false;
       if (schedule.deleted_at) return false;
       const subject = getSubjectById(schedule.subject_id);
       if (!subject || subject.deleted_at) return false;
-      if (activeSemesterFilterId && subject.semester_id !== activeSemesterFilterId) return false;
+      if (subject.semester_id !== activeSemesterFilterId) return false;
       return true;
     })
     .map((schedule) => {
       const subject = getSubjectById(schedule.subject_id)!;
-        return {
+      return {
         id: schedule.$id,
         subjectId: subject.$id,
         semesterId: subject.semester_id,
@@ -116,26 +136,36 @@ export default function TimetablePage() {
         shortName: subject.short_name,
         color: subject.color,
         dayOfWeek: schedule.day_of_week,
-          startTime: normalizeTimeHM(schedule.start_time),
-          endTime: normalizeTimeHM(schedule.end_time),
+        startTime: normalizeTimeHM(schedule.start_time),
+        endTime: normalizeTimeHM(schedule.end_time),
         room: schedule.room,
         slotId: schedule.slot_id,
       };
     });
 
   // Group events by day
-  const eventsByDay = DAYS.reduce((acc, day) => {
-    acc[day] = events.filter((e) => e.dayOfWeek === day);
-    return acc;
-  }, {} as Record<number, TimetableEvent[]>);
+  const eventsByDay = visibleDays.reduce(
+    (acc, day) => {
+      acc[day] = events.filter((e) => e.dayOfWeek === day);
+      return acc;
+    },
+    {} as Record<number, TimetableEvent[]>,
+  );
 
   useEffect(() => {
     const container = horizontalScrollRef.current;
     if (!container) return;
-    const dayWidth = Math.max(0, (container.scrollWidth - 60) / 7);
-    const targetLeft = Math.max(0, 60 + (currentDay - 1) * dayWidth - container.clientWidth / 2 + dayWidth / 2);
+    const dayWidth = Math.max(
+      0,
+      (container.scrollWidth - 60) / visibleDays.length,
+    );
+    const dayIndex = Math.max(0, visibleDays.indexOf(focusedDay));
+    const targetLeft = Math.max(
+      0,
+      60 + dayIndex * dayWidth - container.clientWidth / 2 + dayWidth / 2,
+    );
     container.scrollLeft = targetLeft;
-  }, [currentDay]);
+  }, [focusedDay, visibleDays]);
 
   if (isLoading) {
     return (
@@ -181,25 +211,36 @@ export default function TimetablePage() {
           className="glass-card overflow-hidden"
         >
           <div ref={horizontalScrollRef} className="overflow-x-auto">
-            <div className="min-w-[860px]">
+            <div style={{ minWidth: showWeekends ? 860 : 680 }}>
               {/* Day headers */}
-              <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-white/10">
-                <div className="p-3 text-center text-sm text-white/30">Time</div>
-                {DAYS.map((day) => (
+              <div
+                className={cn(
+                  "grid border-b border-white/10",
+                  showWeekends
+                    ? "grid-cols-[60px_repeat(7,1fr)]"
+                    : "grid-cols-[60px_repeat(5,1fr)]",
+                )}
+              >
+                <div className="p-3 text-center text-sm text-white/30">
+                  Time
+                </div>
+                {visibleDays.map((day) => (
                   <motion.div
                     key={day}
                     variants={itemVariants}
                     className={cn(
                       "p-3 text-center text-sm font-medium border-l border-white/10",
-                      day === currentDay && "bg-[rgba(var(--accent),0.1)]"
+                      day === focusedDay && "bg-[rgba(var(--accent),0.1)]",
                     )}
                   >
-                    <span className={cn(
-                      day === currentDay && "text-[rgb(var(--accent))]"
-                    )}>
+                    <span
+                      className={cn(
+                        day === focusedDay && "text-[rgb(var(--accent))]",
+                      )}
+                    >
                       {DAY_SHORT_NAMES[day]}
                     </span>
-                    {day === currentDay && (
+                    {day === focusedDay && (
                       <div className="text-xs text-white/50 mt-0.5">Today</div>
                     )}
                   </motion.div>
@@ -207,47 +248,59 @@ export default function TimetablePage() {
               </div>
 
               {/* Time grid */}
-               <div ref={verticalScrollRef} className="max-h-[72vh] overflow-y-auto">
-                <div className="grid grid-cols-[64px_repeat(7,1fr)]">
-                {/* Time labels */}
-                <div className="relative">
-                  {TIME_SLOTS.map((time) => (
-                    <div
-                      key={time}
-                      className="border-b border-white/8 flex items-start justify-center pt-1"
-                      style={{ height: `${HOUR_ROW_HEIGHT}px` }}
-                    >
-                      <span className="text-xs text-white/40">{time}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Day columns */}
-                {DAYS.map((day) => (
-                  <motion.div
-                    key={day}
-                    variants={itemVariants}
-                    className={cn(
-                      "relative border-l border-white/10",
-                      day === currentDay && "bg-[rgba(var(--accent),0.03)]"
-                    )}
-                    style={{ height: `${TIME_SLOTS.length * HOUR_ROW_HEIGHT}px` }}
-                  >
-                    {/* Hour grid lines */}
-                    {TIME_SLOTS.map((_, i) => (
+              <div
+                ref={verticalScrollRef}
+                className="max-h-[72vh] overflow-y-auto"
+              >
+                <div
+                  className={cn(
+                    "grid",
+                    showWeekends
+                      ? "grid-cols-[64px_repeat(7,1fr)]"
+                      : "grid-cols-[64px_repeat(5,1fr)]",
+                  )}
+                >
+                  {/* Time labels */}
+                  <div className="relative">
+                    {TIME_SLOTS.map((time) => (
                       <div
-                        key={i}
-                        className="absolute left-0 right-0 border-b border-white/8"
-                        style={{ top: `${(i + 1) * HOUR_ROW_HEIGHT}px` }}
-                      />
+                        key={time}
+                        className="border-b border-white/8 flex items-start justify-center pt-1"
+                        style={{ height: `${HOUR_ROW_HEIGHT}px` }}
+                      >
+                        <span className="text-xs text-white/40">{time}</span>
+                      </div>
                     ))}
+                  </div>
 
-                    {/* Events */}
-                    {eventsByDay[day]?.map((event) => (
-                      <TimetableEventCard key={event.id} event={event} />
-                    ))}
-                  </motion.div>
-                ))}
+                  {/* Day columns */}
+                  {visibleDays.map((day) => (
+                    <motion.div
+                      key={day}
+                      variants={itemVariants}
+                      className={cn(
+                        "relative border-l border-white/10",
+                        day === focusedDay && "bg-[rgba(var(--accent),0.03)]",
+                      )}
+                      style={{
+                        height: `${TIME_SLOTS.length * HOUR_ROW_HEIGHT}px`,
+                      }}
+                    >
+                      {/* Hour grid lines */}
+                      {TIME_SLOTS.map((_, i) => (
+                        <div
+                          key={i}
+                          className="absolute left-0 right-0 border-b border-white/8"
+                          style={{ top: `${(i + 1) * HOUR_ROW_HEIGHT}px` }}
+                        />
+                      ))}
+
+                      {/* Events */}
+                      {eventsByDay[day]?.map((event) => (
+                        <TimetableEventCard key={event.id} event={event} />
+                      ))}
+                    </motion.div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -263,9 +316,14 @@ export default function TimetablePage() {
         >
           <h3 className="text-sm font-medium text-white/70 mb-3">Subjects</h3>
           <div className="flex flex-wrap gap-3">
-            {subjects
-              .filter((s) => !s.deleted_at && (!activeSemesterFilterId || s.semester_id === activeSemesterFilterId))
-              .map((subject) => (
+              {subjects
+                .filter(
+                  (s) =>
+                    !s.deleted_at &&
+                    !!activeSemesterFilterId &&
+                    s.semester_id === activeSemesterFilterId,
+                )
+                .map((subject) => (
                 <div
                   key={subject.$id}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
@@ -290,7 +348,8 @@ export default function TimetablePage() {
  */
 function TimetableEventCard({ event }: { event: TimetableEvent }) {
   const style = getEventStyle(event.startTime, event.endTime);
-  const duration = timeToMinutes(event.endTime) - timeToMinutes(event.startTime);
+  const duration =
+    timeToMinutes(event.endTime) - timeToMinutes(event.startTime);
   const isCompact = duration <= 55; // Less than 1 hour
 
   return (
@@ -302,7 +361,7 @@ function TimetableEventCard({ event }: { event: TimetableEvent }) {
         className={cn(
           "absolute left-1 right-1 rounded-lg p-2 cursor-pointer",
           "border transition-all duration-150",
-          "hover:shadow-lg"
+          "hover:shadow-lg",
         )}
         style={{
           ...style,

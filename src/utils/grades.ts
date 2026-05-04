@@ -3,7 +3,17 @@
  * Based on classey-features skill specifications
  */
 
-import type { Exam, Subject, Semester } from "@/types/database";
+import type { Exam, Semester, Subject } from "@/types/database";
+
+export const GPA_PRECISION_DECIMALS = 3;
+
+function roundTo(
+  value: number,
+  decimals: number = GPA_PRECISION_DECIMALS,
+): number {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
 
 /**
  * Grade scale mapping (default 10-point scale)
@@ -30,11 +40,13 @@ export const DEFAULT_GRADE_SCALE: GradeMapping[] = [
  */
 export function gradeFromPercent(
   percent: number,
-  scale: GradeMapping[] = DEFAULT_GRADE_SCALE
+  scale: GradeMapping[] = DEFAULT_GRADE_SCALE,
 ): { grade: string; points: number } {
   const sorted = [...scale].sort((a, b) => b.min_percent - a.min_percent);
   const match = sorted.find((m) => percent >= m.min_percent);
-  return match ? { grade: match.grade, points: match.points } : { grade: "F", points: 0 };
+  return match
+    ? { grade: match.grade, points: match.points }
+    : { grade: "F", points: 0 };
 }
 
 /**
@@ -49,19 +61,23 @@ export function calculateSubjectGrade(exams: Exam[]): {
   completedExams: number;
 } {
   const withWeightage = exams.filter(
-    (e) => e.weightage_percent && e.marks_obtained !== null && !e.deleted_at
+    (e) => e.weightage_percent && e.marks_obtained !== null && !e.deleted_at,
   );
   const withoutWeightage = exams.filter(
-    (e) => !e.weightage_percent && e.marks_obtained !== null && !e.deleted_at
+    (e) => !e.weightage_percent && e.marks_obtained !== null && !e.deleted_at,
   );
 
   if (withWeightage.length > 0) {
     // Weighted average
     const earned = withWeightage.reduce(
-      (sum, e) => sum + (e.marks_obtained! / e.marks_total) * e.weightage_percent!,
-      0
+      (sum, e) =>
+        sum + (e.marks_obtained! / e.marks_total) * e.weightage_percent!,
+      0,
     );
-    const totalObtained = withWeightage.reduce((sum, e) => sum + e.marks_obtained!, 0);
+    const totalObtained = withWeightage.reduce(
+      (sum, e) => sum + e.marks_obtained!,
+      0,
+    );
     const totalMax = withWeightage.reduce((sum, e) => sum + e.marks_total, 0);
     const { grade, points } = gradeFromPercent(earned);
     return {
@@ -74,8 +90,14 @@ export function calculateSubjectGrade(exams: Exam[]): {
     };
   } else if (withoutWeightage.length > 0) {
     // Simple average
-    const totalObtained = withoutWeightage.reduce((sum, e) => sum + e.marks_obtained!, 0);
-    const totalMax = withoutWeightage.reduce((sum, e) => sum + e.marks_total, 0);
+    const totalObtained = withoutWeightage.reduce(
+      (sum, e) => sum + e.marks_obtained!,
+      0,
+    );
+    const totalMax = withoutWeightage.reduce(
+      (sum, e) => sum + e.marks_total,
+      0,
+    );
     const percentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
     const { grade, points } = gradeFromPercent(percentage);
     return {
@@ -104,15 +126,15 @@ export function calculateSubjectGrade(exams: Exam[]): {
  */
 export function calculateSPI(subjects: Subject[]): number {
   const completed = subjects.filter(
-    (s) => s.grade_points !== null && s.credits > 0 && !s.deleted_at
+    (s) => s.grade_points !== null && s.credits > 0 && !s.deleted_at,
   );
   const totalCredits = completed.reduce((sum, s) => sum + s.credits, 0);
   if (totalCredits === 0) return 0;
   const weightedPoints = completed.reduce(
     (sum, s) => sum + s.grade_points! * s.credits,
-    0
+    0,
   );
-  return Math.round((weightedPoints / totalCredits) * 100) / 100;
+  return roundTo(weightedPoints / totalCredits);
 }
 
 /**
@@ -133,13 +155,16 @@ export interface ResolvedSemesterGradeData extends SemesterGradeData {
 
 export function resolveSemesterGradeData(
   semester: Semester,
-  semesterSubjects: Subject[]
+  semesterSubjects: Subject[],
 ): ResolvedSemesterGradeData {
-  const validSubjects = semesterSubjects.filter((subject) => !subject.deleted_at);
-  const gradedSubjects = validSubjects.filter(
-    (subject) => subject.grade_points !== null && subject.credits > 0
+  const validSubjects = semesterSubjects.filter(
+    (subject) => !subject.deleted_at,
   );
-  const allSubjectsGraded = validSubjects.length > 0 && gradedSubjects.length === validSubjects.length;
+  const gradedSubjects = validSubjects.filter(
+    (subject) => subject.grade_points !== null && subject.credits > 0,
+  );
+  const allSubjectsGraded =
+    validSubjects.length > 0 && gradedSubjects.length === validSubjects.length;
 
   if (allSubjectsGraded) {
     return {
@@ -163,7 +188,7 @@ export function resolveSemesterGradeData(
     return {
       id: semester.$id,
       name: semester.name,
-      spi: semester.spi,
+      spi: roundTo(semester.spi),
       credits: semester.credits_total,
       status: semester.status,
       source: "manual",
@@ -191,7 +216,7 @@ export function calculateCGPA(semesters: SemesterGradeData[]): number {
   const totalCredits = completed.reduce((sum, s) => sum + s.credits, 0);
   if (totalCredits === 0) return 0;
   const weighted = completed.reduce((sum, s) => sum + s.spi * s.credits, 0);
-  return Math.round((weighted / totalCredits) * 100) / 100;
+  return roundTo(weighted / totalCredits);
 }
 
 /**
@@ -200,7 +225,7 @@ export function calculateCGPA(semesters: SemesterGradeData[]): number {
 export function whatIfCGPA(
   currentSemesters: SemesterGradeData[],
   hypotheticalSPI: number,
-  hypotheticalCredits: number
+  hypotheticalCredits: number,
 ): number {
   return calculateCGPA([
     ...currentSemesters,
@@ -222,15 +247,23 @@ export function requiredSPI(
   currentSemesters: SemesterGradeData[],
   targetCGPA: number,
   thisCredits: number,
-  maxSPI: number = 10
+  maxSPI: number = 10,
 ): { required: number; achievable: boolean } {
-  const currentCredits = currentSemesters.reduce((sum, s) => sum + s.credits, 0);
-  const currentWeighted = currentSemesters.reduce((sum, s) => sum + s.spi * s.credits, 0);
-  
+  const currentCredits = currentSemesters.reduce(
+    (sum, s) => sum + s.credits,
+    0,
+  );
+  const currentWeighted = currentSemesters.reduce(
+    (sum, s) => sum + s.spi * s.credits,
+    0,
+  );
+
   // Solve: (currentWeighted + x * thisCredits) / (currentCredits + thisCredits) = target
-  const required = (targetCGPA * (currentCredits + thisCredits) - currentWeighted) / thisCredits;
-  const rounded = Math.round(required * 100) / 100;
-  
+  const required =
+    (targetCGPA * (currentCredits + thisCredits) - currentWeighted) /
+    thisCredits;
+  const rounded = roundTo(required);
+
   return {
     required: Math.max(0, rounded),
     achievable: rounded <= maxSPI && rounded >= 0,
@@ -244,7 +277,7 @@ export function marksNeededForGrade(
   completedExams: Exam[],
   remainingExams: Exam[],
   targetGrade: string,
-  scale: GradeMapping[] = DEFAULT_GRADE_SCALE
+  scale: GradeMapping[] = DEFAULT_GRADE_SCALE,
 ): {
   targetPercent: number;
   currentEarned: number;
@@ -257,15 +290,19 @@ export function marksNeededForGrade(
 
   // Calculate earned percentage from completed exams
   const completed = completedExams.filter(
-    (e) => e.weightage_percent && e.marks_obtained !== null
+    (e) => e.weightage_percent && e.marks_obtained !== null,
   );
   const currentEarned = completed.reduce(
-    (sum, e) => sum + (e.marks_obtained! / e.marks_total) * e.weightage_percent!,
-    0
+    (sum, e) =>
+      sum + (e.marks_obtained! / e.marks_total) * e.weightage_percent!,
+    0,
   );
 
   // Calculate remaining weightage
-  const completedWeight = completed.reduce((sum, e) => sum + (e.weightage_percent ?? 0), 0);
+  const completedWeight = completed.reduce(
+    (sum, e) => sum + (e.weightage_percent ?? 0),
+    0,
+  );
   const remainingWeight = 100 - completedWeight;
 
   if (remainingWeight <= 0) {
@@ -279,7 +316,8 @@ export function marksNeededForGrade(
   }
 
   // Calculate needed percentage in remaining exams
-  const neededPercent = ((targetPercent - currentEarned) / remainingWeight) * 100;
+  const neededPercent =
+    ((targetPercent - currentEarned) / remainingWeight) * 100;
 
   return {
     targetPercent,

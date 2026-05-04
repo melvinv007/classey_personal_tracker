@@ -1,18 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useData } from "@/hooks/use-data";
+import { cn, normalizeTimeHMS } from "@/lib/utils";
+import type {
+  DatesSetArg,
+  EventClickArg,
+  EventInput,
+} from "@fullcalendar/core";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import interactionPlugin from "@fullcalendar/interaction";
+import FullCalendar from "@fullcalendar/react";
+import timeGridPlugin from "@fullcalendar/timegrid";
+import { addDays, format, parseISO } from "date-fns";
 import { motion } from "framer-motion";
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import interactionPlugin from "@fullcalendar/interaction";
-import type { EventInput, EventClickArg, DatesSetArg } from "@fullcalendar/core";
-import { useData } from "@/hooks/use-data";
-import { format, parseISO } from "date-fns";
-import { cn, normalizeTimeHMS } from "@/lib/utils";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import "./calendar.css";
@@ -36,99 +40,137 @@ export default function CalendarPage(): React.ReactNode {
   const nowDate = useMemo(() => new Date(), []);
   const nowTime = useMemo(() => nowDate.toTimeString().slice(0, 8), [nowDate]);
   const [currentDate, setCurrentDate] = useState<Date | null>(nowDate);
-  const [view, setView] = useState<"timeGridWeek" | "timeGridDay" | "dayGridMonth">("timeGridWeek");
+  const [view, setView] = useState<
+    "timeGridWeek" | "timeGridDay" | "dayGridMonth"
+  >("timeGridWeek");
+  const [visibleRange, setVisibleRange] = useState(() => ({
+    start: format(nowDate, "yyyy-MM-dd"),
+    end: format(addDays(nowDate, 6), "yyyy-MM-dd"),
+  }));
 
-  const { classSchedules, classOccurrences, exams, events: personalEvents, subjects, getSubjectById, ongoingSemester, isLoading } = useData();
+  const {
+    classSchedules,
+    classOccurrences,
+    exams,
+    events: personalEvents,
+    subjects,
+    getSubjectById,
+    getHolidaysBySemester,
+    ongoingSemester,
+    isLoading,
+  } = useData();
   const activeSemesterFilterId = ongoingSemester?.$id ?? null;
 
   // Helper to add minutes to a time string - wrapped in useCallback
-  const addMinutesToTime = useCallback((time: string, minutes: number): string => {
-    const normalized = normalizeTimeHMS(time);
-    const [h, m] = normalized.split(":").map(Number);
-    const totalMinutes = h * 60 + m + minutes;
-    const newH = Math.floor(totalMinutes / 60) % 24;
-    const newM = totalMinutes % 60;
-    return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}:00`;
-  }, []);
+  const addMinutesToTime = useCallback(
+    (time: string, minutes: number): string => {
+      const normalized = normalizeTimeHMS(time);
+      const [h, m] = normalized.split(":").map(Number);
+      const totalMinutes = h * 60 + m + minutes;
+      const newH = Math.floor(totalMinutes / 60) % 24;
+      const newM = totalMinutes % 60;
+      return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}:00`;
+    },
+    [],
+  );
 
   // Generate calendar events from schedules, exams, and events
   const calendarEvents = useMemo((): EventInput[] => {
     const result: EventInput[] = [];
+    if (!activeSemesterFilterId) {
+      return result;
+    }
 
-    // Add scheduled classes (recurring based on day of week)
-    classSchedules.forEach((schedule) => {
-      if (schedule.deleted_at) return;
-      const subject = getSubjectById(schedule.subject_id);
-      if (!subject || subject.deleted_at) return;
-      if (activeSemesterFilterId && subject.semester_id !== activeSemesterFilterId) return;
-
-      // Generate events for the current week
-      // FullCalendar will handle recurrence with daysOfWeek
-      const dayMap: Record<number, number> = {
-        1: 1, // Monday
-        2: 2, // Tuesday
-        3: 3, // Wednesday
-        4: 4, // Thursday
-        5: 5, // Friday
-        6: 6, // Saturday
-      };
-
-      result.push({
-        id: schedule.$id,
-        title: subject.short_name,
-        daysOfWeek: [dayMap[schedule.day_of_week]],
-        startTime: normalizeTimeHMS(schedule.start_time),
-        endTime: normalizeTimeHMS(schedule.end_time),
-        backgroundColor: `${subject.color}40`,
-        borderColor: subject.color,
-        textColor: subject.color,
-        extendedProps: {
-          subjectId: subject.$id,
-          semesterId: subject.semester_id,
-          subjectName: subject.name,
-          room: schedule.room,
-          type: "class",
-        },
-      });
-    });
-
-    // Add specific occurrences (for cancelled/rescheduled)
-    classOccurrences.forEach((occurrence) => {
-      if (occurrence.status === "cancelled") {
-        const subject = getSubjectById(occurrence.subject_id);
-        if (!subject) return;
-
-        result.push({
-          id: `occ-${occurrence.$id}`,
-          title: `${subject.short_name} (Cancelled)`,
-          start: `${occurrence.date}T${normalizeTimeHMS(occurrence.start_time)}`,
-          end: `${occurrence.date}T${normalizeTimeHMS(occurrence.end_time)}`,
-          backgroundColor: "#4B5563",
-          borderColor: "#6B7280",
-          textColor: "#9CA3AF",
-          extendedProps: {
-            subjectId: subject.$id,
-            semesterId: subject.semester_id,
-            type: "cancelled",
-          },
-        });
+    const rangeStart = parseISO(visibleRange.start);
+    const rangeEnd = parseISO(visibleRange.end);
+    const holidayDates = new Set<string>();
+    getHolidaysBySemester(activeSemesterFilterId).forEach((holiday) => {
+      const holidayStart = holiday.date;
+      const holidayEnd = holiday.date_end ?? holiday.date;
+      if (holidayEnd < visibleRange.start || holidayStart > visibleRange.end) {
+        return;
+      }
+      const loopStart =
+        holidayStart > visibleRange.start ? holidayStart : visibleRange.start;
+      const loopEnd =
+        holidayEnd < visibleRange.end ? holidayEnd : visibleRange.end;
+      const loopEndDate = parseISO(loopEnd);
+      for (
+        let cursor = parseISO(loopStart);
+        cursor.getTime() <= loopEndDate.getTime();
+        cursor = addDays(cursor, 1)
+      ) {
+        holidayDates.add(format(cursor, "yyyy-MM-dd"));
       }
     });
+    const cancelledClassKeys = new Set(
+      classOccurrences
+        .filter((occurrence) => occurrence.status === "cancelled")
+        .map(
+          (occurrence) =>
+            `${occurrence.subject_id}|${occurrence.date}|${normalizeTimeHMS(occurrence.start_time)}|${normalizeTimeHMS(occurrence.end_time)}`,
+        ),
+    );
+
+    if (view !== "dayGridMonth") {
+      classSchedules.forEach((schedule) => {
+        if (schedule.deleted_at) return;
+        const subject = getSubjectById(schedule.subject_id);
+        if (!subject || subject.deleted_at) return;
+        if (subject.semester_id !== activeSemesterFilterId) return;
+
+        const startTime = normalizeTimeHMS(schedule.start_time);
+        const endTime = normalizeTimeHMS(schedule.end_time);
+        for (
+          let cursor = new Date(rangeStart);
+          cursor.getTime() <= rangeEnd.getTime();
+          cursor = addDays(cursor, 1)
+        ) {
+          const date = format(cursor, "yyyy-MM-dd");
+          const dayOfWeek = cursor.getDay() === 0 ? 7 : cursor.getDay();
+          if (dayOfWeek !== schedule.day_of_week) continue;
+          if (schedule.effective_from > date) continue;
+          if (schedule.effective_until && schedule.effective_until < date)
+            continue;
+          if (holidayDates.has(date)) continue;
+          const classKey = `${subject.$id}|${date}|${startTime}|${endTime}`;
+          if (cancelledClassKeys.has(classKey)) continue;
+
+          result.push({
+            id: `${schedule.$id}-${date}`,
+            title: subject.short_name,
+            start: `${date}T${startTime}`,
+            end: `${date}T${endTime}`,
+            backgroundColor: `${subject.color}40`,
+            borderColor: subject.color,
+            textColor: subject.color,
+            extendedProps: {
+              subjectId: subject.$id,
+              semesterId: subject.semester_id,
+              subjectName: subject.name,
+              room: schedule.room,
+              type: "class",
+            },
+          });
+        }
+      });
+    }
 
     // Add exams
     exams.forEach((exam) => {
       if (exam.deleted_at) return;
       const subject = getSubjectById(exam.subject_id);
       if (!subject) return;
-      if (activeSemesterFilterId && subject.semester_id !== activeSemesterFilterId) return;
+      if (subject.semester_id !== activeSemesterFilterId) return;
 
       const examColor = EXAM_COLORS[exam.type] || EXAM_COLORS.other;
       const startDateTime = exam.start_time
         ? `${exam.date}T${normalizeTimeHMS(exam.start_time)}`
         : `${exam.date}T09:00:00`;
-      const endDateTime = exam.start_time && exam.duration_minutes
-        ? `${exam.date}T${addMinutesToTime(exam.start_time, exam.duration_minutes)}`
-        : `${exam.date}T10:00:00`;
+      const endDateTime =
+        exam.start_time && exam.duration_minutes
+          ? `${exam.date}T${addMinutesToTime(exam.start_time, exam.duration_minutes)}`
+          : `${exam.date}T10:00:00`;
 
       result.push({
         id: `exam-${exam.$id}`,
@@ -151,14 +193,18 @@ export default function CalendarPage(): React.ReactNode {
     // Add personal events
     personalEvents.forEach((event) => {
       if (event.deleted_at) return;
-      if (activeSemesterFilterId && event.semester_id && event.semester_id !== activeSemesterFilterId) return;
+      if (event.semester_id && event.semester_id !== activeSemesterFilterId) {
+        return;
+      }
 
       result.push({
         id: `event-${event.$id}`,
         title: `🗓️ ${event.title}`,
         start: event.start_datetime,
         end: event.end_datetime,
-        backgroundColor: event.color ? `${event.color}30` : "rgba(139,92,246,0.3)",
+        backgroundColor: event.color
+          ? `${event.color}30`
+          : "rgba(139,92,246,0.3)",
         borderColor: event.color || "#8B5CF6",
         textColor: event.color || "#8B5CF6",
         extendedProps: {
@@ -169,21 +215,36 @@ export default function CalendarPage(): React.ReactNode {
     });
 
     return result;
-  }, [classSchedules, classOccurrences, exams, personalEvents, getSubjectById, activeSemesterFilterId, addMinutesToTime]);
+  }, [
+    classSchedules,
+    classOccurrences,
+    exams,
+    personalEvents,
+    getSubjectById,
+    activeSemesterFilterId,
+    addMinutesToTime,
+    visibleRange,
+    view,
+    getHolidaysBySemester,
+  ]);
 
   const handleEventClick = (info: EventClickArg) => {
     const { extendedProps } = info.event;
-    if (extendedProps.type === "class" || extendedProps.type === "cancelled") {
-      router.push(`/semester/${extendedProps.semesterId ?? ongoingSemester?.$id}/subject/${extendedProps.subjectId}`);
+    if (extendedProps.type === "class") {
+      router.push(
+        `/semester/${extendedProps.semesterId ?? ongoingSemester?.$id}/subject/${extendedProps.subjectId}`,
+      );
     } else if (extendedProps.type === "exam") {
-      router.push(`/semester/${extendedProps.semesterId ?? ongoingSemester?.$id}/subject/${extendedProps.subjectId}`);
+      router.push(
+        `/semester/${extendedProps.semesterId ?? ongoingSemester?.$id}/subject/${extendedProps.subjectId}`,
+      );
     } else if (extendedProps.type === "event") {
       // For personal events, show a toast with event details
       const event = personalEvents.find((e) => e.$id === extendedProps.eventId);
       if (event) {
         toast.info(
           `${event.title}${event.location ? ` • ${event.location}` : ""}${event.description ? `\n${event.description}` : ""}`,
-          { duration: 5000 }
+          { duration: 5000 },
         );
       }
     }
@@ -191,6 +252,10 @@ export default function CalendarPage(): React.ReactNode {
 
   const handleDatesSet = (arg: DatesSetArg) => {
     setCurrentDate(arg.start);
+    setVisibleRange({
+      start: format(arg.start, "yyyy-MM-dd"),
+      end: format(addDays(arg.end, -1), "yyyy-MM-dd"),
+    });
   };
 
   const navigatePrev = () => {
@@ -256,7 +321,8 @@ export default function CalendarPage(): React.ReactNode {
               <div>
                 <h1 className="text-xl font-bold">Calendar</h1>
                 <p className="text-sm text-white/50">
-                  {currentDate ? format(currentDate, "MMMM yyyy") : " "}
+                  {ongoingSemester?.name ?? "No active semester"}
+                  {currentDate ? ` • ${format(currentDate, "MMMM yyyy")}` : ""}
                 </p>
               </div>
             </div>
@@ -288,20 +354,26 @@ export default function CalendarPage(): React.ReactNode {
 
           {/* View toggles */}
           <div className="flex items-center gap-2 mt-3">
-            {(["timeGridWeek", "timeGridDay", "dayGridMonth"] as const).map((v) => (
-              <button
-                key={v}
-              onClick={() => changeView(v)}
-                className={cn(
+            {(["timeGridWeek", "timeGridDay", "dayGridMonth"] as const).map(
+              (v) => (
+                <button
+                  key={v}
+                  onClick={() => changeView(v)}
+                  className={cn(
                     "px-3 py-1.5 text-sm rounded-lg interactive-focus transition-colors",
                     view === v
                       ? "btn-themed text-[rgb(var(--accent))]"
-                      : "btn-muted-themed text-muted-foreground"
-                )}
-              >
-                {v === "timeGridWeek" ? "Week" : v === "timeGridDay" ? "Day" : "Month"}
-              </button>
-            ))}
+                      : "btn-muted-themed text-muted-foreground",
+                  )}
+                >
+                  {v === "timeGridWeek"
+                    ? "Week"
+                    : v === "timeGridDay"
+                      ? "Day"
+                      : "Month"}
+                </button>
+              ),
+            )}
           </div>
         </div>
       </motion.header>
@@ -316,7 +388,9 @@ export default function CalendarPage(): React.ReactNode {
         >
           <div
             className={cn(
-              view === "dayGridMonth" ? "classey-month-calendar" : "classey-time-calendar calendar-scroll-window"
+              view === "dayGridMonth"
+                ? "classey-month-calendar"
+                : "classey-time-calendar calendar-scroll-window",
             )}
           >
             <FullCalendar
@@ -336,7 +410,7 @@ export default function CalendarPage(): React.ReactNode {
               allDaySlot={false}
               weekends={true}
               firstDay={1}
-              height={view === "dayGridMonth" ? "auto" : 1400}
+              height={view === "dayGridMonth" ? "auto" : 1650}
               nowIndicator={true}
               scrollTimeReset={false}
               scrollTime={nowTime}
@@ -354,7 +428,9 @@ export default function CalendarPage(): React.ReactNode {
                 const { extendedProps } = arg.event;
                 return (
                   <div className="p-1 overflow-hidden h-full">
-                    <div className="font-medium text-xs truncate">{arg.event.title}</div>
+                    <div className="font-medium text-xs truncate">
+                      {arg.event.title}
+                    </div>
                     {extendedProps.room && (
                       <div className="text-[10px] opacity-70 truncate">
                         {extendedProps.room}
@@ -384,7 +460,7 @@ export default function CalendarPage(): React.ReactNode {
             <div className="flex flex-wrap gap-3">
               {subjects
                 .filter(
-                  (s) => !s.deleted_at && s.semester_id === ongoingSemester.$id
+                  (s) => !s.deleted_at && s.semester_id === ongoingSemester.$id,
                 )
                 .map((subject) => (
                   <Link

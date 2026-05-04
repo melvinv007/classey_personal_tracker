@@ -22,12 +22,12 @@
 
 /* Time grid */
 .classey-time-calendar .fc-timegrid-slot {
-  height: 3.5rem;
+  height: 4.25rem;
 }
 
 .classey-time-calendar .fc-timegrid-axis-frame,
 .classey-time-calendar .fc-timegrid-slot-label-frame {
-  height: 3.5rem;
+  height: 4.25rem;
 }
 
 .classey-time-calendar .fc-timegrid-slot-label {
@@ -73,7 +73,11 @@
   border-width: 1px;
   border-left-width: 3px;
   cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, background-color 0.15s;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s,
+    border-color 0.15s,
+    background-color 0.15s;
   min-height: 0;
 }
 
@@ -167,7 +171,7 @@
 }
 
 .calendar-scroll-window .fc {
-  min-height: 1400px;
+  min-height: 1650px;
 }
 
 /* All day section */
@@ -202,8 +206,7 @@
   --fc-today-bg-color: rgba(var(--accent-rgb), 0.12);
   --fc-event-bg-color: rgba(var(--accent-rgb), 0.22);
   --fc-ui-shadow:
-    0 14px 28px rgba(0, 0, 0, 0.26),
-    0 0 0 1px rgba(var(--accent-rgb), 0.3),
+    0 14px 28px rgba(0, 0, 0, 0.26), 0 0 0 1px rgba(var(--accent-rgb), 0.3),
     0 0 24px rgba(var(--accent-rgb), 0.2);
   --fc-ui-event-radius: 12px;
 }
@@ -216,7 +219,9 @@
   );
 }
 
-[data-ui-style="organic-glass"] .classey-time-calendar .fc-timegrid-col.fc-day-today {
+[data-ui-style="organic-glass"]
+  .classey-time-calendar
+  .fc-timegrid-col.fc-day-today {
   background: linear-gradient(
     180deg,
     rgba(var(--accent-rgb), 0.12),

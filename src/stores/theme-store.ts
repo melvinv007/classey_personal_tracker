@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 /**
  * Theme mode options
@@ -19,7 +19,13 @@ export type BackgroundStyle =
 /**
  * Available font families
  */
-export type FontFamily = "nunito" | "poppins" | "quicksand";
+export type FontFamily =
+  | "nunito"
+  | "poppins"
+  | "quicksand"
+  | "inter"
+  | "manrope"
+  | "space-grotesk";
 export type UIStyle =
   | "classic-glass"
   | "organic-glass"
@@ -121,8 +127,8 @@ export const useThemeStore = create<ThemeStore>()(
       onRehydrateStorage: () => (state) => {
         state?.setHydrated(true);
       },
-    }
-  )
+    },
+  ),
 );
 
 /**
@@ -132,7 +138,21 @@ export const fontFamilyMap: Record<FontFamily, string> = {
   nunito: '"Nunito", ui-sans-serif, system-ui, sans-serif',
   poppins: '"Poppins", ui-sans-serif, system-ui, sans-serif',
   quicksand: '"Quicksand", ui-sans-serif, system-ui, sans-serif',
+  inter: '"Inter", ui-sans-serif, system-ui, sans-serif',
+  manrope: '"Manrope", ui-sans-serif, system-ui, sans-serif',
+  "space-grotesk": '"Space Grotesk", ui-sans-serif, system-ui, sans-serif',
 };
+
+export function isFontFamily(value: unknown): value is FontFamily {
+  return (
+    value === "nunito" ||
+    value === "poppins" ||
+    value === "quicksand" ||
+    value === "inter" ||
+    value === "manrope" ||
+    value === "space-grotesk"
+  );
+}
 
 /**
  * Background style display names

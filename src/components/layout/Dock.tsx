@@ -1,19 +1,19 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {
-  Home,
+  BarChart3,
   Calendar,
   CheckSquare,
-  FolderOpen,
-  BarChart3,
-  Settings,
   Clock,
+  FolderOpen,
+  Home,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 /**
  * Navigation item interface
@@ -29,8 +29,8 @@ interface NavItem {
  */
 const navItems: NavItem[] = [
   { href: "/", label: "Home", icon: Home },
-  { href: "/timetable", label: "Timetable", icon: Clock },
   { href: "/calendar", label: "Calendar", icon: Calendar },
+  { href: "/timetable", label: "Timetable", icon: Clock },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/files", label: "Files", icon: FolderOpen },
   { href: "/analytics/cgpa", label: "Analytics", icon: BarChart3 },
@@ -61,16 +61,16 @@ export function Dock(): React.ReactNode {
               (item.href !== "/" && pathname.startsWith(item.href));
 
             return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "group interactive-surface interactive-focus relative flex items-center gap-3 rounded-xl px-3 py-2.5",
-                    isActive
-                      ? "bg-accent/20 text-accent"
-                      : "text-muted-foreground hover:bg-accent/10 hover:text-foreground"
-                  )}
-                >
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "group interactive-surface interactive-focus relative flex items-center gap-3 rounded-xl px-3 py-2.5",
+                  isActive
+                    ? "bg-accent/20 text-accent"
+                    : "text-muted-foreground hover:bg-accent/10 hover:text-foreground",
+                )}
+              >
                 <item.icon className="h-5 w-5 shrink-0" />
                 <span className="text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                   {item.label}
@@ -108,16 +108,16 @@ export function Dock(): React.ReactNode {
               (item.href !== "/" && pathname.startsWith(item.href));
 
             return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "interactive-surface interactive-focus relative flex flex-col items-center gap-1 rounded-xl p-2",
-                    isActive
-                      ? "text-accent"
-                      : "text-muted-foreground active:scale-95"
-                  )}
-                >
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "interactive-surface interactive-focus relative flex flex-col items-center gap-1 rounded-xl p-2",
+                  isActive
+                    ? "text-accent"
+                    : "text-muted-foreground active:scale-95",
+                )}
+              >
                 <item.icon className="h-5 w-5" />
 
                 {/* Active indicator */}

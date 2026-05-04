@@ -1,13 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Award, Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { toast } from "sonner";
-import { useSettings, useUpdateExam } from "@/hooks/use-appwrite";
-import type { Exam, ReminderOffset } from "@/types/database";
 import { ReminderOffsetsEditor } from "@/components/forms/ReminderOffsetsEditor";
-import { parseReminderOffsetsJson, serializeReminderOffsetsJson } from "@/lib/appwrite-db";
+import { useSettings, useUpdateExam } from "@/hooks/use-appwrite";
+import {
+  parseReminderOffsetsJson,
+  serializeReminderOffsetsJson,
+} from "@/lib/appwrite-db";
+import type { Exam, ReminderOffset } from "@/types/database";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Award,
+  Loader2,
+  Minus,
+  TrendingDown,
+  TrendingUp,
+  X,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 interface EditExamMarksModalProps {
   isOpen: boolean;
@@ -22,19 +32,32 @@ export function EditExamMarksModal({
 }: EditExamMarksModalProps): React.ReactNode {
   const { data: settings } = useSettings();
   const [marksObtained, setMarksObtained] = useState<string>(
-    exam?.marks_obtained?.toString() ?? ""
+    exam?.marks_obtained?.toString() ?? "",
   );
-  const [reminderOffsets, setReminderOffsets] = useState<ReminderOffset[] | null>(null);
+  const [reminderOffsets, setReminderOffsets] = useState<
+    ReminderOffset[] | null
+  >(null);
   const updateExamMutation = useUpdateExam();
 
   const effectiveReminderOffsets = useMemo<ReminderOffset[]>(() => {
-    if (!exam) return [{ value: 24, unit: "hours" }, { value: 2, unit: "hours" }];
+    if (!exam)
+      return [
+        { value: 24, unit: "hours" },
+        { value: 2, unit: "hours" },
+      ];
     const examOffsets = parseReminderOffsetsJson(exam.reminder_offsets_json);
     if (examOffsets.length > 0) {
       return examOffsets;
     }
-    const defaults = parseReminderOffsetsJson(settings?.exam_default_reminder_offsets_json ?? null);
-    return defaults.length > 0 ? defaults : [{ value: 24, unit: "hours" }, { value: 2, unit: "hours" }];
+    const defaults = parseReminderOffsetsJson(
+      settings?.exam_default_reminder_offsets_json ?? null,
+    );
+    return defaults.length > 0
+      ? defaults
+      : [
+          { value: 24, unit: "hours" },
+          { value: 2, unit: "hours" },
+        ];
   }, [exam, settings?.exam_default_reminder_offsets_json]);
 
   if (!isOpen || !exam) return null;
@@ -54,7 +77,9 @@ export function EditExamMarksModal({
         id: exam.$id,
         data: {
           marks_obtained: marks,
-          reminder_offsets_json: serializeReminderOffsetsJson(reminderOffsets ?? effectiveReminderOffsets),
+          reminder_offsets_json: serializeReminderOffsetsJson(
+            reminderOffsets ?? effectiveReminderOffsets,
+          ),
         },
       });
       toast.success("Marks updated successfully");
@@ -77,9 +102,16 @@ export function EditExamMarksModal({
   };
 
   const getGradeIndicator = (pct: number) => {
-    if (pct >= 80) return { icon: TrendingUp, text: "Excellent", color: "text-green-400" };
-    if (pct >= 60) return { icon: Minus, text: "Good", color: "text-yellow-400" };
-    if (pct >= 40) return { icon: TrendingDown, text: "Needs Improvement", color: "text-orange-400" };
+    if (pct >= 80)
+      return { icon: TrendingUp, text: "Excellent", color: "text-green-400" };
+    if (pct >= 60)
+      return { icon: Minus, text: "Good", color: "text-yellow-400" };
+    if (pct >= 40)
+      return {
+        icon: TrendingDown,
+        text: "Needs Improvement",
+        color: "text-orange-400",
+      };
     return { icon: TrendingDown, text: "At Risk", color: "text-red-400" };
   };
 
@@ -150,8 +182,12 @@ export function EditExamMarksModal({
                 className="p-4 rounded-xl bg-white/5 border border-white/10"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Percentage</span>
-                  <span className={`text-2xl font-bold ${getPercentageColor(parseFloat(percentage))}`}>
+                  <span className="text-sm text-muted-foreground">
+                    Percentage
+                  </span>
+                  <span
+                    className={`text-2xl font-bold ${getPercentageColor(parseFloat(percentage))}`}
+                  >
                     {percentage}%
                   </span>
                 </div>
@@ -159,7 +195,9 @@ export function EditExamMarksModal({
                   const grade = getGradeIndicator(parseFloat(percentage));
                   const GradeIcon = grade.icon;
                   return (
-                    <div className={`flex items-center gap-2 mt-2 ${grade.color}`}>
+                    <div
+                      className={`flex items-center gap-2 mt-2 ${grade.color}`}
+                    >
                       <GradeIcon className="w-4 h-4" />
                       <span className="text-sm font-medium">{grade.text}</span>
                     </div>

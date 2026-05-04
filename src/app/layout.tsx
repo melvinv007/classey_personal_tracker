@@ -1,7 +1,14 @@
-import type { Metadata, Viewport } from "next";
-import { Nunito, Poppins, Quicksand } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { themeScript } from "@/components/providers/ThemeProvider";
+import type { Metadata, Viewport } from "next";
+import {
+  Inter,
+  Manrope,
+  Nunito,
+  Poppins,
+  Quicksand,
+  Space_Grotesk,
+} from "next/font/google";
 import "./globals.css";
 
 /**
@@ -36,6 +43,30 @@ const quicksand = Quicksand({
   weight: ["300", "400", "500", "600", "700"],
 });
 
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+  weight: ["300", "400", "500", "600", "700"],
+});
+
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+  weight: ["300", "400", "500", "600", "700"],
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+  weight: ["300", "400", "500", "600", "700"],
+});
+
 export const metadata: Metadata = {
   title: {
     default: "Classey — University Life Tracker",
@@ -60,8 +91,18 @@ export const metadata: Metadata = {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
     other: [
-      { rel: "icon", url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { rel: "icon", url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      {
+        rel: "icon",
+        url: "/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        rel: "icon",
+        url: "/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
     ],
   },
 };
@@ -85,7 +126,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${nunito.variable} ${poppins.variable} ${quicksand.variable} dark`}
+      className={`${nunito.variable} ${poppins.variable} ${quicksand.variable} ${inter.variable} ${manrope.variable} ${spaceGrotesk.variable} dark`}
       data-theme="dark"
       data-scroll-behavior="smooth"
       suppressHydrationWarning

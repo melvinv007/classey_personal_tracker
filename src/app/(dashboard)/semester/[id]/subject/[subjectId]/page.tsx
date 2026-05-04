@@ -1,31 +1,65 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { 
-  ArrowLeft, Edit3, MoreHorizontal, CheckCircle2, XCircle, 
-  MinusCircle, Calendar, TrendingUp, Clock, User, Award, Check, X,
-  Link as LinkIcon, StickyNote, PlayCircle, Globe, FileText, Code2, Pin, Trash2, ExternalLink, Loader2
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { useData } from "@/hooks/use-data";
-import { useThemeStore } from "@/stores/theme-store";
-import { ConfirmActionModal, EditSubjectModal } from "@/components/modals";
-import { CreateExamModal } from "@/components/modals/CreateExamModal";
-import { AddResourceLinkModal } from "@/components/modals/AddResourceLinkModal";
+import {
+  ConfirmActionModal,
+  CreateTaskModal,
+  EditSubjectModal,
+} from "@/components/modals";
 import { AddNoteModal } from "@/components/modals/AddNoteModal";
+import { AddResourceLinkModal } from "@/components/modals/AddResourceLinkModal";
+import { CreateExamModal } from "@/components/modals/CreateExamModal";
+import { EditAttendanceHistoryModal } from "@/components/modals/EditAttendanceHistoryModal";
 import { EditExamMarksModal } from "@/components/modals/EditExamMarksModal";
 import { UploadFileModal } from "@/components/modals/UploadFileModal";
-import { EditAttendanceHistoryModal } from "@/components/modals/EditAttendanceHistoryModal";
-import { ThemedSelect } from "@/components/ui/ThemedSelect";
-import { ThemedTimeInput } from "@/components/ui/ThemedDateTimeInput";
 import { PersistentNotepad } from "@/components/ui/PersistentNotepad";
-import { hexToRgbComma, cn, DAY_SHORT_NAMES, normalizeTimeHM } from "@/lib/utils";
-import { getDayName } from "@/utils/slots";
-import { toast } from "sonner";
-import { addDays, format, parseISO } from "date-fns";
-import { deleteFile, getFileDownloadUrl, getFileViewUrl } from "@/lib/appwrite-storage";
+import { ThemedTimeInput } from "@/components/ui/ThemedDateTimeInput";
+import { ThemedSelect } from "@/components/ui/ThemedSelect";
+import { useData } from "@/hooks/use-data";
+import { getSemesterDisplayStatus } from "@/lib/semester-status";
+import {
+  deleteFile,
+  getFileDownloadUrl,
+  getFileViewUrl,
+} from "@/lib/appwrite-storage";
+import {
+  cn,
+  DAY_SHORT_NAMES,
+  hexToRgbComma,
+  normalizeTimeHM,
+} from "@/lib/utils";
+import { useThemeStore } from "@/stores/theme-store";
 import type { ClassOccurrence } from "@/types/database";
+import { getDayName } from "@/utils/slots";
+import { addDays, format, formatDistanceToNowStrict, parseISO } from "date-fns";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft,
+  Award,
+  Calendar,
+  Check,
+  CheckCircle2,
+  Clock,
+  Code2,
+  Edit3,
+  ExternalLink,
+  FileText,
+  Globe,
+  Link as LinkIcon,
+  Loader2,
+  MinusCircle,
+  MoreHorizontal,
+  Pin,
+  PlayCircle,
+  StickyNote,
+  Trash2,
+  TrendingUp,
+  User,
+  X,
+  XCircle,
+} from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 const pageVariants = {
   hidden: { opacity: 0, x: -10 },
@@ -35,13 +69,13 @@ const pageVariants = {
 /**
  * Circular progress ring for attendance
  */
-function AttendanceRing({ 
-  percentage, 
+function AttendanceRing({
+  percentage,
   requirement = 75,
   color,
   size = 120,
-}: { 
-  percentage: number; 
+}: {
+  percentage: number;
   requirement?: number;
   color: string;
   size?: number;
@@ -82,7 +116,9 @@ function AttendanceRing({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-bold text-foreground">{Math.round(percentage)}%</span>
+        <span className="text-3xl font-bold text-foreground">
+          {Math.round(percentage)}%
+        </span>
         <span className="text-xs text-muted-foreground">Attendance</span>
       </div>
     </div>
@@ -98,31 +134,58 @@ export default function SubjectDetailPage(): React.ReactNode {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
-  const [manualDayOfWeek, setManualDayOfWeek] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
+  const [manualDayOfWeek, setManualDayOfWeek] = useState<1 | 2 | 3 | 4 | 5 | 6>(
+    1,
+  );
   const [manualStartTime, setManualStartTime] = useState("09:00");
   const [manualEndTime, setManualEndTime] = useState("10:00");
   const [manualRoom, setManualRoom] = useState("");
-  const [isAttendanceHistoryModalOpen, setIsAttendanceHistoryModalOpen] = useState(false);
-  const [isConfirmDeleteSubjectOpen, setIsConfirmDeleteSubjectOpen] = useState(false);
+  const [isAttendanceHistoryModalOpen, setIsAttendanceHistoryModalOpen] =
+    useState(false);
+  const [isConfirmDeleteSubjectOpen, setIsConfirmDeleteSubjectOpen] =
+    useState(false);
   const [isConfirmDeleteFileOpen, setIsConfirmDeleteFileOpen] = useState(false);
-  const [deleteFileTarget, setDeleteFileTarget] = useState<{ fileId: string; storageFileId: string; fileName: string } | null>(null);
-  const [isConfirmDeleteScheduleOpen, setIsConfirmDeleteScheduleOpen] = useState(false);
-  const [deleteScheduleTarget, setDeleteScheduleTarget] = useState<{ id: string; label: string } | null>(null);
+  const [deleteFileTarget, setDeleteFileTarget] = useState<{
+    fileId: string;
+    storageFileId: string;
+    fileName: string;
+  } | null>(null);
+  const [isConfirmDeleteScheduleOpen, setIsConfirmDeleteScheduleOpen] =
+    useState(false);
+  const [deleteScheduleTarget, setDeleteScheduleTarget] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
   const [isConfirmDeleteLinkOpen, setIsConfirmDeleteLinkOpen] = useState(false);
-  const [deleteLinkTarget, setDeleteLinkTarget] = useState<{ id: string; title: string } | null>(null);
+  const [deleteLinkTarget, setDeleteLinkTarget] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
   const [isConfirmDeleteNoteOpen, setIsConfirmDeleteNoteOpen] = useState(false);
-  const [deleteNoteTarget, setDeleteNoteTarget] = useState<{ id: string; preview: string } | null>(null);
+  const [deleteNoteTarget, setDeleteNoteTarget] = useState<{
+    id: string;
+    preview: string;
+  } | null>(null);
+  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+  const [showFullAttendanceHistory, setShowFullAttendanceHistory] =
+    useState(false);
+  const [showAllExams, setShowAllExams] = useState(false);
+  const [showAllFiles, setShowAllFiles] = useState(false);
+  const [showAllResources, setShowAllResources] = useState(false);
+  const [showAllNotes, setShowAllNotes] = useState(false);
+  const [showAllTasks, setShowAllTasks] = useState(false);
 
   const {
-    getSemesterById, 
-    getSubjectById, 
-    markAttendance, 
+    getSemesterById,
+    getSubjectById,
+    getSubjectsBySemester,
+    markAttendance,
     createAndMarkAttendance,
     addClassOccurrence,
-    getOccurrencesBySubject, 
-    getSchedulesBySubject, 
-    getExamsBySubject, 
-    getLinksBySubject, 
+    getOccurrencesBySubject,
+    getSchedulesBySubject,
+    getExamsBySubject,
+    getLinksBySubject,
     getNotesBySubject,
     getFilesBySubject,
     addClassSchedule,
@@ -132,15 +195,21 @@ export default function SubjectDetailPage(): React.ReactNode {
     deleteNote,
     updateNote,
     deleteResourceLink,
+    tasks,
+    toggleTaskComplete,
+    deleteTask,
     settings,
     getHolidaysBySemester,
     refetch,
-    isLoading
+    isLoading,
   } = useData();
-  
+
   const semester = getSemesterById(semesterId);
   const subject = getSubjectById(subjectId);
   const setAccentColor = useThemeStore((s) => s.setAccentColor);
+  const semesterDisplayStatus = semester
+    ? getSemesterDisplayStatus(semester, getSubjectsBySemester(semesterId))
+    : "upcoming";
 
   // Get data
   const occurrences = getOccurrencesBySubject(subjectId);
@@ -150,20 +219,43 @@ export default function SubjectDetailPage(): React.ReactNode {
   const resourceLinks = getLinksBySubject(subjectId);
   const notes = getNotesBySubject(subjectId);
   const files = getFilesBySubject(subjectId);
-  
+  const subjectTasks = tasks
+    .filter(
+      (task) =>
+        !task.deleted_at &&
+        task.subject_id === subjectId &&
+        task.semester_id === semesterId,
+    )
+    .sort((a, b) => {
+      if (a.is_completed !== b.is_completed) {
+        return a.is_completed ? 1 : -1;
+      }
+      if (a.deadline && b.deadline) return a.deadline.localeCompare(b.deadline);
+      if (a.deadline) return -1;
+      if (b.deadline) return 1;
+      return a.title.localeCompare(b.title);
+    });
+
   // Calculate attendance stats
-  const nonCancelled = occurrences.filter(o => o.status !== "cancelled");
-  const cancelled = occurrences.filter(o => o.status === "cancelled").length;
-  const present = occurrences.filter(o => o.attendance === "present").length;
-  const absent = occurrences.filter(o => o.attendance === "absent").length;
+  const nonCancelled = occurrences.filter((o) => o.status !== "cancelled");
+  const cancelled = occurrences.filter((o) => o.status === "cancelled").length;
+  const present = occurrences.filter((o) => o.attendance === "present").length;
+  const absent = occurrences.filter((o) => o.attendance === "absent").length;
   const requirement = subject?.attendance_requirement_percent ?? 75;
-  
+
   // Calculate bunk capacity
-  const percentage = nonCancelled.length > 0 ? (present / nonCancelled.length) * 100 : 0;
+  const percentage =
+    nonCancelled.length > 0 ? (present / nonCancelled.length) * 100 : 0;
   const maxTotal = Math.floor((present * 100) / requirement);
   const canBunk = Math.max(0, maxTotal - nonCancelled.length);
-  const classesNeeded = percentage >= requirement ? 0 : Math.ceil((requirement * nonCancelled.length - 100 * present) / (100 - requirement));
-  
+  const classesNeeded =
+    percentage >= requirement
+      ? 0
+      : Math.ceil(
+          (requirement * nonCancelled.length - 100 * present) /
+            (100 - requirement),
+        );
+
   const stats = {
     percentage,
     present,
@@ -180,13 +272,16 @@ export default function SubjectDetailPage(): React.ReactNode {
   const currentDate = format(currentDateTime, "yyyy-MM-dd");
   const currentTime = format(currentDateTime, "HH:mm");
 
-  const scheduleWithinRange = (effectiveFrom: string, effectiveUntil: string | null, date: string): boolean =>
-    effectiveFrom <= date && (!effectiveUntil || effectiveUntil >= date);
+  const scheduleWithinRange = useCallback(
+    (effectiveFrom: string, effectiveUntil: string | null, date: string): boolean =>
+      effectiveFrom <= date && (!effectiveUntil || effectiveUntil >= date),
+    [],
+  );
 
   const attendanceHistory = useMemo((): ClassOccurrence[] => {
     if (!subjectStartDate || !subjectEndDate) return [];
 
-    const existingMap = new Map<string, typeof occurrences[number]>();
+    const existingMap = new Map<string, (typeof occurrences)[number]>();
     for (const occurrence of occurrences) {
       const key = `${occurrence.date}|${normalizeTimeHM(occurrence.start_time)}|${normalizeTimeHM(occurrence.end_time)}`;
       if (!existingMap.has(key)) {
@@ -204,7 +299,11 @@ export default function SubjectDetailPage(): React.ReactNode {
       const activeForDate = schedules.filter(
         (schedule) =>
           schedule.day_of_week === day &&
-          scheduleWithinRange(schedule.effective_from, schedule.effective_until, date)
+          scheduleWithinRange(
+            schedule.effective_from,
+            schedule.effective_until,
+            date,
+          ),
       );
 
       for (const schedule of activeForDate) {
@@ -245,13 +344,23 @@ export default function SubjectDetailPage(): React.ReactNode {
       const right = `${b.date}T${b.start_time}`;
       return right.localeCompare(left);
     });
-  }, [occurrences, scheduleWithinRange, schedules, subjectEndDate, subjectId, subjectStartDate]);
+  }, [
+    occurrences,
+    scheduleWithinRange,
+    schedules,
+    subjectEndDate,
+    subjectId,
+    subjectStartDate,
+  ]);
 
   const expectedClassStats = useMemo(() => {
     if (!subjectStartDate || !subjectEndDate) {
       return { total: 0, left: 0 };
     }
-    const scheduleDayMap = new Map<number, Array<{ start: string; end: string }>>();
+    const scheduleDayMap = new Map<
+      number,
+      Array<{ start: string; end: string }>
+    >();
     for (const schedule of schedules) {
       const items = scheduleDayMap.get(schedule.day_of_week) ?? [];
       items.push({ start: schedule.start_time, end: schedule.end_time });
@@ -269,7 +378,11 @@ export default function SubjectDetailPage(): React.ReactNode {
         const activeForDate = schedules.filter(
           (schedule) =>
             schedule.day_of_week === day &&
-            scheduleWithinRange(schedule.effective_from, schedule.effective_until, date)
+            scheduleWithinRange(
+              schedule.effective_from,
+              schedule.effective_until,
+              date,
+            ),
         );
         for (const schedule of activeForDate) {
           const cancelledByNoClass = semesterHolidays.some((holiday) => {
@@ -282,7 +395,10 @@ export default function SubjectDetailPage(): React.ReactNode {
           }
           total += 1;
           const notStartedYet =
-            date > currentDate || (date === currentDate && normalizeTimeHM(schedule.start_time) > normalizeTimeHM(currentTime));
+            date > currentDate ||
+            (date === currentDate &&
+              normalizeTimeHM(schedule.start_time) >
+                normalizeTimeHM(currentTime));
           if (notStartedYet && !cancelledByNoClass) {
             left += 1;
           }
@@ -291,55 +407,106 @@ export default function SubjectDetailPage(): React.ReactNode {
       cursor = addDays(cursor, 1);
     }
     return { total, left };
-  }, [subjectStartDate, subjectEndDate, schedules, currentDate, currentTime, semesterHolidays]);
+  }, [
+    subjectStartDate,
+    subjectEndDate,
+    schedules,
+    scheduleWithinRange,
+    currentDate,
+    currentTime,
+    semesterHolidays,
+  ]);
 
   const classesAttended = occurrences.filter(
     (occurrence) =>
       occurrence.attendance === "present" &&
       occurrence.status !== "cancelled" &&
       (!subjectStartDate || occurrence.date >= subjectStartDate) &&
-      (!subjectEndDate || occurrence.date <= subjectEndDate)
+      (!subjectEndDate || occurrence.date <= subjectEndDate),
   ).length;
   const autoAbsentHours = settings?.auto_absent_hours ?? 48;
-  
+
   // Modal state
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
   const [isResourceLinkModalOpen, setIsResourceLinkModalOpen] = useState(false);
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
-  const [examForMarks, setExamForMarks] = useState<typeof exams[0] | null>(null);
+  const [examForMarks, setExamForMarks] = useState<(typeof exams)[0] | null>(
+    null,
+  );
 
   const todayDate = format(new Date(), "yyyy-MM-dd");
   const currentDay = new Date().getDay() === 0 ? 7 : new Date().getDay();
 
   const todaySubjectClasses = useMemo(() => {
-    return schedules
-      .filter((schedule) => schedule.day_of_week === currentDay)
+    const activeTodaySchedules = schedules.filter(
+      (schedule) =>
+        schedule.day_of_week === currentDay &&
+        scheduleWithinRange(
+          schedule.effective_from,
+          schedule.effective_until,
+          todayDate,
+        ),
+    );
+
+    return activeTodaySchedules
       .sort((a, b) => a.start_time.localeCompare(b.start_time))
       .map((schedule) => {
         const existingOccurrence = occurrences.find(
           (occurrence) =>
             occurrence.date === todayDate &&
-            normalizeTimeHM(occurrence.start_time) === normalizeTimeHM(schedule.start_time) &&
-            normalizeTimeHM(occurrence.end_time) === normalizeTimeHM(schedule.end_time)
+            normalizeTimeHM(occurrence.start_time) ===
+              normalizeTimeHM(schedule.start_time) &&
+              normalizeTimeHM(occurrence.end_time) ===
+              normalizeTimeHM(schedule.end_time),
         );
+        const isHoliday = semesterHolidays.some((holiday) => {
+          if (holiday.date > todayDate) return false;
+          const endDate = holiday.date_end ?? holiday.date;
+          return todayDate <= endDate;
+        });
+        const isCancelledOccurrence = existingOccurrence?.status === "cancelled";
         return {
           schedule,
           existingOccurrence,
+          isHoliday,
+          shouldShow: !isHoliday && !isCancelledOccurrence,
         };
-      });
-  }, [currentDay, schedules, occurrences, todayDate]);
+      })
+      .filter((entry) => entry.shouldShow);
+  }, [
+    currentDay,
+    schedules,
+    scheduleWithinRange,
+    todayDate,
+    occurrences,
+    semesterHolidays,
+  ]);
+
+  const PREVIEW_ITEMS = 3;
+  const visibleAttendanceHistory = showFullAttendanceHistory
+    ? attendanceHistory
+    : attendanceHistory.slice(0, PREVIEW_ITEMS);
+  const visibleExams = showAllExams ? exams : exams.slice(0, PREVIEW_ITEMS);
+  const visibleFiles = showAllFiles ? files : files.slice(0, PREVIEW_ITEMS);
+  const visibleResources = showAllResources
+    ? resourceLinks
+    : resourceLinks.slice(0, PREVIEW_ITEMS);
+  const visibleNotes = showAllNotes ? notes : notes.slice(0, PREVIEW_ITEMS);
+  const visibleTasks = showAllTasks
+    ? subjectTasks
+    : subjectTasks.slice(0, PREVIEW_ITEMS);
 
   const handleMarkTodaySubjectAttendance = async (
     scheduleId: string,
     startTime: string,
     endTime: string,
-    attendance: "present" | "absent" | "cancelled"
+    attendance: "present" | "absent" | "cancelled",
   ): Promise<void> => {
     const existingOccurrence = occurrences.find(
       (occurrence) =>
         occurrence.date === todayDate &&
         normalizeTimeHM(occurrence.start_time) === normalizeTimeHM(startTime) &&
-        normalizeTimeHM(occurrence.end_time) === normalizeTimeHM(endTime)
+        normalizeTimeHM(occurrence.end_time) === normalizeTimeHM(endTime),
     );
 
     if (existingOccurrence) {
@@ -351,7 +518,7 @@ export default function SubjectDetailPage(): React.ReactNode {
         startTime,
         endTime,
         attendance,
-        scheduleId
+        scheduleId,
       );
     }
   };
@@ -375,7 +542,9 @@ export default function SubjectDetailPage(): React.ReactNode {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <h2 className="text-lg font-medium text-foreground mb-2">Subject not found</h2>
+          <h2 className="text-lg font-medium text-foreground mb-2">
+            Subject not found
+          </h2>
           <p className="text-sm text-muted-foreground mb-4">
             This subject may have been deleted.
           </p>
@@ -397,29 +566,43 @@ export default function SubjectDetailPage(): React.ReactNode {
       const response = await fetch("/api/data/cascade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete-subject", subjectId: subject.$id }),
+        body: JSON.stringify({
+          action: "delete-subject",
+          subjectId: subject.$id,
+        }),
       });
-      const result = (await response.json()) as { success: boolean; error?: string; deleted?: { exams?: number; files?: number; schedules?: number } };
+      const result = (await response.json()) as {
+        success: boolean;
+        error?: string;
+        deleted?: { exams?: number; files?: number; schedules?: number };
+      };
       if (!response.ok || !result.success) {
         throw new Error(result.error ?? "Failed to delete subject");
       }
       toast.success(
-        `Subject deleted (${result.deleted?.exams ?? 0} exams, ${result.deleted?.files ?? 0} files, ${result.deleted?.schedules ?? 0} schedules).`
+        `Subject deleted (${result.deleted?.exams ?? 0} exams, ${result.deleted?.files ?? 0} files, ${result.deleted?.schedules ?? 0} schedules).`,
       );
       router.push(`/semester/${semesterId}`);
     } catch (error) {
-      toast.error(`Failed to delete subject: ${error instanceof Error ? error.message : "Unknown error"}`);
+      toast.error(
+        `Failed to delete subject: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
   };
 
-  const handleDeleteSubjectFile = async (fileId: string, storageFileId: string): Promise<void> => {
+  const handleDeleteSubjectFile = async (
+    fileId: string,
+    storageFileId: string,
+  ): Promise<void> => {
     setDeletingFileId(fileId);
     try {
       await deleteFile(fileId, storageFileId);
       refetch();
       toast.success("File deleted");
     } catch (error) {
-      toast.error(`Failed to delete file: ${error instanceof Error ? error.message : "Unknown error"}`);
+      toast.error(
+        `Failed to delete file: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     } finally {
       setDeletingFileId(null);
     }
@@ -427,7 +610,10 @@ export default function SubjectDetailPage(): React.ReactNode {
 
   const handleDeleteSubjectFileConfirmed = async (): Promise<void> => {
     if (!deleteFileTarget) return;
-    await handleDeleteSubjectFile(deleteFileTarget.fileId, deleteFileTarget.storageFileId);
+    await handleDeleteSubjectFile(
+      deleteFileTarget.fileId,
+      deleteFileTarget.storageFileId,
+    );
     setDeleteFileTarget(null);
     setIsConfirmDeleteFileOpen(false);
   };
@@ -454,7 +640,9 @@ export default function SubjectDetailPage(): React.ReactNode {
       refetch();
       toast.success("Class schedule added");
     } catch (error) {
-      toast.error(`Failed to add schedule: ${error instanceof Error ? error.message : "Unknown error"}`);
+      toast.error(
+        `Failed to add schedule: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
   };
 
@@ -464,7 +652,9 @@ export default function SubjectDetailPage(): React.ReactNode {
       refetch();
       toast.success("Schedule removed");
     } catch (error) {
-      toast.error(`Failed to remove schedule: ${error instanceof Error ? error.message : "Unknown error"}`);
+      toast.error(
+        `Failed to remove schedule: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
   };
 
@@ -475,7 +665,7 @@ export default function SubjectDetailPage(): React.ReactNode {
     setIsConfirmDeleteScheduleOpen(false);
   };
 
-  return(
+  return (
     <motion.main
       className="min-h-screen p-6 pb-28 md:pb-6"
       variants={pageVariants}
@@ -519,9 +709,12 @@ export default function SubjectDetailPage(): React.ReactNode {
                     "px-2 py-0.5 text-xs rounded capitalize",
                     subject.type === "lab" && "bg-amber-500/20 text-amber-400",
                     subject.type === "theory" && "bg-blue-500/20 text-blue-400",
-                    subject.type === "practical" && "bg-purple-500/20 text-purple-400",
-                    subject.type === "project" && "bg-emerald-500/20 text-emerald-400",
-                    subject.type === "other" && "bg-white/10 text-muted-foreground"
+                    subject.type === "practical" &&
+                      "bg-purple-500/20 text-purple-400",
+                    subject.type === "project" &&
+                      "bg-emerald-500/20 text-emerald-400",
+                    subject.type === "other" &&
+                      "bg-white/10 text-muted-foreground",
                   )}
                 >
                   {subject.type}
@@ -601,20 +794,30 @@ export default function SubjectDetailPage(): React.ReactNode {
             <div className="flex-1 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Present</span>
-                <span className="text-sm font-medium text-emerald-400">{stats.present}</span>
+                <span className="text-sm font-medium text-emerald-400">
+                  {stats.present}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Absent</span>
-                <span className="text-sm font-medium text-red-400">{stats.absent}</span>
+                <span className="text-sm font-medium text-red-400">
+                  {stats.absent}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Cancelled</span>
-                <span className="text-sm font-medium text-muted-foreground">{stats.cancelled}</span>
+                <span className="text-sm font-medium text-muted-foreground">
+                  {stats.cancelled}
+                </span>
               </div>
               <div className="h-px bg-white/10" />
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Classes</span>
-                <span className="text-sm font-medium text-foreground">{stats.total}</span>
+                <span className="text-sm text-muted-foreground">
+                  Total Classes
+                </span>
+                <span className="text-sm font-medium text-foreground">
+                  {stats.total}
+                </span>
               </div>
             </div>
           </div>
@@ -624,9 +827,13 @@ export default function SubjectDetailPage(): React.ReactNode {
             <div className="glass-card rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <TrendingUp className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Requirement</span>
+                <span className="text-xs text-muted-foreground">
+                  Requirement
+                </span>
               </div>
-              <p className="text-2xl font-bold text-foreground">{requirement}%</p>
+              <p className="text-2xl font-bold text-foreground">
+                {requirement}%
+              </p>
             </div>
 
             <div className="glass-card rounded-2xl p-4">
@@ -634,9 +841,13 @@ export default function SubjectDetailPage(): React.ReactNode {
                 <>
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs text-muted-foreground">Can Bunk</span>
+                    <span className="text-xs text-muted-foreground">
+                      Can Bunk
+                    </span>
                   </div>
-                  <p className="text-2xl font-bold text-emerald-400">{stats.canBunk}</p>
+                  <p className="text-2xl font-bold text-emerald-400">
+                    {stats.canBunk}
+                  </p>
                   <p className="text-xs text-muted-foreground">classes</p>
                 </>
               ) : (
@@ -645,7 +856,9 @@ export default function SubjectDetailPage(): React.ReactNode {
                     <XCircle className="w-4 h-4 text-amber-400" />
                     <span className="text-xs text-muted-foreground">Need</span>
                   </div>
-                  <p className="text-2xl font-bold text-amber-400">{stats.classesNeeded}</p>
+                  <p className="text-2xl font-bold text-amber-400">
+                    {stats.classesNeeded}
+                  </p>
                   <p className="text-xs text-muted-foreground">more classes</p>
                 </>
               )}
@@ -657,7 +870,10 @@ export default function SubjectDetailPage(): React.ReactNode {
                   <Award className="w-4 h-4 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">Grade</span>
                 </div>
-                <p className="text-2xl font-bold" style={{ color: subject.color }}>
+                <p
+                  className="text-2xl font-bold"
+                  style={{ color: subject.color }}
+                >
                   {subject.grade}
                 </p>
               </div>
@@ -666,27 +882,41 @@ export default function SubjectDetailPage(): React.ReactNode {
             <div className="glass-card rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Total Classes</span>
+                <span className="text-xs text-muted-foreground">
+                  Total Classes
+                </span>
               </div>
-              <p className="text-2xl font-bold text-foreground">{expectedClassStats.total}</p>
-              <p className="text-xs text-muted-foreground">in subject date range</p>
+              <p className="text-2xl font-bold text-foreground">
+                {expectedClassStats.total}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                in subject date range
+              </p>
             </div>
 
             <div className="glass-card rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Classes Left</span>
+                <span className="text-xs text-muted-foreground">
+                  Classes Left
+                </span>
               </div>
-              <p className="text-2xl font-bold text-foreground">{expectedClassStats.left}</p>
+              <p className="text-2xl font-bold text-foreground">
+                {expectedClassStats.left}
+              </p>
               <p className="text-xs text-muted-foreground">from now onward</p>
             </div>
 
             <div className="glass-card rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs text-muted-foreground">Classes Attended</span>
+                <span className="text-xs text-muted-foreground">
+                  Classes Attended
+                </span>
               </div>
-              <p className="text-2xl font-bold text-emerald-400">{classesAttended}</p>
+              <p className="text-2xl font-bold text-emerald-400">
+                {classesAttended}
+              </p>
               <p className="text-xs text-muted-foreground">marked present</p>
             </div>
           </div>
@@ -699,19 +929,22 @@ export default function SubjectDetailPage(): React.ReactNode {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <h2 className="text-lg font-semibold text-foreground mb-4">Quick Mark Attendance</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">
+            Quick Mark Attendance
+          </h2>
           {todaySubjectClasses.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No class scheduled for this subject today.
+              No active class for this subject today.
             </p>
           ) : (
             <div className="space-y-3">
               {todaySubjectClasses.map(({ schedule, existingOccurrence }) => {
-                const markedState: "present" | "absent" | "cancelled" | null = existingOccurrence
-                  ? existingOccurrence.status === "cancelled"
-                    ? "cancelled"
-                    : existingOccurrence.attendance
-                  : null;
+                const markedState: "present" | "absent" | "cancelled" | null =
+                  existingOccurrence
+                    ? existingOccurrence.status === "cancelled"
+                      ? "cancelled"
+                      : existingOccurrence.attendance
+                    : null;
 
                 return (
                   <div
@@ -720,7 +953,8 @@ export default function SubjectDetailPage(): React.ReactNode {
                   >
                     <div>
                       <p className="text-sm text-foreground">
-                        {getDayName(schedule.day_of_week, true)} • {schedule.start_time} - {schedule.end_time}
+                        {getDayName(schedule.day_of_week, true)} •{" "}
+                        {schedule.start_time} - {schedule.end_time}
                         {schedule.room ? ` • ${schedule.room}` : ""}
                       </p>
                       {markedState && (
@@ -731,21 +965,42 @@ export default function SubjectDetailPage(): React.ReactNode {
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => void handleMarkTodaySubjectAttendance(schedule.$id, schedule.start_time, schedule.end_time, "present")}
+                        onClick={() =>
+                          void handleMarkTodaySubjectAttendance(
+                            schedule.$id,
+                            schedule.start_time,
+                            schedule.end_time,
+                            "present",
+                          )
+                        }
                         className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-sm font-medium transition-all"
                       >
                         <CheckCircle2 className="w-4 h-4" />
                         Present
                       </button>
                       <button
-                        onClick={() => void handleMarkTodaySubjectAttendance(schedule.$id, schedule.start_time, schedule.end_time, "absent")}
+                        onClick={() =>
+                          void handleMarkTodaySubjectAttendance(
+                            schedule.$id,
+                            schedule.start_time,
+                            schedule.end_time,
+                            "absent",
+                          )
+                        }
                         className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-medium transition-all"
                       >
                         <XCircle className="w-4 h-4" />
                         Absent
                       </button>
                       <button
-                        onClick={() => void handleMarkTodaySubjectAttendance(schedule.$id, schedule.start_time, schedule.end_time, "cancelled")}
+                        onClick={() =>
+                          void handleMarkTodaySubjectAttendance(
+                            schedule.$id,
+                            schedule.start_time,
+                            schedule.end_time,
+                            "cancelled",
+                          )
+                        }
                         className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground text-sm font-medium transition-all"
                       >
                         <MinusCircle className="w-4 h-4" />
@@ -759,6 +1014,98 @@ export default function SubjectDetailPage(): React.ReactNode {
           )}
         </motion.div>
 
+        {/* Subject Tasks Section */}
+        <motion.div
+          className="glass-card rounded-2xl p-6 mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.205 }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-foreground">
+              Subject Tasks
+            </h2>
+            <button
+              onClick={() => setIsCreateTaskModalOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-[rgba(var(--accent),0.1)] hover:bg-[rgba(var(--accent),0.2)] text-[rgb(var(--accent))] text-sm font-medium transition-colors"
+            >
+              + Add Task
+            </button>
+          </div>
+          {subjectTasks.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No tasks for this subject yet.
+            </p>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {visibleTasks.map((task) => (
+                  <div
+                    key={task.$id}
+                    className={cn(
+                      "p-3 rounded-xl border border-white/10 bg-white/3 transition-all",
+                      task.is_completed && "opacity-70",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p
+                          className={cn(
+                            "text-sm font-medium text-foreground truncate",
+                            task.is_completed && "line-through text-muted-foreground",
+                          )}
+                        >
+                          {task.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {task.deadline
+                            ? `Due ${format(parseISO(task.deadline), "MMM d, yyyy • HH:mm")} (${formatDistanceToNowStrict(parseISO(task.deadline), { addSuffix: true })})`
+                            : "No deadline"}
+                        </p>
+                        {(task.reminder_at !== null ||
+                          (task.reminder_offsets_json ?? "").trim() !== "") && (
+                          <p className="text-xs text-amber-400 mt-1">
+                            Reminder enabled
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => void toggleTaskComplete(task.$id)}
+                          className={cn(
+                            "px-2.5 py-1.5 rounded-lg text-xs transition-colors",
+                            task.is_completed
+                              ? "bg-white/8 hover:bg-white/12 text-muted-foreground"
+                              : "bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400",
+                          )}
+                        >
+                          {task.is_completed ? "Reopen" : "Complete"}
+                        </button>
+                        <button
+                          onClick={() => void deleteTask(task.$id)}
+                          className="px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-xs text-red-400 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {subjectTasks.length > PREVIEW_ITEMS && (
+                <button
+                  onClick={() => setShowAllTasks((prev) => !prev)}
+                  className="mt-3 text-sm text-[rgb(var(--accent))] hover:underline"
+                >
+                  {showAllTasks
+                    ? "Show less"
+                    : `Show all (${subjectTasks.length})`}
+                </button>
+              )}
+            </>
+          )}
+        </motion.div>
+
         {/* Schedule Section */}
         <motion.div
           className="glass-card rounded-2xl p-6 mb-8"
@@ -767,13 +1114,17 @@ export default function SubjectDetailPage(): React.ReactNode {
           transition={{ delay: 0.21 }}
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Class Schedules</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              Class Schedules
+            </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
             <ThemedSelect
               value={String(manualDayOfWeek)}
-              onChange={(value) => setManualDayOfWeek(Number(value) as 1 | 2 | 3 | 4 | 5 | 6)}
+              onChange={(value) =>
+                setManualDayOfWeek(Number(value) as 1 | 2 | 3 | 4 | 5 | 6)
+              }
               options={[
                 { value: "1", label: "Mon" },
                 { value: "2", label: "Tue" },
@@ -784,8 +1135,16 @@ export default function SubjectDetailPage(): React.ReactNode {
               ]}
               className="px-3 py-2 text-sm"
             />
-            <ThemedTimeInput value={manualStartTime} onChange={setManualStartTime} className="px-3 py-2 text-sm" />
-            <ThemedTimeInput value={manualEndTime} onChange={setManualEndTime} className="px-3 py-2 text-sm" />
+            <ThemedTimeInput
+              value={manualStartTime}
+              onChange={setManualStartTime}
+              className="px-3 py-2 text-sm"
+            />
+            <ThemedTimeInput
+              value={manualEndTime}
+              onChange={setManualEndTime}
+              className="px-3 py-2 text-sm"
+            />
             <input
               value={manualRoom}
               onChange={(e) => setManualRoom(e.target.value)}
@@ -801,13 +1160,19 @@ export default function SubjectDetailPage(): React.ReactNode {
           </div>
 
           {schedules.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No schedules added yet.</p>
+            <p className="text-sm text-muted-foreground">
+              No schedules added yet.
+            </p>
           ) : (
             <div className="space-y-2">
               {schedules.map((schedule) => (
-                <div key={schedule.$id} className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/3">
+                <div
+                  key={schedule.$id}
+                  className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/3"
+                >
                   <p className="text-sm text-foreground">
-                    {getDayName(schedule.day_of_week, true)} • {schedule.start_time} - {schedule.end_time}
+                    {getDayName(schedule.day_of_week, true)} •{" "}
+                    {schedule.start_time} - {schedule.end_time}
                     {schedule.room ? ` • ${schedule.room}` : ""}
                   </p>
                   <button
@@ -836,8 +1201,10 @@ export default function SubjectDetailPage(): React.ReactNode {
           transition={{ delay: 0.22 }}
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Exams & Assessments</h2>
-            <button 
+            <h2 className="text-lg font-semibold text-foreground">
+              Exams & Assessments
+            </h2>
+            <button
               onClick={() => setIsExamModalOpen(true)}
               className="px-3 py-1.5 rounded-lg bg-[rgba(var(--accent),0.1)] hover:bg-[rgba(var(--accent),0.2)] text-[rgb(var(--accent))] text-sm font-medium transition-colors"
             >
@@ -849,9 +1216,10 @@ export default function SubjectDetailPage(): React.ReactNode {
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Award className="w-12 h-12 text-muted-foreground mb-4" />
               <p className="text-sm text-muted-foreground mb-4">
-                No exams yet. Track quizzes, assignments, and tests for this subject.
+                No exams yet. Track quizzes, assignments, and tests for this
+                subject.
               </p>
-              <button 
+              <button
                 onClick={() => setIsExamModalOpen(true)}
                 className="px-4 py-2 rounded-xl bg-[rgba(var(--accent),0.15)] hover:bg-[rgba(var(--accent),0.25)] text-[rgb(var(--accent))] text-sm font-medium transition-colors"
               >
@@ -859,38 +1227,47 @@ export default function SubjectDetailPage(): React.ReactNode {
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {exams.map((exam) => {
+            <>
+              <div className="space-y-3">
+                {visibleExams.map((exam) => {
                 const examDate = parseISO(exam.date);
                 const isUpcoming = exam.status === "upcoming";
-                const isCompleted = exam.status === "completed";
                 const hasMarks = exam.marks_obtained !== null;
-                const percentage = hasMarks ? (exam.marks_obtained! / exam.marks_total) * 100 : null;
+                const percentage = hasMarks
+                  ? (exam.marks_obtained! / exam.marks_total) * 100
+                  : null;
 
                 return (
                   <div
                     key={exam.$id}
                     className={cn(
                       "flex items-center justify-between p-4 rounded-xl border border-white/10 transition-all hover:bg-white/5",
-                      isUpcoming && "bg-[rgba(var(--accent),0.05)]"
+                      isUpcoming && "bg-[rgba(var(--accent),0.05)]",
                     )}
                   >
                     <div className="flex items-center gap-3">
                       <div
                         className={cn(
                           "w-10 h-10 rounded-xl flex items-center justify-center",
-                          exam.type === "quiz" && "bg-purple-500/20 text-purple-400",
-                          exam.type === "assignment" && "bg-emerald-500/20 text-emerald-400",
-                          exam.type === "midterm" && "bg-amber-500/20 text-amber-400",
+                          exam.type === "quiz" &&
+                            "bg-purple-500/20 text-purple-400",
+                          exam.type === "assignment" &&
+                            "bg-emerald-500/20 text-emerald-400",
+                          exam.type === "midterm" &&
+                            "bg-amber-500/20 text-amber-400",
                           exam.type === "final" && "bg-red-500/20 text-red-400",
-                          exam.type === "practical" && "bg-cyan-500/20 text-cyan-400",
-                          exam.type === "other" && "bg-gray-500/20 text-gray-400"
+                          exam.type === "practical" &&
+                            "bg-cyan-500/20 text-cyan-400",
+                          exam.type === "other" &&
+                            "bg-gray-500/20 text-gray-400",
                         )}
                       >
                         <Award className="w-5 h-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">{exam.name}</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {exam.name}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {format(examDate, "MMM d, yyyy")}
                           {exam.start_time && ` at ${exam.start_time}`}
@@ -903,13 +1280,17 @@ export default function SubjectDetailPage(): React.ReactNode {
                     <div className="text-right">
                       {hasMarks ? (
                         <>
-                          <p 
+                          <p
                             className={cn(
                               "text-lg font-bold",
                               percentage! >= 90 && "text-emerald-400",
-                              percentage! >= 75 && percentage! < 90 && "text-green-400",
-                              percentage! >= 60 && percentage! < 75 && "text-amber-400",
-                              percentage! < 60 && "text-red-400"
+                              percentage! >= 75 &&
+                                percentage! < 90 &&
+                                "text-green-400",
+                              percentage! >= 60 &&
+                                percentage! < 75 &&
+                                "text-amber-400",
+                              percentage! < 60 && "text-red-400",
                             )}
                           >
                             {exam.marks_obtained}/{exam.marks_total}
@@ -933,8 +1314,17 @@ export default function SubjectDetailPage(): React.ReactNode {
                     </div>
                   </div>
                 );
-              })}
-            </div>
+                })}
+              </div>
+              {exams.length > PREVIEW_ITEMS && (
+                <button
+                  onClick={() => setShowAllExams((prev) => !prev)}
+                  className="mt-3 text-sm text-[rgb(var(--accent))] hover:underline"
+                >
+                  {showAllExams ? "Show less" : `Show all (${exams.length})`}
+                </button>
+              )}
+            </>
           )}
         </motion.div>
 
@@ -969,22 +1359,31 @@ export default function SubjectDetailPage(): React.ReactNode {
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {files.map((file) => (
+            <>
+              <div className="space-y-3">
+                {visibleFiles.map((file) => (
                 <div
                   key={file.$id}
                   className="flex items-center justify-between p-4 rounded-xl border border-white/10 hover:bg-white/5 transition-all"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{file.file_name}</p>
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {file.file_name}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {file.file_extension.toUpperCase()} • {(file.file_size / 1024 / 1024).toFixed(2)} MB
+                      {file.file_extension.toUpperCase()} •{" "}
+                      {(file.file_size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => window.open(getFileViewUrl(file.storage_file_id), "_blank")}
+                      onClick={() =>
+                        window.open(
+                          getFileViewUrl(file.storage_file_id),
+                          "_blank",
+                        )
+                      }
                       className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
                       View
@@ -1011,8 +1410,17 @@ export default function SubjectDetailPage(): React.ReactNode {
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              {files.length > PREVIEW_ITEMS && (
+                <button
+                  onClick={() => setShowAllFiles((prev) => !prev)}
+                  className="mt-3 text-sm text-[rgb(var(--accent))] hover:underline"
+                >
+                  {showAllFiles ? "Show less" : `Show all (${files.length})`}
+                </button>
+              )}
+            </>
           )}
         </motion.div>
 
@@ -1025,7 +1433,7 @@ export default function SubjectDetailPage(): React.ReactNode {
         >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground">Resources</h2>
-            <button 
+            <button
               onClick={() => setIsResourceLinkModalOpen(true)}
               className="px-3 py-1.5 rounded-lg bg-[rgba(var(--accent),0.1)] hover:bg-[rgba(var(--accent),0.2)] text-[rgb(var(--accent))] text-sm font-medium transition-colors"
             >
@@ -1037,9 +1445,10 @@ export default function SubjectDetailPage(): React.ReactNode {
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <LinkIcon className="w-12 h-12 text-muted-foreground mb-4" />
               <p className="text-sm text-muted-foreground mb-4">
-                Save useful links like YouTube playlists, notes, or course materials.
+                Save useful links like YouTube playlists, notes, or course
+                materials.
               </p>
-              <button 
+              <button
                 onClick={() => setIsResourceLinkModalOpen(true)}
                 className="px-4 py-2 rounded-xl bg-[rgba(var(--accent),0.15)] hover:bg-[rgba(var(--accent),0.25)] text-[rgb(var(--accent))] text-sm font-medium transition-colors"
               >
@@ -1047,17 +1456,27 @@ export default function SubjectDetailPage(): React.ReactNode {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {resourceLinks.map((link) => {
-                const TypeIcon = link.type === "youtube" ? PlayCircle 
-                  : link.type === "github" ? Code2 
-                  : link.type === "notion" || link.type === "drive" ? FileText 
-                  : Globe;
-                const typeColor = link.type === "youtube" ? "#FF0000" 
-                  : link.type === "github" ? "#6e5494" 
-                  : link.type === "notion" ? "#000000" 
-                  : link.type === "drive" ? "#4285F4" 
-                  : "#8B5CF6";
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {visibleResources.map((link) => {
+                const TypeIcon =
+                  link.type === "youtube"
+                    ? PlayCircle
+                    : link.type === "github"
+                      ? Code2
+                      : link.type === "notion" || link.type === "drive"
+                        ? FileText
+                        : Globe;
+                const typeColor =
+                  link.type === "youtube"
+                    ? "#FF0000"
+                    : link.type === "github"
+                      ? "#6e5494"
+                      : link.type === "notion"
+                        ? "#000000"
+                        : link.type === "drive"
+                          ? "#4285F4"
+                          : "#8B5CF6";
 
                 return (
                   <a
@@ -1071,7 +1490,10 @@ export default function SubjectDetailPage(): React.ReactNode {
                       className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                       style={{ backgroundColor: `${typeColor}20` }}
                     >
-                      <TypeIcon className="w-5 h-5" style={{ color: typeColor }} />
+                      <TypeIcon
+                        className="w-5 h-5"
+                        style={{ color: typeColor }}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-foreground truncate group-hover:text-[rgb(var(--accent))] transition-colors">
@@ -1088,22 +1510,36 @@ export default function SubjectDetailPage(): React.ReactNode {
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <ExternalLink className="w-4 h-4 text-muted-foreground" />
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setDeleteLinkTarget({ id: link.$id, title: link.title });
-                            setIsConfirmDeleteLinkOpen(true);
-                          }}
-                          className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
-                        >
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDeleteLinkTarget({
+                            id: link.$id,
+                            title: link.title,
+                          });
+                          setIsConfirmDeleteLinkOpen(true);
+                        }}
+                        className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </a>
                 );
-              })}
-            </div>
+                })}
+              </div>
+              {resourceLinks.length > PREVIEW_ITEMS && (
+                <button
+                  onClick={() => setShowAllResources((prev) => !prev)}
+                  className="mt-3 text-sm text-[rgb(var(--accent))] hover:underline"
+                >
+                  {showAllResources
+                    ? "Show less"
+                    : `Show all (${resourceLinks.length})`}
+                </button>
+              )}
+            </>
           )}
         </motion.div>
 
@@ -1116,7 +1552,7 @@ export default function SubjectDetailPage(): React.ReactNode {
         >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground">Notes</h2>
-            <button 
+            <button
               onClick={() => setIsNoteModalOpen(true)}
               className="px-3 py-1.5 rounded-lg bg-[rgba(var(--accent),0.1)] hover:bg-[rgba(var(--accent),0.2)] text-[rgb(var(--accent))] text-sm font-medium transition-colors"
             >
@@ -1128,9 +1564,10 @@ export default function SubjectDetailPage(): React.ReactNode {
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <StickyNote className="w-12 h-12 text-muted-foreground mb-4" />
               <p className="text-sm text-muted-foreground mb-4">
-                Jot down quick notes, reminders, or important points for this subject.
+                Jot down quick notes, reminders, or important points for this
+                subject.
               </p>
-              <button 
+              <button
                 onClick={() => setIsNoteModalOpen(true)}
                 className="px-4 py-2 rounded-xl bg-[rgba(var(--accent),0.15)] hover:bg-[rgba(var(--accent),0.25)] text-[rgb(var(--accent))] text-sm font-medium transition-colors"
               >
@@ -1138,15 +1575,16 @@ export default function SubjectDetailPage(): React.ReactNode {
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {notes.map((note) => (
+            <>
+              <div className="space-y-3">
+                {visibleNotes.map((note) => (
                 <div
                   key={note.$id}
                   className={cn(
                     "group relative p-4 rounded-xl border transition-all",
                     note.is_pinned
                       ? "bg-amber-500/5 border-amber-500/20"
-                      : "bg-white/3 border-white/10 hover:bg-white/5"
+                      : "bg-white/3 border-white/10 hover:bg-white/5",
                   )}
                 >
                   {note.is_pinned && (
@@ -1163,31 +1601,50 @@ export default function SubjectDetailPage(): React.ReactNode {
                       <button
                         onClick={() => {
                           updateNote(note.$id, { is_pinned: !note.is_pinned });
-                          toast.success(note.is_pinned ? "Note unpinned" : "Note pinned");
+                          toast.success(
+                            note.is_pinned ? "Note unpinned" : "Note pinned",
+                          );
                         }}
                         className={cn(
                           "p-1 rounded transition-colors",
                           note.is_pinned
                             ? "hover:bg-amber-500/20 text-amber-400"
-                            : "hover:bg-white/10 text-muted-foreground"
+                            : "hover:bg-white/10 text-muted-foreground",
                         )}
                       >
-                        <Pin className={cn("w-4 h-4", note.is_pinned && "fill-current")} />
+                        <Pin
+                          className={cn(
+                            "w-4 h-4",
+                            note.is_pinned && "fill-current",
+                          )}
+                        />
                       </button>
-                        <button
-                          onClick={() => {
-                          setDeleteNoteTarget({ id: note.$id, preview: note.content.slice(0, 40) });
+                      <button
+                        onClick={() => {
+                          setDeleteNoteTarget({
+                            id: note.$id,
+                            preview: note.content.slice(0, 40),
+                          });
                           setIsConfirmDeleteNoteOpen(true);
-                          }}
-                          className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
-                        >
+                        }}
+                        className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              {notes.length > PREVIEW_ITEMS && (
+                <button
+                  onClick={() => setShowAllNotes((prev) => !prev)}
+                  className="mt-3 text-sm text-[rgb(var(--accent))] hover:underline"
+                >
+                  {showAllNotes ? "Show less" : `Show all (${notes.length})`}
+                </button>
+              )}
+            </>
           )}
         </motion.div>
 
@@ -1199,7 +1656,9 @@ export default function SubjectDetailPage(): React.ReactNode {
           transition={{ delay: 0.3 }}
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Attendance History</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              Attendance History
+            </h2>
             <button
               onClick={() => setIsAttendanceHistoryModalOpen(true)}
               className="text-sm text-[rgb(var(--accent))] hover:underline"
@@ -1216,8 +1675,9 @@ export default function SubjectDetailPage(): React.ReactNode {
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {attendanceHistory.slice(0, 10).map((occurrence) => {
+            <>
+              <div className="space-y-2">
+                {visibleAttendanceHistory.map((occurrence) => {
                 const date = parseISO(occurrence.date);
                 const dayOfWeek = date.getDay();
                 const ourDay = dayOfWeek === 0 ? 7 : dayOfWeek;
@@ -1230,10 +1690,10 @@ export default function SubjectDetailPage(): React.ReactNode {
                       occurrence.status === "cancelled"
                         ? "bg-white/3 border-white/5 opacity-60"
                         : occurrence.attendance === "present"
-                        ? "bg-emerald-500/5 border-emerald-500/20"
-                        : occurrence.attendance === "absent"
-                        ? "bg-red-500/5 border-red-500/20"
-                        : "bg-white/5 border-white/10"
+                          ? "bg-emerald-500/5 border-emerald-500/20"
+                          : occurrence.attendance === "absent"
+                            ? "bg-red-500/5 border-red-500/20"
+                            : "bg-white/5 border-white/10",
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -1243,10 +1703,10 @@ export default function SubjectDetailPage(): React.ReactNode {
                           occurrence.status === "cancelled"
                             ? "bg-white/10 text-muted-foreground"
                             : occurrence.attendance === "present"
-                            ? "bg-emerald-500/20 text-emerald-400"
-                            : occurrence.attendance === "absent"
-                            ? "bg-red-500/20 text-red-400"
-                            : "bg-amber-500/20 text-amber-400"
+                              ? "bg-emerald-500/20 text-emerald-400"
+                              : occurrence.attendance === "absent"
+                                ? "bg-red-500/20 text-red-400"
+                                : "bg-amber-500/20 text-amber-400",
                         )}
                       >
                         {occurrence.status === "cancelled" ? (
@@ -1278,15 +1738,15 @@ export default function SubjectDetailPage(): React.ReactNode {
                           occurrence.status === "cancelled"
                             ? "bg-white/10 text-muted-foreground"
                             : occurrence.attendance === "present"
-                            ? "bg-emerald-500/20 text-emerald-400"
-                            : occurrence.attendance === "absent"
-                            ? "bg-red-500/20 text-red-400"
-                            : "bg-amber-500/20 text-amber-400"
+                              ? "bg-emerald-500/20 text-emerald-400"
+                              : occurrence.attendance === "absent"
+                                ? "bg-red-500/20 text-red-400"
+                                : "bg-amber-500/20 text-amber-400",
                         )}
                       >
                         {occurrence.status === "cancelled"
                           ? "Cancelled"
-                          : occurrence.attendance ?? "Unmarked"}
+                          : (occurrence.attendance ?? "Unmarked")}
                       </span>
                       {occurrence.attendance_note && (
                         <p className="text-xs text-muted-foreground mt-1 max-w-[120px] truncate">
@@ -1296,8 +1756,19 @@ export default function SubjectDetailPage(): React.ReactNode {
                     </div>
                   </div>
                 );
-              })}
-            </div>
+                })}
+              </div>
+              {attendanceHistory.length > PREVIEW_ITEMS && (
+                <button
+                  onClick={() => setShowFullAttendanceHistory((prev) => !prev)}
+                  className="mt-3 text-sm text-[rgb(var(--accent))] hover:underline"
+                >
+                  {showFullAttendanceHistory
+                    ? "Show less"
+                    : `Show all (${attendanceHistory.length})`}
+                </button>
+              )}
+            </>
           )}
         </motion.div>
 
@@ -1311,7 +1782,9 @@ export default function SubjectDetailPage(): React.ReactNode {
             <Clock className="w-4 h-4 text-muted-foreground" />
             <span className="text-xs text-muted-foreground">Auto-absent</span>
           </div>
-          <p className="text-sm font-medium text-foreground">{autoAbsentHours} hours</p>
+          <p className="text-sm font-medium text-foreground">
+            {autoAbsentHours} hours
+          </p>
           <p className="text-xs text-muted-foreground">after class</p>
         </motion.div>
 
@@ -1328,10 +1801,17 @@ export default function SubjectDetailPage(): React.ReactNode {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         subject={subject}
-        semesterStatus={semester.status}
+        semesterStatus={semesterDisplayStatus}
         semesterStartDate={semester.start_date}
         semesterEndDate={semester.end_date}
         onDelete={() => setIsConfirmDeleteSubjectOpen(true)}
+      />
+
+      <CreateTaskModal
+        isOpen={isCreateTaskModalOpen}
+        onClose={() => setIsCreateTaskModalOpen(false)}
+        semesterId={semesterId}
+        preselectedSubjectId={subjectId}
       />
 
       {/* Create Exam Modal */}
@@ -1378,9 +1858,11 @@ export default function SubjectDetailPage(): React.ReactNode {
         occurrences={attendanceHistory}
         onSave={async (occurrenceId, changes) => {
           if (occurrenceId.startsWith("expected:")) {
-            const scheduleId = occurrenceId.split(":").slice(2).join(":") || null;
+            const scheduleId =
+              occurrenceId.split(":").slice(2).join(":") || null;
             const status = changes.status ?? "scheduled";
-            const attendance = status === "cancelled" ? null : (changes.attendance ?? null);
+            const attendance =
+              status === "cancelled" ? null : (changes.attendance ?? null);
             await addClassOccurrence({
               subject_id: subjectId,
               schedule_id: scheduleId,
@@ -1388,10 +1870,15 @@ export default function SubjectDetailPage(): React.ReactNode {
               start_time: changes.start_time ?? "09:00",
               end_time: changes.end_time ?? "10:00",
               status,
-              cancellation_reason: status === "cancelled" ? (changes.cancellation_reason ?? "Edited as cancelled") : null,
+              cancellation_reason:
+                status === "cancelled"
+                  ? (changes.cancellation_reason ?? "Edited as cancelled")
+                  : null,
               rescheduled_to: null,
               attendance,
-              attendance_marked_at: attendance ? (changes.attendance_marked_at ?? new Date().toISOString()) : null,
+              attendance_marked_at: attendance
+                ? (changes.attendance_marked_at ?? new Date().toISOString())
+                : null,
               attendance_note: changes.attendance_note ?? null,
               is_extra_class: false,
             });
@@ -1423,7 +1910,11 @@ export default function SubjectDetailPage(): React.ReactNode {
       <ConfirmActionModal
         isOpen={isConfirmDeleteFileOpen}
         title="Delete file permanently?"
-        description={deleteFileTarget ? `This will permanently delete "${deleteFileTarget.fileName}".` : ""}
+        description={
+          deleteFileTarget
+            ? `This will permanently delete "${deleteFileTarget.fileName}".`
+            : ""
+        }
         confirmText="Delete File"
         onConfirm={handleDeleteSubjectFileConfirmed}
         onCancel={() => {
@@ -1435,7 +1926,11 @@ export default function SubjectDetailPage(): React.ReactNode {
       <ConfirmActionModal
         isOpen={isConfirmDeleteScheduleOpen}
         title="Delete class schedule?"
-        description={deleteScheduleTarget ? `This removes ${deleteScheduleTarget.label} from this subject.` : ""}
+        description={
+          deleteScheduleTarget
+            ? `This removes ${deleteScheduleTarget.label} from this subject.`
+            : ""
+        }
         confirmText="Delete Schedule"
         onConfirm={handleDeleteScheduleConfirmed}
         onCancel={() => {
@@ -1447,7 +1942,11 @@ export default function SubjectDetailPage(): React.ReactNode {
       <ConfirmActionModal
         isOpen={isConfirmDeleteLinkOpen}
         title="Delete resource link?"
-        description={deleteLinkTarget ? `Delete "${deleteLinkTarget.title}" permanently.` : ""}
+        description={
+          deleteLinkTarget
+            ? `Delete "${deleteLinkTarget.title}" permanently.`
+            : ""
+        }
         confirmText="Delete Link"
         onConfirm={async () => {
           if (!deleteLinkTarget) return;
@@ -1465,7 +1964,11 @@ export default function SubjectDetailPage(): React.ReactNode {
       <ConfirmActionModal
         isOpen={isConfirmDeleteNoteOpen}
         title="Delete note?"
-        description={deleteNoteTarget ? `Delete note "${deleteNoteTarget.preview}${deleteNoteTarget.preview.length >= 40 ? "..." : ""}" permanently.` : ""}
+        description={
+          deleteNoteTarget
+            ? `Delete note "${deleteNoteTarget.preview}${deleteNoteTarget.preview.length >= 40 ? "..." : ""}" permanently.`
+            : ""
+        }
         confirmText="Delete Note"
         onConfirm={async () => {
           if (!deleteNoteTarget) return;

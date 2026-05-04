@@ -1,19 +1,25 @@
 "use client";
 
-import { motion } from "framer-motion";
-import {
-  Plus, CheckCircle2, Flag, Clock,
-  Folder, Trash2, Loader2, Pencil
-} from "lucide-react";
-import { useState, useMemo } from "react";
-import { useData } from "@/hooks/use-data";
+import { ConfirmActionModal } from "@/components/modals/ConfirmActionModal";
 import { CreateTaskModal } from "@/components/modals/CreateTaskModal";
 import { EditTaskModal } from "@/components/modals/EditTaskModal";
-import { ConfirmActionModal } from "@/components/modals/ConfirmActionModal";
-import type { Task } from "@/types/database";
+import { useData } from "@/hooks/use-data";
 import { cn } from "@/lib/utils";
+import type { Task } from "@/types/database";
+import { format, isPast, isToday, isTomorrow, parseISO } from "date-fns";
+import { motion } from "framer-motion";
+import {
+  CheckCircle2,
+  Clock,
+  Flag,
+  Folder,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { format, parseISO, isPast, isToday, isTomorrow } from "date-fns";
 
 const pageVariants = {
   hidden: { opacity: 0 },
@@ -34,12 +40,23 @@ export default function TasksPage(): React.ReactNode {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
-  
-  const { tasks: allTasks, subjects, toggleTaskComplete, deleteTask, ongoingSemester, isLoading } = useData();
-  
+
+  const {
+    tasks: allTasks,
+    subjects,
+    toggleTaskComplete,
+    deleteTask,
+    activeSemesters,
+    ongoingSemester,
+    isLoading,
+  } = useData();
+
   const activeSemesterFilterId = ongoingSemester?.$id ?? null;
+  const modalSemester = ongoingSemester ?? activeSemesters[0] ?? null;
   const tasks = allTasks.filter(
-    (t) => !t.deleted_at && (!activeSemesterFilterId || t.semester_id === activeSemesterFilterId)
+    (t) =>
+      !t.deleted_at &&
+      (!activeSemesterFilterId || t.semester_id === activeSemesterFilterId),
   );
   const now = new Date().toISOString();
 
@@ -47,14 +64,12 @@ export default function TasksPage(): React.ReactNode {
   const { filteredTasks, counts } = useMemo(() => {
     const pending = tasks.filter((t) => !t.is_completed);
     const completed = tasks.filter((t) => t.is_completed);
-    const overdue = pending.filter(
-      (t) => t.deadline && t.deadline < now
-    );
+    const overdue = pending.filter((t) => t.deadline && t.deadline < now);
 
     let filtered = tasks;
     switch (filter) {
       case "all":
-        filtered = pending;
+        filtered = tasks;
         break;
       case "pending":
         filtered = pending;
@@ -85,13 +100,16 @@ export default function TasksPage(): React.ReactNode {
       if (b.deadline) return 1;
       // By priority
       const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-      return (priorityOrder[a.priority ?? "low"] ?? 4) - (priorityOrder[b.priority ?? "low"] ?? 4);
+      return (
+        (priorityOrder[a.priority ?? "low"] ?? 4) -
+        (priorityOrder[b.priority ?? "low"] ?? 4)
+      );
     });
 
     return {
       filteredTasks: filtered,
       counts: {
-        all: pending.length,
+        all: tasks.length,
         pending: pending.length,
         completed: completed.length,
         overdue: overdue.length,
@@ -119,12 +137,21 @@ export default function TasksPage(): React.ReactNode {
       return { text: "Overdue", className: "text-red-400" };
     }
     if (isToday(date)) {
-      return { text: `Today ${format(date, "h:mm a")}`, className: "text-amber-400" };
+      return {
+        text: `Today ${format(date, "h:mm a")}`,
+        className: "text-amber-400",
+      };
     }
     if (isTomorrow(date)) {
-      return { text: `Tomorrow ${format(date, "h:mm a")}`, className: "text-amber-400" };
+      return {
+        text: `Tomorrow ${format(date, "h:mm a")}`,
+        className: "text-amber-400",
+      };
     }
-    return { text: format(date, "MMM d, h:mm a"), className: "text-muted-foreground" };
+    return {
+      text: format(date, "MMM d, h:mm a"),
+      className: "text-muted-foreground",
+    };
   };
 
   const handleToggleComplete = (taskId: string, wasCompleted: boolean) => {
@@ -150,7 +177,9 @@ export default function TasksPage(): React.ReactNode {
   const handleClearCompleted = () => {
     const completedTasks = tasks.filter((task) => task.is_completed);
     completedTasks.forEach((task) => deleteTask(task.$id));
-    toast.success(`Cleared ${completedTasks.length} completed task${completedTasks.length !== 1 ? "s" : ""}`);
+    toast.success(
+      `Cleared ${completedTasks.length} completed task${completedTasks.length !== 1 ? "s" : ""}`,
+    );
   };
 
   const filters: { key: FilterType; label: string }[] = [
@@ -159,6 +188,14 @@ export default function TasksPage(): React.ReactNode {
     { key: "overdue", label: "Overdue" },
     { key: "completed", label: "Completed" },
   ];
+
+  const openCreateTaskModal = () => {
+    if (!modalSemester) {
+      toast.error("Create a semester first to add tasks.");
+      return;
+    }
+    setIsCreateModalOpen(true);
+  };
 
   return (
     <motion.main
@@ -179,13 +216,14 @@ export default function TasksPage(): React.ReactNode {
           <div>
             <h1 className="text-2xl font-bold text-foreground mb-1">Tasks</h1>
             <p className="text-sm text-muted-foreground">
-              {counts.pending} pending • {counts.overdue > 0 && (
+              {counts.pending} pending •{" "}
+              {counts.overdue > 0 && (
                 <span className="text-red-400">{counts.overdue} overdue</span>
               )}
             </p>
           </div>
           <button
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={openCreateTaskModal}
             className="interactive-surface interactive-focus flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[rgba(var(--accent),0.15)] hover:bg-[rgba(var(--accent),0.25)] text-[rgb(var(--accent))] font-medium transition-colors"
           >
             <Plus className="w-5 h-5" />
@@ -204,12 +242,12 @@ export default function TasksPage(): React.ReactNode {
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
-                className={cn(
-                  "interactive-surface interactive-focus px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
-                  filter === f.key
-                    ? "bg-[rgba(var(--accent),0.2)] text-[rgb(var(--accent))]"
-                    : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
-                )}
+              className={cn(
+                "interactive-surface interactive-focus px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                filter === f.key
+                  ? "bg-[rgba(var(--accent),0.2)] text-[rgb(var(--accent))]"
+                  : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground",
+              )}
             >
               {f.label}
               <span className="ml-1.5 text-xs opacity-70">
@@ -246,14 +284,14 @@ export default function TasksPage(): React.ReactNode {
                 {filter === "all"
                   ? "Create your first task to get started"
                   : filter === "completed"
-                  ? "Complete some tasks to see them here"
-                  : filter === "overdue"
-                  ? "Great! You have no overdue tasks"
-                  : "All tasks are completed!"}
+                    ? "Complete some tasks to see them here"
+                    : filter === "overdue"
+                      ? "Great! You have no overdue tasks"
+                      : "All tasks are completed!"}
               </p>
               {filter === "all" && (
                 <button
-                  onClick={() => setIsCreateModalOpen(true)}
+                  onClick={openCreateTaskModal}
                   className="px-4 py-2 rounded-xl bg-[rgba(var(--accent),0.15)] text-[rgb(var(--accent))] font-medium transition-colors hover:bg-[rgba(var(--accent),0.25)]"
                 >
                   Create Task
@@ -264,8 +302,11 @@ export default function TasksPage(): React.ReactNode {
             filteredTasks.map((task, index) => {
               const deadline = getDeadlineDisplay(task.deadline);
               const subject = getSubjectName(task.subject_id);
-              const priority = task.priority ? PRIORITY_CONFIG[task.priority] : null;
-              const isOverdue = task.deadline && task.deadline < now && !task.is_completed;
+              const priority = task.priority
+                ? PRIORITY_CONFIG[task.priority]
+                : null;
+              const isOverdue =
+                task.deadline && task.deadline < now && !task.is_completed;
 
               return (
                 <motion.div
@@ -278,18 +319,20 @@ export default function TasksPage(): React.ReactNode {
                     task.is_completed
                       ? "bg-white/3 border-white/5 opacity-60"
                       : isOverdue
-                      ? "bg-red-500/5 border-red-500/20"
-                      : "bg-white/5 border-white/10 hover:bg-white/8"
+                        ? "bg-red-500/5 border-red-500/20"
+                        : "bg-white/5 border-white/10 hover:bg-white/8",
                   )}
                 >
                   {/* Checkbox */}
                   <button
-                    onClick={() => handleToggleComplete(task.$id, task.is_completed)}
+                    onClick={() =>
+                      handleToggleComplete(task.$id, task.is_completed)
+                    }
                     className={cn(
                       "interactive-surface interactive-focus mt-0.5 flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
                       task.is_completed
                         ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
-                        : "border-white/30 hover:border-[rgb(var(--accent))] hover:bg-[rgba(var(--accent),0.1)]"
+                        : "border-white/30 hover:border-[rgb(var(--accent))] hover:bg-[rgba(var(--accent),0.1)]",
                     )}
                   >
                     {task.is_completed && <CheckCircle2 className="w-4 h-4" />}
@@ -302,33 +345,41 @@ export default function TasksPage(): React.ReactNode {
                         "font-medium mb-1",
                         task.is_completed
                           ? "text-muted-foreground line-through"
-                          : "text-foreground"
+                          : "text-foreground",
                       )}
                     >
                       {task.title}
                     </p>
-                    
+
                     {/* Meta info */}
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       {priority && (
                         <span
                           className="px-2 py-0.5 rounded-full font-medium"
-                          style={{ backgroundColor: priority.bg, color: priority.color }}
+                          style={{
+                            backgroundColor: priority.bg,
+                            color: priority.color,
+                          }}
                         >
                           <Flag className="w-3 h-3 inline mr-1" />
                           {priority.label}
                         </span>
                       )}
-                      
+
                       {subject && (
                         <span className="px-2 py-0.5 rounded-full bg-white/10 text-muted-foreground">
                           <Folder className="w-3 h-3 inline mr-1" />
                           {subject}
                         </span>
                       )}
-                      
+
                       {deadline && (
-                        <span className={cn("flex items-center gap-1", deadline.className)}>
+                        <span
+                          className={cn(
+                            "flex items-center gap-1",
+                            deadline.className,
+                          )}
+                        >
                           <Clock className="w-3 h-3" />
                           {deadline.text}
                         </span>
@@ -365,11 +416,11 @@ export default function TasksPage(): React.ReactNode {
       </div>
 
       {/* Create Task Modal */}
-      {ongoingSemester && (
+      {modalSemester && (
         <CreateTaskModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
-          semesterId={ongoingSemester.$id}
+          semesterId={modalSemester.$id}
         />
       )}
 
@@ -382,7 +433,9 @@ export default function TasksPage(): React.ReactNode {
       <ConfirmActionModal
         isOpen={deletingTask !== null}
         title="Delete task?"
-        description={deletingTask ? `Delete "${deletingTask.title}" permanently.` : ""}
+        description={
+          deletingTask ? `Delete "${deletingTask.title}" permanently.` : ""
+        }
         confirmText="Delete Task"
         onConfirm={async () => {
           if (!deletingTask) return;

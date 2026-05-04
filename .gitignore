@@ -49,3 +49,4 @@ appwrite-schema-check.txt
 *.db
 *.sqlite
 testing.md
+prompt.txt

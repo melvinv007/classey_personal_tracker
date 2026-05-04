@@ -1,29 +1,43 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, BookOpen, Palette, User, Clock, Award, CalendarDays } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useData } from "@/hooks/use-data";
+import { ThemedColorPicker } from "@/components/ui/ThemedColorPicker";
+import {
+  ThemedDateInput,
+  ThemedTimeInput,
+} from "@/components/ui/ThemedDateTimeInput";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
-import { ThemedDateInput, ThemedTimeInput } from "@/components/ui/ThemedDateTimeInput";
+import { useData } from "@/hooks/use-data";
 import { cn } from "@/lib/utils";
+import {
+  generateSchedulesFromSlot,
+  getDayName,
+  parseSubSlots,
+} from "@/utils/slots";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Award,
+  BookOpen,
+  CalendarDays,
+  Clock,
+  Palette,
+  User,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { generateSchedulesFromSlot, parseSubSlots, getDayName } from "@/utils/slots";
+import { z } from "zod";
 
 const subjectSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   short_name: z.string().min(1, "Short name is required").max(10),
   code: z.string().optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid color"),
-  credits: z
-    .string()
-    .refine((value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 60;
-    }, "Credits must be between 0 and 60"),
+  credits: z.string().refine((value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 60;
+  }, "Credits must be between 0 and 60"),
   type: z.enum(["theory", "lab", "practical", "project", "other"]),
   grade_points: z
     .string()
@@ -56,6 +70,9 @@ const PRESET_COLORS = [
   "#F97316",
 ];
 
+const pickRandomColor = (fallback = "#8B5CF6"): string =>
+  PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)] ?? fallback;
+
 const SUBJECT_TYPES = [
   { value: "theory", label: "Theory", description: "Lecture-based class" },
   { value: "lab", label: "Lab", description: "Practical lab session" },
@@ -68,7 +85,7 @@ interface CreateSubjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   semesterId: string;
-  semesterStatus: "upcoming" | "ongoing" | "completed";
+  semesterStatus: "upcoming" | "ongoing" | "over" | "completed";
   semesterColor?: string;
   semesterStartDate?: string;
   semesterEndDate?: string;
@@ -104,11 +121,14 @@ export function CreateSubjectModal({
   semesterStartDate,
   semesterEndDate,
 }: CreateSubjectModalProps) {
-  const { addSubject, addClassSchedule, getSemesterById, slots, isMutating } = useData();
+  const { addSubject, addClassSchedule, getSemesterById, slots, isMutating } =
+    useData();
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("slot");
   const [selectedSlotId, setSelectedSlotId] = useState("");
   const [selectedSubSlotIds, setSelectedSubSlotIds] = useState<string[]>([]);
-  const [manualDayOfWeek, setManualDayOfWeek] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
+  const [manualDayOfWeek, setManualDayOfWeek] = useState<1 | 2 | 3 | 4 | 5 | 6>(
+    1,
+  );
   const [manualStartTime, setManualStartTime] = useState("09:00");
   const [manualEndTime, setManualEndTime] = useState("10:00");
   const [manualRoom, setManualRoom] = useState("");
@@ -126,7 +146,7 @@ export function CreateSubjectModal({
       name: "",
       short_name: "",
       code: "",
-      color: semesterColor,
+      color: pickRandomColor(semesterColor),
       credits: "3",
       type: "theory",
       grade_points: "",
@@ -144,17 +164,17 @@ export function CreateSubjectModal({
 
   const selectedSlot = useMemo(
     () => slots.find((slot) => slot.$id === selectedSlotId),
-    [slots, selectedSlotId]
+    [slots, selectedSlotId],
   );
   const selectedSlotSubSlots = selectedSlot ? parseSubSlots(selectedSlot) : [];
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
       reset({
         name: "",
         short_name: "",
         code: "",
-        color: semesterColor,
+        color: pickRandomColor(semesterColor),
         credits: "3",
         type: "theory",
         grade_points: "",
@@ -211,7 +231,9 @@ export function CreateSubjectModal({
         credits: parseInt(data.credits, 10),
         grade: null,
         grade_points:
-          semesterStatus === "completed" && data.grade_points && data.grade_points.trim() !== ""
+          (semesterStatus === "completed" || semesterStatus === "over") &&
+          data.grade_points &&
+          data.grade_points.trim() !== ""
             ? parseFloat(data.grade_points)
             : null,
         grade_scale_id: null,
@@ -231,7 +253,7 @@ export function CreateSubjectModal({
           createdSubject.$id,
           selectedSlot,
           selectedSubSlotIds,
-          data.start_date
+          data.start_date,
         );
         for (const schedule of generated) {
           await addClassSchedule(schedule);
@@ -255,7 +277,9 @@ export function CreateSubjectModal({
       toast.success(`Added ${data.name} with schedule`);
       onClose();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create subject");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create subject",
+      );
     }
   };
 
@@ -296,11 +320,18 @@ export function CreateSubjectModal({
                     className="w-10 h-10 rounded-xl flex items-center justify-center"
                     style={{ backgroundColor: `${selectedColor}20` }}
                   >
-                    <BookOpen className="w-5 h-5" style={{ color: selectedColor }} />
+                    <BookOpen
+                      className="w-5 h-5"
+                      style={{ color: selectedColor }}
+                    />
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-foreground">New Subject</h2>
-                    <p className="text-xs text-muted-foreground">Add a subject + class schedule</p>
+                    <h2 className="text-lg font-semibold text-foreground">
+                      New Subject
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      Add a subject + class schedule
+                    </p>
                   </div>
                 </div>
                 <button
@@ -314,17 +345,25 @@ export function CreateSubjectModal({
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                 <div className="grid grid-cols-3 gap-4">
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-foreground mb-2">Subject Name</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Subject Name
+                    </label>
                     <input
                       {...register("name")}
                       type="text"
                       placeholder="e.g., Data Structures"
                       className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent-rgb),0.5)] focus:border-transparent transition-all"
                     />
-                    {errors.name && <p className="mt-1 text-xs text-red-400">{errors.name.message}</p>}
+                    {errors.name && (
+                      <p className="mt-1 text-xs text-red-400">
+                        {errors.name.message}
+                      </p>
+                    )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Short</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Short
+                    </label>
                     <input
                       {...register("short_name")}
                       type="text"
@@ -337,7 +376,9 @@ export function CreateSubjectModal({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Course Code</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Course Code
+                    </label>
                     <input
                       {...register("code")}
                       type="text"
@@ -357,11 +398,15 @@ export function CreateSubjectModal({
                       max="60"
                       className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent-rgb),0.5)] focus:border-transparent transition-all"
                     />
-                    {errors.credits && <p className="mt-1 text-xs text-red-400">{errors.credits.message}</p>}
+                    {errors.credits && (
+                      <p className="mt-1 text-xs text-red-400">
+                        {errors.credits.message}
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                {semesterStatus === "completed" ? (
+                {semesterStatus === "completed" || semesterStatus === "over" ? (
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
                       Grade Points (0–10)
@@ -376,7 +421,9 @@ export function CreateSubjectModal({
                       className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent-rgb),0.5)] focus:border-transparent transition-all"
                     />
                     {errors.grade_points && (
-                      <p className="mt-1 text-xs text-red-400">{errors.grade_points.message}</p>
+                      <p className="mt-1 text-xs text-red-400">
+                        {errors.grade_points.message}
+                      </p>
                     )}
                   </div>
                 ) : null}
@@ -388,10 +435,16 @@ export function CreateSubjectModal({
                     </label>
                     <ThemedDateInput
                       value={watch("start_date") || ""}
-                      onChange={(value) => setValue("start_date", value, { shouldValidate: true })}
+                      onChange={(value) =>
+                        setValue("start_date", value, { shouldValidate: true })
+                      }
                     />
                     <input type="hidden" {...register("start_date")} />
-                    {errors.start_date && <p className="mt-1 text-xs text-red-400">{errors.start_date.message}</p>}
+                    {errors.start_date && (
+                      <p className="mt-1 text-xs text-red-400">
+                        {errors.start_date.message}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
@@ -399,15 +452,23 @@ export function CreateSubjectModal({
                     </label>
                     <ThemedDateInput
                       value={watch("end_date") || ""}
-                      onChange={(value) => setValue("end_date", value, { shouldValidate: true })}
+                      onChange={(value) =>
+                        setValue("end_date", value, { shouldValidate: true })
+                      }
                     />
                     <input type="hidden" {...register("end_date")} />
-                    {errors.end_date && <p className="mt-1 text-xs text-red-400">{errors.end_date.message}</p>}
+                    {errors.end_date && (
+                      <p className="mt-1 text-xs text-red-400">
+                        {errors.end_date.message}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Subject Type</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Subject Type
+                  </label>
                   <div className="grid grid-cols-5 gap-2">
                     {SUBJECT_TYPES.map((type) => (
                       <button
@@ -418,7 +479,7 @@ export function CreateSubjectModal({
                           "px-3 py-2 rounded-xl text-xs font-medium transition-all text-center",
                           selectedType === type.value
                             ? "bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))] ring-1 ring-[rgba(var(--accent-rgb),0.3)]"
-                            : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                            : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground",
                         )}
                       >
                         {type.label}
@@ -449,6 +510,13 @@ export function CreateSubjectModal({
                         )}
                       </button>
                     ))}
+                    <ThemedColorPicker
+                      value={selectedColor}
+                      onChange={(value) =>
+                        setValue("color", value, { shouldValidate: true })
+                      }
+                      colors={PRESET_COLORS}
+                    />
                   </div>
                 </div>
 
@@ -463,7 +531,9 @@ export function CreateSubjectModal({
                       onClick={() => setScheduleMode("slot")}
                       className={cn(
                         "px-3 py-1.5 rounded-lg text-xs transition-all",
-                        scheduleMode === "slot" ? "bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))]" : "bg-white/5 text-muted-foreground"
+                        scheduleMode === "slot"
+                          ? "bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))]"
+                          : "bg-white/5 text-muted-foreground",
                       )}
                     >
                       Slot-based
@@ -473,7 +543,9 @@ export function CreateSubjectModal({
                       onClick={() => setScheduleMode("manual")}
                       className={cn(
                         "px-3 py-1.5 rounded-lg text-xs transition-all",
-                        scheduleMode === "manual" ? "bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))]" : "bg-white/5 text-muted-foreground"
+                        scheduleMode === "manual"
+                          ? "bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))]"
+                          : "bg-white/5 text-muted-foreground",
                       )}
                     >
                       Manual
@@ -490,7 +562,10 @@ export function CreateSubjectModal({
                         }}
                         options={[
                           { value: "__none__", label: "Select slot" },
-                          ...slots.map((slot) => ({ value: slot.$id, label: slot.name })),
+                          ...slots.map((slot) => ({
+                            value: slot.$id,
+                            label: slot.name,
+                          })),
                         ]}
                         className="text-sm px-3 py-2"
                       />
@@ -502,29 +577,41 @@ export function CreateSubjectModal({
                               type="button"
                               onClick={() =>
                                 setSelectedSubSlotIds((prev) =>
-                                  prev.includes(sub.id) ? prev.filter((item) => item !== sub.id) : [...prev, sub.id]
+                                  prev.includes(sub.id)
+                                    ? prev.filter((item) => item !== sub.id)
+                                    : [...prev, sub.id],
                                 )
                               }
                               className={cn(
                                 "px-2 py-1 rounded-md text-xs border transition-colors",
                                 selectedSubSlotIds.includes(sub.id)
                                   ? "bg-[rgba(var(--accent-rgb),0.2)] border-[rgba(var(--accent-rgb),0.3)] text-[rgb(var(--accent))]"
-                                  : "bg-white/5 border-white/10 text-muted-foreground"
+                                  : "bg-white/5 border-white/10 text-muted-foreground",
                               )}
                             >
-                              {sub.id} ({getDayName(sub.day_of_week, true)} {sub.start_time}-{sub.end_time})
+                              {sub.id} ({getDayName(sub.day_of_week, true)}{" "}
+                              {sub.start_time}-{sub.end_time})
                             </button>
                           ))}
                         </div>
                       )}
-                      <p className="text-xs text-muted-foreground">No sub-slot selected = full slot.</p>
+                      <p className="text-xs text-muted-foreground">
+                        No sub-slot selected = full slot.
+                      </p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
                       <ThemedSelect
                         value={String(manualDayOfWeek)}
-                        onChange={(value) => setManualDayOfWeek(Number(value) as 1 | 2 | 3 | 4 | 5 | 6)}
-                        options={dayOptions.map((day) => ({ value: String(day.value), label: day.label }))}
+                        onChange={(value) =>
+                          setManualDayOfWeek(
+                            Number(value) as 1 | 2 | 3 | 4 | 5 | 6,
+                          )
+                        }
+                        options={dayOptions.map((day) => ({
+                          value: String(day.value),
+                          label: day.label,
+                        }))}
                         className="text-sm px-3 py-2"
                       />
                       <input
@@ -561,7 +648,9 @@ export function CreateSubjectModal({
                       step="5"
                       className="flex-1 h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[rgb(var(--accent))]"
                     />
-                    <span className="w-12 text-center text-sm font-medium text-foreground">{watch("attendance_requirement")}%</span>
+                    <span className="w-12 text-center text-sm font-medium text-foreground">
+                      {watch("attendance_requirement")}%
+                    </span>
                   </div>
                 </div>
 

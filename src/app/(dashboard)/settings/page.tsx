@@ -1,50 +1,60 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { 
-  ArrowLeft, 
-  Palette, 
-  Bell, 
-  Moon, 
-  Sun, 
-  Type, 
-  Sparkles,
-  Send,
-  MessageSquare,
-  CheckCircle,
-  XCircle,
-  Loader2,
-  Clock,
-  Calendar,
-  FileText,
-  CheckSquare,
-  BookOpen,
-  LogOut
-} from "lucide-react";
-import Link from "next/link";
-import { toast } from "sonner";
-import { 
-  useThemeStore, 
-  type BackgroundStyle, 
-  type FontFamily, type UIStyle,
-  toUIStyleToken,
-  backgroundDisplayNames 
-} from "@/stores/theme-store";
-import { ThemedSelect } from "@/components/ui/ThemedSelect";
-import { ThemedColorPicker } from "@/components/ui/ThemedColorPicker";
 import { ReminderOffsetsEditor } from "@/components/forms/ReminderOffsetsEditor";
 import { ConfirmActionModal } from "@/components/modals/ConfirmActionModal";
+import { ThemedColorPicker } from "@/components/ui/ThemedColorPicker";
+import { ThemedSelect } from "@/components/ui/ThemedSelect";
 import { useSettings, useUpdateSettings } from "@/hooks/use-appwrite";
-import type { ReminderOffset, Settings } from "@/types/database";
-import { parseReminderOffsetsJson, serializeReminderOffsetsJson } from "@/lib/appwrite-db";
+import {
+  setTimetableWeekendSetting,
+  useTimetableWeekendSetting,
+} from "@/hooks/use-timetable-weekend-setting";
+import {
+  parseReminderOffsetsJson,
+  serializeReminderOffsetsJson,
+} from "@/lib/appwrite-db";
 import { cn } from "@/lib/utils";
+import {
+  backgroundDisplayNames,
+  toUIStyleToken,
+  useThemeStore,
+  type BackgroundStyle,
+  type FontFamily,
+  type UIStyle,
+} from "@/stores/theme-store";
+import type { ReminderOffset, Settings } from "@/types/database";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft,
+  Bell,
+  BookOpen,
+  Calendar,
+  CheckCircle,
+  CheckSquare,
+  Clock,
+  FileText,
+  Loader2,
+  LogOut,
+  MessageSquare,
+  Moon,
+  Palette,
+  Send,
+  Sparkles,
+  Sun,
+  Type,
+  XCircle,
+} from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 /**
  * Settings page - Appearance and Notification preferences
  */
 export default function SettingsPage(): React.ReactNode {
-  const [activeTab, setActiveTab] = useState<"appearance" | "notifications">("appearance");
+  const [activeTab, setActiveTab] = useState<"appearance" | "notifications">(
+    "appearance",
+  );
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async (): Promise<void> => {
@@ -85,17 +95,23 @@ export default function SettingsPage(): React.ReactNode {
         </div>
         <button
           type="button"
-          onClick={() => { void handleLogout(); }}
+          onClick={() => {
+            void handleLogout();
+          }}
           disabled={isLoggingOut}
           className="ml-auto inline-flex items-center gap-2 rounded-xl btn-muted-themed px-3 py-2 text-sm font-medium text-red-400 disabled:opacity-50"
         >
-          {isLoggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+          {isLoggingOut ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <LogOut className="h-4 w-4" />
+          )}
           Logout
         </button>
       </motion.div>
 
       {/* Tabs */}
-      <motion.div 
+      <motion.div
         className="mb-6 flex gap-2"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -132,7 +148,11 @@ export default function SettingsPage(): React.ReactNode {
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.2 }}
       >
-        {activeTab === "appearance" ? <AppearanceSettings /> : <NotificationSettings />}
+        {activeTab === "appearance" ? (
+          <AppearanceSettings />
+        ) : (
+          <NotificationSettings />
+        )}
       </motion.div>
     </div>
   );
@@ -155,7 +175,13 @@ function AppearanceSettings(): React.ReactNode {
     setUIStyle,
   } = useThemeStore();
 
-  const backgrounds: BackgroundStyle[] = ["spooky-smoke", "dotted", "boxes", "dot-pattern", "noise-grid"];
+  const backgrounds: BackgroundStyle[] = [
+    "spooky-smoke",
+    "dotted",
+    "boxes",
+    "dot-pattern",
+    "noise-grid",
+  ];
 
   const accentOptions = [
     "#8b5cf6",
@@ -174,17 +200,53 @@ function AppearanceSettings(): React.ReactNode {
     { value: "nunito", label: "Nunito" },
     { value: "poppins", label: "Poppins" },
     { value: "quicksand", label: "Quicksand" },
+    { value: "inter", label: "Inter" },
+    { value: "manrope", label: "Manrope" },
+    { value: "space-grotesk", label: "Space Grotesk" },
   ];
-  const uiStyleOptions: { value: UIStyle; label: string; description: string }[] = [
-    { value: "classic-glass", label: "Classic Glass", description: "Current style with clean glass surfaces." },
-    { value: "organic-glass", label: "Organic Glass", description: "Richer depth, stronger hover, softer premium motion." },
-    { value: "frosted-prism-glass", label: "Frosted Prism", description: "Subtle chromatic edge refraction with premium glow." },
-    { value: "liquid-glass", label: "Liquid Glass", description: "Soft inner distortion and caustic-like highlights." },
-    { value: "layered-pane-glass", label: "Layered Pane", description: "Foreground/background pane depth for spatial hierarchy." },
-    { value: "iridescent-glass", label: "Iridescent Glass", description: "Angle-shifting tint with vivid hover response." },
-    { value: "smoked-matte-glass", label: "Smoked Matte", description: "Low-gloss, high-legibility glass for dense content." },
+  const uiStyleOptions: {
+    value: UIStyle;
+    label: string;
+    description: string;
+  }[] = [
+    {
+      value: "classic-glass",
+      label: "Classic Glass",
+      description: "Current style with clean glass surfaces.",
+    },
+    {
+      value: "organic-glass",
+      label: "Organic Glass",
+      description: "Richer depth, stronger hover, softer premium motion.",
+    },
+    {
+      value: "frosted-prism-glass",
+      label: "Frosted Prism",
+      description: "Subtle chromatic edge refraction with premium glow.",
+    },
+    {
+      value: "liquid-glass",
+      label: "Liquid Glass",
+      description: "Soft inner distortion and caustic-like highlights.",
+    },
+    {
+      value: "layered-pane-glass",
+      label: "Layered Pane",
+      description: "Foreground/background pane depth for spatial hierarchy.",
+    },
+    {
+      value: "iridescent-glass",
+      label: "Iridescent Glass",
+      description: "Angle-shifting tint with vivid hover response.",
+    },
+    {
+      value: "smoked-matte-glass",
+      label: "Smoked Matte",
+      description: "Low-gloss, high-legibility glass for dense content.",
+    },
   ];
   const updateSettings = useUpdateSettings();
+  const showWeekendsInTimetable = useTimetableWeekendSetting();
 
   const commitAppearance = async (patch: Partial<Settings>): Promise<void> => {
     try {
@@ -249,7 +311,9 @@ function AppearanceSettings(): React.ReactNode {
               key={style.value}
               onClick={() => {
                 setUIStyle(style.value);
-                void commitAppearance({ background_custom_css: toUIStyleToken(style.value) });
+                void commitAppearance({
+                  background_custom_css: toUIStyleToken(style.value),
+                });
               }}
               type="button"
               className={cn(
@@ -257,14 +321,52 @@ function AppearanceSettings(): React.ReactNode {
                 "interactive-surface interactive-focus",
                 uiStyle === style.value
                   ? "border-accent bg-accent/10"
-                  : "border-border bg-muted hover:border-accent/50"
+                  : "border-border bg-muted hover:border-accent/50",
               )}
             >
-              <p className="text-sm font-semibold text-foreground">{style.label}</p>
-              <p className="text-xs text-muted-foreground mt-1">{style.description}</p>
+              <p className="text-sm font-semibold text-foreground">
+                {style.label}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {style.description}
+              </p>
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Timetable days */}
+      <div className="glass-card p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <Calendar className="h-5 w-5 text-accent" />
+          <div>
+            <h3 className="font-semibold">Timetable Weekends</h3>
+            <p className="text-sm text-muted-foreground">
+              Show or hide Saturday and Sunday in timetable view.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => {
+            const next = !showWeekendsInTimetable;
+            setTimetableWeekendSetting(next);
+          }}
+          type="button"
+          className="flex w-full items-center justify-between rounded-xl btn-muted-themed p-4 interactive-focus"
+        >
+          <span className="font-medium">
+            {showWeekendsInTimetable
+              ? "Show Saturday & Sunday"
+              : "Hide Saturday & Sunday"}
+          </span>
+          <div className="flex h-8 w-14 items-center rounded-full bg-accent/20 p-1">
+            <motion.div
+              className="h-6 w-6 rounded-full bg-accent"
+              animate={{ x: showWeekendsInTimetable ? 24 : 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            />
+          </div>
+        </button>
       </div>
 
       {/* Background Style */}
@@ -331,7 +433,7 @@ function AppearanceSettings(): React.ReactNode {
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
           {fonts.map((font) => (
             <button
               key={font.value}
@@ -370,17 +472,33 @@ function NotificationSettings(): React.ReactNode {
   const updateSettings = useUpdateSettings();
 
   const current = settings;
-  const isConnected = Boolean(current?.telegram_notifications_enabled && current?.telegram_bot_chat_id);
+  const isConnected = Boolean(
+    current?.telegram_notifications_enabled && current?.telegram_bot_chat_id,
+  );
   const preClassMinutes = current?.pre_class_reminder_minutes ?? 15;
 
   const defaultExamOffsets = useMemo<ReminderOffset[]>(() => {
-    const parsed = parseReminderOffsetsJson(current?.exam_default_reminder_offsets_json ?? null);
-    return parsed.length > 0 ? parsed : [{ value: 24, unit: "hours" }, { value: 2, unit: "hours" }];
+    const parsed = parseReminderOffsetsJson(
+      current?.exam_default_reminder_offsets_json ?? null,
+    );
+    return parsed.length > 0
+      ? parsed
+      : [
+          { value: 24, unit: "hours" },
+          { value: 2, unit: "hours" },
+        ];
   }, [current?.exam_default_reminder_offsets_json]);
 
   const defaultTaskOffsets = useMemo<ReminderOffset[]>(() => {
-    const parsed = parseReminderOffsetsJson(current?.task_default_reminder_offsets_json ?? null);
-    return parsed.length > 0 ? parsed : [{ value: 24, unit: "hours" }, { value: 2, unit: "hours" }];
+    const parsed = parseReminderOffsetsJson(
+      current?.task_default_reminder_offsets_json ?? null,
+    );
+    return parsed.length > 0
+      ? parsed
+      : [
+          { value: 24, unit: "hours" },
+          { value: 2, unit: "hours" },
+        ];
   }, [current?.task_default_reminder_offsets_json]);
 
   const commitSettings = async (patch: Partial<Settings>): Promise<void> => {
@@ -410,9 +528,9 @@ function NotificationSettings(): React.ReactNode {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "verify", chatId: chatIdInput.trim() }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         await commitSettings({
           telegram_bot_chat_id: chatIdInput.trim(),
@@ -449,9 +567,9 @@ function NotificationSettings(): React.ReactNode {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "test", chatId }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         toast.success("Test notification sent!");
       } else {
@@ -475,7 +593,10 @@ function NotificationSettings(): React.ReactNode {
     toast.info("Telegram disconnected");
   };
 
-  const toggleSetting = async (key: keyof Settings, enabled: boolean): Promise<void> => {
+  const toggleSetting = async (
+    key: keyof Settings,
+    enabled: boolean,
+  ): Promise<void> => {
     await commitSettings({ [key]: enabled } as Partial<Settings>);
   };
 
@@ -506,7 +627,8 @@ function NotificationSettings(): React.ReactNode {
             <p className="text-sm text-muted-foreground">
               1. Start a chat with <strong>@ClasseyBot</strong> on Telegram
               <br />
-              2. Send <code className="rounded bg-muted px-1">/start</code> to get your Chat ID
+              2. Send <code className="rounded bg-muted px-1">/start</code> to
+              get your Chat ID
               <br />
               3. Enter your Chat ID below
             </p>
@@ -521,7 +643,7 @@ function NotificationSettings(): React.ReactNode {
               <button
                 onClick={handleVerifyChatId}
                 disabled={isVerifying}
-                 className="flex items-center gap-2 rounded-xl btn-themed px-4 py-2.5 text-sm font-medium transition-opacity disabled:opacity-50"
+                className="flex items-center gap-2 rounded-xl btn-themed px-4 py-2.5 text-sm font-medium transition-opacity disabled:opacity-50"
               >
                 {isVerifying ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -536,13 +658,16 @@ function NotificationSettings(): React.ReactNode {
           <div className="space-y-3">
             <div className="flex items-center justify-between rounded-xl bg-muted p-3">
               <span className="text-sm">
-                Chat ID: <code className="font-mono">{current?.telegram_bot_chat_id}</code>
+                Chat ID:{" "}
+                <code className="font-mono">
+                  {current?.telegram_bot_chat_id}
+                </code>
               </span>
               <div className="flex gap-2">
                 <button
                   onClick={handleTestNotification}
                   disabled={isTesting}
-                   className="flex items-center gap-1 rounded-lg btn-themed px-3 py-1.5 text-sm font-medium transition-colors"
+                  className="flex items-center gap-1 rounded-lg btn-themed px-3 py-1.5 text-sm font-medium transition-colors"
                 >
                   {isTesting ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -553,7 +678,7 @@ function NotificationSettings(): React.ReactNode {
                 </button>
                 <button
                   onClick={handleDisconnect}
-                   className="flex items-center gap-1 rounded-lg btn-muted-themed px-3 py-1.5 text-sm font-medium text-destructive transition-colors"
+                  className="flex items-center gap-1 rounded-lg btn-muted-themed px-3 py-1.5 text-sm font-medium text-destructive transition-colors"
                 >
                   <XCircle className="h-3 w-3" />
                   Disconnect
@@ -583,35 +708,45 @@ function NotificationSettings(): React.ReactNode {
               label="Exam Reminders"
               description="Get notified before exams"
               enabled={current?.telegram_notify_exams ?? true}
-              onToggle={(enabled) => { void toggleSetting("telegram_notify_exams", enabled); }}
+              onToggle={(enabled) => {
+                void toggleSetting("telegram_notify_exams", enabled);
+              }}
             />
             <ToggleRow
               icon={<FileText className="h-4 w-4" />}
               label="Assignment Deadlines"
               description="Reminders for assignment due dates"
               enabled={current?.telegram_notify_assignments ?? true}
-              onToggle={(enabled) => { void toggleSetting("telegram_notify_assignments", enabled); }}
+              onToggle={(enabled) => {
+                void toggleSetting("telegram_notify_assignments", enabled);
+              }}
             />
             <ToggleRow
               icon={<Clock className="h-4 w-4" />}
               label="Task Deadlines"
               description="Reminders for task deadlines"
               enabled={current?.telegram_notify_deadlines ?? true}
-              onToggle={(enabled) => { void toggleSetting("telegram_notify_deadlines", enabled); }}
+              onToggle={(enabled) => {
+                void toggleSetting("telegram_notify_deadlines", enabled);
+              }}
             />
             <ToggleRow
               icon={<CheckSquare className="h-4 w-4" />}
               label="Task Reminders"
               description="General task notifications"
               enabled={current?.telegram_notify_tasks ?? true}
-              onToggle={(enabled) => { void toggleSetting("telegram_notify_tasks", enabled); }}
+              onToggle={(enabled) => {
+                void toggleSetting("telegram_notify_tasks", enabled);
+              }}
             />
             <ToggleRow
               icon={<BookOpen className="h-4 w-4" />}
               label="Class Reminders"
               description="Get notified before classes start"
               enabled={current?.telegram_notify_classes ?? false}
-              onToggle={(enabled) => { void toggleSetting("telegram_notify_classes", enabled); }}
+              onToggle={(enabled) => {
+                void toggleSetting("telegram_notify_classes", enabled);
+              }}
             />
           </div>
         </div>
@@ -636,7 +771,8 @@ function NotificationSettings(): React.ReactNode {
               value={defaultExamOffsets}
               onChange={(next) => {
                 void commitSettings({
-                  exam_default_reminder_offsets_json: serializeReminderOffsetsJson(next),
+                  exam_default_reminder_offsets_json:
+                    serializeReminderOffsetsJson(next),
                 });
               }}
             />
@@ -647,7 +783,8 @@ function NotificationSettings(): React.ReactNode {
               value={defaultTaskOffsets}
               onChange={(next) => {
                 void commitSettings({
-                  task_default_reminder_offsets_json: serializeReminderOffsetsJson(next),
+                  task_default_reminder_offsets_json:
+                    serializeReminderOffsetsJson(next),
                 });
               }}
             />
@@ -674,7 +811,9 @@ function NotificationSettings(): React.ReactNode {
               <ThemedSelect
                 value={String(preClassMinutes)}
                 onChange={(value) => {
-                  void commitSettings({ pre_class_reminder_minutes: Number(value) });
+                  void commitSettings({
+                    pre_class_reminder_minutes: Number(value),
+                  });
                 }}
                 options={[
                   { value: "5", label: "5 minutes" },
@@ -694,7 +833,8 @@ function NotificationSettings(): React.ReactNode {
       <div className="glass-card border border-red-500/20 p-5">
         <h3 className="text-base font-semibold text-red-400">Danger Zone</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Permanently delete all semesters, subjects, schedules, attendance, exams, tasks, events, files, links, and notes.
+          Permanently delete all semesters, subjects, schedules, attendance,
+          exams, tasks, events, files, links, and notes.
         </p>
         <button
           type="button"
@@ -718,17 +858,30 @@ function NotificationSettings(): React.ReactNode {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ action: "delete-all" }),
             });
-            const result = (await response.json()) as { success: boolean; error?: string; deleted?: { semesters?: number; subjects?: number; tasks?: number; events?: number } };
+            const result = (await response.json()) as {
+              success: boolean;
+              error?: string;
+              deleted?: {
+                semesters?: number;
+                subjects?: number;
+                tasks?: number;
+                events?: number;
+              };
+            };
             if (!response.ok || !result.success) {
               throw new Error(result.error ?? "Failed to delete all data");
             }
             toast.success(
-              `All data deleted (${result.deleted?.semesters ?? 0} semesters, ${result.deleted?.subjects ?? 0} subjects, ${result.deleted?.tasks ?? 0} tasks, ${result.deleted?.events ?? 0} events).`
+              `All data deleted (${result.deleted?.semesters ?? 0} semesters, ${result.deleted?.subjects ?? 0} subjects, ${result.deleted?.tasks ?? 0} tasks, ${result.deleted?.events ?? 0} events).`,
             );
             setIsDeleteAllOpen(false);
             window.location.href = "/";
           } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to delete all data");
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Failed to delete all data",
+            );
           } finally {
             setIsDeletingAll(false);
           }

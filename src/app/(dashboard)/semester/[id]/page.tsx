@@ -1,21 +1,36 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { ArrowLeft, Plus, Edit3, MoreHorizontal, Calendar, Loader2, Trash2, Sparkles } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
-import { addDays, format, parseISO } from "date-fns";
-import { useData } from "@/hooks/use-data";
-import { useThemeStore } from "@/stores/theme-store";
 import { SubjectCard } from "@/components/cards";
-import { CreateSubjectModal, EditSemesterModal, AddExtraClassModal, ConfirmActionModal } from "@/components/modals";
-import { toast } from "sonner";
-import type { Subject } from "@/types/database";
-import { normalizeTimeHM } from "@/lib/utils";
-import { ThemedSelect } from "@/components/ui/ThemedSelect";
-import { ThemedDateInput } from "@/components/ui/ThemedDateTimeInput";
+import {
+  AddExtraClassModal,
+  ConfirmActionModal,
+  CreateSubjectModal,
+  EditSemesterModal,
+} from "@/components/modals";
 import { PersistentNotepad } from "@/components/ui/PersistentNotepad";
+import { ThemedDateInput } from "@/components/ui/ThemedDateTimeInput";
+import { ThemedSelect } from "@/components/ui/ThemedSelect";
+import { useData } from "@/hooks/use-data";
+import { getSemesterDisplayStatus } from "@/lib/semester-status";
+import { normalizeTimeHM } from "@/lib/utils";
+import { useThemeStore } from "@/stores/theme-store";
+import type { Subject } from "@/types/database";
 import { calculateSPI } from "@/utils/grades";
+import { addDays, format, parseISO } from "date-fns";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft,
+  Calendar,
+  Edit3,
+  Loader2,
+  MoreHorizontal,
+  Plus,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 const containerVariants = {
   hidden: {},
@@ -36,12 +51,17 @@ export default function SemesterDetailPage(): React.ReactNode {
   const [isCreateSubjectOpen, setIsCreateSubjectOpen] = useState(false);
   const [isEditSemesterOpen, setIsEditSemesterOpen] = useState(false);
   const [isExtraClassOpen, setIsExtraClassOpen] = useState(false);
-  const [extraClassSubjectId, setExtraClassSubjectId] = useState<string | undefined>();
-  const [deleteSubjectTarget, setDeleteSubjectTarget] = useState<Subject | null>(null);
+  const [extraClassSubjectId, setExtraClassSubjectId] = useState<
+    string | undefined
+  >();
+  const [deleteSubjectTarget, setDeleteSubjectTarget] =
+    useState<Subject | null>(null);
   const [periodName, setPeriodName] = useState("");
   const [periodStartDate, setPeriodStartDate] = useState("");
   const [periodEndDate, setPeriodEndDate] = useState("");
-  const [periodType, setPeriodType] = useState<"holiday" | "exam-time">("holiday");
+  const [periodType, setPeriodType] = useState<"holiday" | "exam-time">(
+    "holiday",
+  );
   const [editingPeriodId, setEditingPeriodId] = useState<string | null>(null);
   const [isNoClassModalOpen, setIsNoClassModalOpen] = useState(false);
 
@@ -61,16 +81,18 @@ export default function SemesterDetailPage(): React.ReactNode {
     deleteHoliday,
     refetch,
     isLoading,
-  } =
-    useData();
+  } = useData();
 
   const semester = getSemesterById(semesterId);
   const subjects = getSubjectsBySemester(semesterId);
   const semesterHolidays = getHolidaysBySemester(semesterId);
   const setAccentColor = useThemeStore((s) => s.setAccentColor);
   const totalCredits = subjects.reduce((sum, s) => sum + s.credits, 0);
-  const subjectsWithGradePoints = subjects.filter((subject) => subject.grade_points !== null && subject.credits > 0);
-  const hasAllSubjectGrades = subjects.length > 0 && subjectsWithGradePoints.length === subjects.length;
+  const subjectsWithGradePoints = subjects.filter(
+    (subject) => subject.grade_points !== null && subject.credits > 0,
+  );
+  const hasAllSubjectGrades =
+    subjects.length > 0 && subjectsWithGradePoints.length === subjects.length;
   const effectiveSemesterSPI = hasAllSubjectGrades
     ? calculateSPI(subjects)
     : semester?.is_quick_input && semester.spi !== null
@@ -80,50 +102,93 @@ export default function SemesterDetailPage(): React.ReactNode {
   const toPeriodDescription = useCallback(
     (kind: "holiday" | "exam-time", note: string): string =>
       `semester:${semesterId}|type:${kind}|note:${encodeURIComponent(note)}`,
-    [semesterId]
+    [semesterId],
   );
 
-  const parsePeriodMeta = useCallback((description: string | null): { kind: "holiday" | "exam-time"; note: string } => {
-    const fallback = { kind: "holiday" as const, note: description ?? "" };
-    if (!description) return fallback;
-    const prefix = `semester:${semesterId}|`;
-    if (!description.startsWith(prefix)) return fallback;
-    const parts = description.slice(prefix.length).split("|");
-    const typePart = parts.find((part) => part.startsWith("type:"));
-    const notePart = parts.find((part) => part.startsWith("note:"));
-    const kind = typePart === "type:exam-time" ? "exam-time" : "holiday";
-    const noteRaw = notePart ? notePart.replace("note:", "") : "";
-    return { kind, note: decodeURIComponent(noteRaw || "") };
-  }, [semesterId]);
+  const parsePeriodMeta = useCallback(
+    (
+      description: string | null,
+    ): { kind: "holiday" | "exam-time"; note: string } => {
+      const fallback = { kind: "holiday" as const, note: description ?? "" };
+      if (!description) return fallback;
+      const prefix = `semester:${semesterId}|`;
+      if (!description.startsWith(prefix)) return fallback;
+      const parts = description.slice(prefix.length).split("|");
+      const typePart = parts.find((part) => part.startsWith("type:"));
+      const notePart = parts.find((part) => part.startsWith("note:"));
+      const kind = typePart === "type:exam-time" ? "exam-time" : "holiday";
+      const noteRaw = notePart ? notePart.replace("note:", "") : "";
+      return { kind, note: decodeURIComponent(noteRaw || "") };
+    },
+    [semesterId],
+  );
 
-  const listDatesInRange = useCallback((startDate: string, endDate: string): string[] => {
-    const start = parseISO(startDate);
-    const end = parseISO(endDate);
-    const dates: string[] = [];
-    let cursor = start;
-    while (cursor <= end) {
-      dates.push(format(cursor, "yyyy-MM-dd"));
-      cursor = addDays(cursor, 1);
-    }
-    return dates;
+  const listDatesInRange = useCallback(
+    (startDate: string, endDate: string): string[] => {
+      const start = parseISO(startDate);
+      const end = parseISO(endDate);
+      const dates: string[] = [];
+      let cursor = start;
+      while (cursor <= end) {
+        dates.push(format(cursor, "yyyy-MM-dd"));
+        cursor = addDays(cursor, 1);
+      }
+      return dates;
+    },
+    [],
+  );
+
+  const holidayTag = useCallback(
+    (holidayId: string): string => `[holiday:${holidayId}]`,
+    [],
+  );
+
+  const isDocumentNotFoundError = useCallback((error: unknown): boolean => {
+    if (!(error instanceof Error)) return false;
+    return (
+      error.message.includes("Document with the requested ID") &&
+      error.message.includes("could not be found")
+    );
   }, []);
 
-  const holidayTag = useCallback((holidayId: string): string => `[holiday:${holidayId}]`, []);
-
-  const removeHolidayCancellations = useCallback(async (holidayId: string): Promise<void> => {
-    const tag = holidayTag(holidayId);
-    const subjectIds = new Set(subjects.map((subject) => subject.$id));
-    const related = classOccurrences.filter(
-      (occurrence) =>
-        subjectIds.has(occurrence.subject_id) &&
-        occurrence.status === "cancelled" &&
-        Boolean(occurrence.cancellation_reason?.includes(tag))
-    );
-    await Promise.all(related.map((occurrence) => deleteClassOccurrence(occurrence.$id)));
-  }, [classOccurrences, deleteClassOccurrence, holidayTag, subjects]);
+  const removeHolidayCancellations = useCallback(
+    async (holidayId: string): Promise<void> => {
+      const tag = holidayTag(holidayId);
+      const subjectIds = new Set(subjects.map((subject) => subject.$id));
+      const related = classOccurrences.filter(
+        (occurrence) =>
+          subjectIds.has(occurrence.subject_id) &&
+          occurrence.status === "cancelled" &&
+          Boolean(occurrence.cancellation_reason?.includes(tag)),
+      );
+      const results = await Promise.allSettled(
+        related.map((occurrence) => deleteClassOccurrence(occurrence.$id)),
+      );
+      const failed = results.find(
+        (result) =>
+          result.status === "rejected" &&
+          !isDocumentNotFoundError(result.reason),
+      );
+      if (failed && failed.status === "rejected") {
+        throw failed.reason;
+      }
+    },
+    [
+      classOccurrences,
+      deleteClassOccurrence,
+      holidayTag,
+      isDocumentNotFoundError,
+      subjects,
+    ],
+  );
 
   const applyHolidayCancellations = useCallback(
-    async (holidayId: string, holidayName: string, startDate: string, endDate: string): Promise<number> => {
+    async (
+      holidayId: string,
+      holidayName: string,
+      startDate: string,
+      endDate: string,
+    ): Promise<number> => {
       const tag = holidayTag(holidayId);
       const reason = `No class: ${holidayName} ${tag}`;
       const dateList = listDatesInRange(startDate, endDate);
@@ -140,7 +205,7 @@ export default function SemesterDetailPage(): React.ReactNode {
             (schedule) =>
               schedule.day_of_week === dayOfWeek &&
               schedule.effective_from <= date &&
-              (!schedule.effective_until || schedule.effective_until >= date)
+              (!schedule.effective_until || schedule.effective_until >= date),
           );
 
           for (const schedule of activeSchedules) {
@@ -148,33 +213,50 @@ export default function SemesterDetailPage(): React.ReactNode {
               (occurrence) =>
                 occurrence.subject_id === subject.$id &&
                 occurrence.date === date &&
-                normalizeTimeHM(occurrence.start_time) === normalizeTimeHM(schedule.start_time) &&
-                normalizeTimeHM(occurrence.end_time) === normalizeTimeHM(schedule.end_time)
+                normalizeTimeHM(occurrence.start_time) ===
+                  normalizeTimeHM(schedule.start_time) &&
+                normalizeTimeHM(occurrence.end_time) ===
+                  normalizeTimeHM(schedule.end_time),
             );
 
+            const updatePayload = {
+              status: "cancelled" as const,
+              cancellation_reason: reason,
+              attendance: null,
+              attendance_marked_at: null,
+              attendance_note: null,
+              rescheduled_to: null,
+            };
+            const createPayload = {
+              subject_id: subject.$id,
+              schedule_id: schedule.$id,
+              date,
+              start_time: schedule.start_time,
+              end_time: schedule.end_time,
+              status: "cancelled" as const,
+              cancellation_reason: reason,
+              rescheduled_to: null,
+              attendance: null,
+              attendance_marked_at: null,
+              attendance_note: null,
+              is_extra_class: false,
+            };
+            if (existing?.status === "cancelled") {
+              affected += 1;
+              continue;
+            }
+
             if (existing) {
-              await updateClassOccurrence(existing.$id, {
-                status: "cancelled",
-                cancellation_reason: reason,
-                attendance: null,
-                attendance_marked_at: null,
-                attendance_note: null,
-              });
+              try {
+                await updateClassOccurrence(existing.$id, updatePayload);
+              } catch (error) {
+                if (!isDocumentNotFoundError(error)) {
+                  throw error;
+                }
+                await addClassOccurrence(createPayload);
+              }
             } else {
-              await addClassOccurrence({
-                subject_id: subject.$id,
-                schedule_id: schedule.$id,
-                date,
-                start_time: schedule.start_time,
-                end_time: schedule.end_time,
-                status: "cancelled",
-                cancellation_reason: reason,
-                rescheduled_to: null,
-                attendance: null,
-                attendance_marked_at: null,
-                attendance_note: null,
-                is_extra_class: false,
-              });
+              await addClassOccurrence(createPayload);
             }
             affected += 1;
           }
@@ -183,7 +265,16 @@ export default function SemesterDetailPage(): React.ReactNode {
 
       return affected;
     },
-    [addClassOccurrence, classOccurrences, getSchedulesBySubject, holidayTag, listDatesInRange, subjects, updateClassOccurrence]
+    [
+      addClassOccurrence,
+      classOccurrences,
+      getSchedulesBySubject,
+      holidayTag,
+      listDatesInRange,
+      subjects,
+      isDocumentNotFoundError,
+      updateClassOccurrence,
+    ],
   );
 
   const resetPeriodForm = useCallback(() => {
@@ -213,18 +304,27 @@ export default function SemesterDetailPage(): React.ReactNode {
       const response = await fetch("/api/data/cascade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete-semester", semesterId: semester.$id }),
+        body: JSON.stringify({
+          action: "delete-semester",
+          semesterId: semester.$id,
+        }),
       });
-      const result = (await response.json()) as { success: boolean; error?: string; deleted?: { subjects?: number; tasks?: number; events?: number } };
+      const result = (await response.json()) as {
+        success: boolean;
+        error?: string;
+        deleted?: { subjects?: number; tasks?: number; events?: number };
+      };
       if (!response.ok || !result.success) {
         throw new Error(result.error ?? "Failed to delete semester");
       }
       toast.success(
-        `Semester deleted (${result.deleted?.subjects ?? 0} subjects, ${result.deleted?.tasks ?? 0} tasks, ${result.deleted?.events ?? 0} events).`
+        `Semester deleted (${result.deleted?.subjects ?? 0} subjects, ${result.deleted?.tasks ?? 0} tasks, ${result.deleted?.events ?? 0} events).`,
       );
       router.push("/");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete semester");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete semester",
+      );
     }
   };
 
@@ -234,19 +334,28 @@ export default function SemesterDetailPage(): React.ReactNode {
       const response = await fetch("/api/data/cascade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete-subject", subjectId: deleteSubjectTarget.$id }),
+        body: JSON.stringify({
+          action: "delete-subject",
+          subjectId: deleteSubjectTarget.$id,
+        }),
       });
-      const result = (await response.json()) as { success: boolean; error?: string; deleted?: { exams?: number; files?: number; schedules?: number } };
+      const result = (await response.json()) as {
+        success: boolean;
+        error?: string;
+        deleted?: { exams?: number; files?: number; schedules?: number };
+      };
       if (!response.ok || !result.success) {
         throw new Error(result.error ?? "Failed to delete subject");
       }
       toast.success(
-        `Subject deleted (${result.deleted?.exams ?? 0} exams, ${result.deleted?.files ?? 0} files, ${result.deleted?.schedules ?? 0} schedules).`
+        `Subject deleted (${result.deleted?.exams ?? 0} exams, ${result.deleted?.files ?? 0} files, ${result.deleted?.schedules ?? 0} schedules).`,
       );
       setDeleteSubjectTarget(null);
       refetch();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete subject");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete subject",
+      );
     }
   };
 
@@ -265,39 +374,72 @@ export default function SemesterDetailPage(): React.ReactNode {
     }
 
     try {
+      const holidayPayload = {
+        name: periodName.trim(),
+        date: periodStartDate,
+        date_end: periodStartDate === periodEndDate ? null : periodEndDate,
+        description: toPeriodDescription(periodType, periodName.trim()),
+      };
+
       if (editingPeriodId) {
         await removeHolidayCancellations(editingPeriodId);
-        await updateHoliday(editingPeriodId, {
-          name: periodName.trim(),
-          date: periodStartDate,
-          date_end: periodStartDate === periodEndDate ? null : periodEndDate,
-          description: toPeriodDescription(periodType, periodName.trim()),
-        });
-        const updatedCount = await applyHolidayCancellations(editingPeriodId, periodName.trim(), periodStartDate, periodEndDate);
-        toast.success(`Updated period. ${updatedCount} classes marked cancelled.`);
+        let targetHolidayId = editingPeriodId;
+        try {
+          await updateHoliday(editingPeriodId, holidayPayload);
+        } catch (error) {
+          if (!isDocumentNotFoundError(error)) {
+            throw error;
+          }
+          const recreated = await addHoliday({
+            ...holidayPayload,
+            deleted_at: null,
+          });
+          targetHolidayId = recreated.$id;
+        }
+        const updatedCount = await applyHolidayCancellations(
+          targetHolidayId,
+          periodName.trim(),
+          periodStartDate,
+          periodEndDate,
+        );
+        toast.success(
+          targetHolidayId === editingPeriodId
+            ? `Updated period. ${updatedCount} classes marked cancelled.`
+            : `Period refreshed. ${updatedCount} classes marked cancelled.`,
+        );
       } else {
         const created = await addHoliday({
-          name: periodName.trim(),
-          date: periodStartDate,
-          date_end: periodStartDate === periodEndDate ? null : periodEndDate,
-          description: toPeriodDescription(periodType, periodName.trim()),
+          ...holidayPayload,
           deleted_at: null,
         });
-        const createdCount = await applyHolidayCancellations(created.$id, periodName.trim(), periodStartDate, periodEndDate);
-        toast.success(`No-class period created. ${createdCount} classes cancelled.`);
+        const createdCount = await applyHolidayCancellations(
+          created.$id,
+          periodName.trim(),
+          periodStartDate,
+          periodEndDate,
+        );
+        toast.success(
+          `No-class period created. ${createdCount} classes cancelled.`,
+        );
       }
 
       await refetch();
       resetPeriodForm();
       return true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save no-class period");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to save no-class period",
+      );
       return false;
     }
   };
 
   const handleEditNoClassPeriod = (holidayId: string): void => {
-    const target = semesterHolidays.find((holiday) => holiday.$id === holidayId);
+    const target = semesterHolidays.find(
+      (holiday) => holiday.$id === holidayId,
+    );
     if (!target) return;
     const meta = parsePeriodMeta(target.description);
     setEditingPeriodId(target.$id);
@@ -308,7 +450,9 @@ export default function SemesterDetailPage(): React.ReactNode {
     setIsNoClassModalOpen(true);
   };
 
-  const handleDeleteNoClassPeriod = async (holidayId: string): Promise<void> => {
+  const handleDeleteNoClassPeriod = async (
+    holidayId: string,
+  ): Promise<void> => {
     try {
       await removeHolidayCancellations(holidayId);
       await deleteHoliday(holidayId);
@@ -318,7 +462,11 @@ export default function SemesterDetailPage(): React.ReactNode {
       }
       toast.success("No-class period deleted");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete no-class period");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete no-class period",
+      );
     }
   };
 
@@ -329,44 +477,52 @@ export default function SemesterDetailPage(): React.ReactNode {
   }, []);
 
   // Handle mark all present today
-  const handleMarkAllPresent = useCallback(async (subject: Subject) => {
-    const today = format(new Date(), "yyyy-MM-dd");
-    const dayOfWeek = new Date().getDay() === 0 ? 7 : new Date().getDay(); // ISO day (1=Mon, 7=Sun)
-    
-    // Get today's schedules for this subject
-    const todaySchedules = classSchedules.filter(
-      (s) => s.subject_id === subject.$id && s.day_of_week === dayOfWeek && !s.deleted_at
-    );
+  const handleMarkAllPresent = useCallback(
+    async (subject: Subject) => {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const dayOfWeek = new Date().getDay() === 0 ? 7 : new Date().getDay(); // ISO day (1=Mon, 7=Sun)
 
-    if (todaySchedules.length === 0) {
-      toast.info("No classes scheduled today for this subject");
-      return;
-    }
+      // Get today's schedules for this subject
+      const todaySchedules = classSchedules.filter(
+        (s) =>
+          s.subject_id === subject.$id &&
+          s.day_of_week === dayOfWeek &&
+          !s.deleted_at,
+      );
 
-    try {
-      // Create occurrence records marked as present
-      for (const schedule of todaySchedules) {
-        await addClassOccurrence({
-          subject_id: subject.$id,
-          schedule_id: schedule.$id,
-          date: today,
-          start_time: schedule.start_time,
-          end_time: schedule.end_time,
-          attendance: "present",
-          status: "completed",
-          is_extra_class: false,
-          cancellation_reason: null,
-          rescheduled_to: null,
-          attendance_marked_at: new Date().toISOString(),
-          attendance_note: null,
-        });
+      if (todaySchedules.length === 0) {
+        toast.info("No classes scheduled today for this subject");
+        return;
       }
-      toast.success(`Marked ${todaySchedules.length} class${todaySchedules.length > 1 ? 'es' : ''} as present`);
-    } catch (error) {
-      console.error("Failed to mark attendance:", error);
-      toast.error("Failed to mark attendance");
-    }
-  }, [classSchedules, addClassOccurrence]);
+
+      try {
+        // Create occurrence records marked as present
+        for (const schedule of todaySchedules) {
+          await addClassOccurrence({
+            subject_id: subject.$id,
+            schedule_id: schedule.$id,
+            date: today,
+            start_time: schedule.start_time,
+            end_time: schedule.end_time,
+            attendance: "present",
+            status: "completed",
+            is_extra_class: false,
+            cancellation_reason: null,
+            rescheduled_to: null,
+            attendance_marked_at: new Date().toISOString(),
+            attendance_note: null,
+          });
+        }
+        toast.success(
+          `Marked ${todaySchedules.length} class${todaySchedules.length > 1 ? "es" : ""} as present`,
+        );
+      } catch (error) {
+        console.error("Failed to mark attendance:", error);
+        toast.error("Failed to mark attendance");
+      }
+    },
+    [classSchedules, addClassOccurrence],
+  );
 
   // Show loading state
   if (isLoading) {
@@ -384,10 +540,12 @@ export default function SemesterDetailPage(): React.ReactNode {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <h2 className="text-lg font-medium text-foreground mb-2">Semester not found</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              This semester may have been deleted or doesn&apos;t exist.
-            </p>
+          <h2 className="text-lg font-medium text-foreground mb-2">
+            Semester not found
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            This semester may have been deleted or doesn&apos;t exist.
+          </p>
           <button
             onClick={() => router.push("/")}
             className="px-4 py-2 rounded-xl bg-[rgba(var(--accent-rgb),0.2)] text-[rgb(var(--accent))] font-medium"
@@ -410,6 +568,7 @@ export default function SemesterDetailPage(): React.ReactNode {
   const accentRgb = hexToRgbComma(semester.color);
   const startDate = new Date(semester.start_date);
   const endDate = new Date(semester.end_date);
+  const semesterDisplayStatus = getSemesterDisplayStatus(semester, subjects);
 
   return (
     <motion.main
@@ -454,7 +613,7 @@ export default function SemesterDetailPage(): React.ReactNode {
                     color: semester.color,
                   }}
                 >
-                  {semester.status}
+                  {semesterDisplayStatus}
                 </span>
               </motion.div>
 
@@ -466,11 +625,12 @@ export default function SemesterDetailPage(): React.ReactNode {
               >
                 <span className="flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5" />
-                  {format(startDate, "MMM d")} – {format(endDate, "MMM d, yyyy")}
+                  {format(startDate, "MMM d")} –{" "}
+                  {format(endDate, "MMM d, yyyy")}
                 </span>
                 {effectiveSemesterSPI !== null && (
                   <span className="flex items-center gap-1.5">
-                    SPI: {effectiveSemesterSPI.toFixed(2)}
+                    SPI: {effectiveSemesterSPI.toFixed(3)}
                   </span>
                 )}
               </motion.div>
@@ -526,7 +686,10 @@ export default function SemesterDetailPage(): React.ReactNode {
                   key={subject.$id}
                   subject={subject}
                   semesterId={semesterId}
-                  stats={getAttendanceStats(subject.$id, subject.attendance_requirement_percent ?? 75)}
+                  stats={getAttendanceStats(
+                    subject.$id,
+                    subject.attendance_requirement_percent ?? 75,
+                  )}
                   onAddExtraClass={handleAddExtraClass}
                   onMarkAllPresent={handleMarkAllPresent}
                   onDelete={(target) => setDeleteSubjectTarget(target)}
@@ -550,7 +713,8 @@ export default function SemesterDetailPage(): React.ReactNode {
                 No subjects yet
               </h3>
               <p className="text-sm text-muted-foreground max-w-sm mb-6">
-                Add your first subject to start tracking attendance, exams, and grades.
+                Add your first subject to start tracking attendance, exams, and
+                grades.
               </p>
               <button
                 onClick={() => setIsCreateSubjectOpen(true)}
@@ -578,9 +742,12 @@ export default function SemesterDetailPage(): React.ReactNode {
         >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">No-Class Periods</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                No-Class Periods
+              </h2>
               <p className="text-sm text-muted-foreground">
-                Add holidays and exam-time ranges. Classes in these dates are automatically cancelled.
+                Add holidays and exam-time ranges. Classes in these dates are
+                automatically cancelled.
               </p>
             </div>
             <button
@@ -597,17 +764,23 @@ export default function SemesterDetailPage(): React.ReactNode {
           </div>
 
           {semesterHolidays.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No no-class periods added yet.</p>
+            <p className="text-sm text-muted-foreground">
+              No no-class periods added yet.
+            </p>
           ) : (
             <div className="space-y-2">
               {semesterHolidays.map((holiday) => {
                 const meta = parsePeriodMeta(holiday.description);
                 return (
-                  <div key={holiday.$id} className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/3">
+                  <div
+                    key={holiday.$id}
+                    className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/3"
+                  >
                     <div>
                       <p className="text-sm text-foreground">{holiday.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {meta.kind === "exam-time" ? "Exam Time" : "Holiday"} • {holiday.date}
+                        {meta.kind === "exam-time" ? "Exam Time" : "Holiday"} •{" "}
+                        {holiday.date}
                         {holiday.date_end ? ` to ${holiday.date_end}` : ""}
                       </p>
                     </div>
@@ -621,7 +794,9 @@ export default function SemesterDetailPage(): React.ReactNode {
                       </button>
                       <button
                         type="button"
-                        onClick={() => void handleDeleteNoClassPeriod(holiday.$id)}
+                        onClick={() =>
+                          void handleDeleteNoClassPeriod(holiday.$id)
+                        }
                         className="px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-xs text-red-400 transition-colors"
                       >
                         <span className="inline-flex items-center gap-1">
@@ -636,7 +811,6 @@ export default function SemesterDetailPage(): React.ReactNode {
             </div>
           )}
         </motion.div>
-
       </div>
 
       {/* Create Subject Modal */}
@@ -647,7 +821,7 @@ export default function SemesterDetailPage(): React.ReactNode {
         semesterColor={semester.color}
         semesterStartDate={semester.start_date}
         semesterEndDate={semester.end_date}
-        semesterStatus={semester.status}
+        semesterStatus={semesterDisplayStatus}
       />
 
       {/* Edit Semester Modal */}
@@ -655,6 +829,7 @@ export default function SemesterDetailPage(): React.ReactNode {
         isOpen={isEditSemesterOpen}
         onClose={() => setIsEditSemesterOpen(false)}
         semester={semester}
+        displayStatus={semesterDisplayStatus}
         onDelete={handleDeleteSemester}
       />
 
@@ -698,7 +873,9 @@ export default function SemesterDetailPage(): React.ReactNode {
             className="relative z-10 w-full max-w-xl rounded-3xl border border-white/12 bg-[var(--glass-bg-elevated)] p-6 backdrop-blur-2xl"
           >
             <h3 className="text-lg font-semibold text-foreground mb-1">
-              {editingPeriodId ? "Edit No-Class Period" : "Create No-Class Period"}
+              {editingPeriodId
+                ? "Edit No-Class Period"
+                : "Create No-Class Period"}
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
               Classes in this date range will be cancelled automatically.
@@ -707,7 +884,9 @@ export default function SemesterDetailPage(): React.ReactNode {
             <div className="space-y-3">
               <ThemedSelect
                 value={periodType}
-                onChange={(value) => setPeriodType(value as "holiday" | "exam-time")}
+                onChange={(value) =>
+                  setPeriodType(value as "holiday" | "exam-time")
+                }
                 options={[
                   { value: "holiday", label: "Holiday" },
                   { value: "exam-time", label: "Exam Time" },
@@ -716,17 +895,29 @@ export default function SemesterDetailPage(): React.ReactNode {
               <input
                 value={periodName}
                 onChange={(event) => setPeriodName(event.target.value)}
-                placeholder={periodType === "exam-time" ? "Exam Preparation Week" : "Holiday name"}
+                placeholder={
+                  periodType === "exam-time"
+                    ? "Exam Preparation Week"
+                    : "Holiday name"
+                }
                 className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)]"
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <p className="mb-1 text-xs text-muted-foreground">Start date</p>
-                  <ThemedDateInput value={periodStartDate} onChange={setPeriodStartDate} />
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    Start date
+                  </p>
+                  <ThemedDateInput
+                    value={periodStartDate}
+                    onChange={setPeriodStartDate}
+                  />
                 </div>
                 <div>
                   <p className="mb-1 text-xs text-muted-foreground">End date</p>
-                  <ThemedDateInput value={periodEndDate} onChange={setPeriodEndDate} />
+                  <ThemedDateInput
+                    value={periodEndDate}
+                    onChange={setPeriodEndDate}
+                  />
                 </div>
               </div>
             </div>
@@ -758,7 +949,6 @@ export default function SemesterDetailPage(): React.ReactNode {
           </motion.div>
         </div>
       ) : null}
-
     </motion.main>
   );
 }

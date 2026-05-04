@@ -3,43 +3,42 @@
  * These hooks replace the mock data store with real Appwrite queries
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Query } from "appwrite";
 import {
-  semesterService,
-  subjectService,
-  slotService,
-  classScheduleService,
   classOccurrenceService,
-  examService,
-  taskService,
+  classScheduleService,
   eventService,
+  examService,
   fileService,
-  resourceLinkService,
-  noteService,
-  settingsService,
   holidayService,
+  noteService,
+  resourceLinkService,
+  semesterService,
+  settingsService,
+  slotService,
+  subjectService,
+  taskService,
 } from "@/lib/appwrite-db";
 import type {
-  Semester,
-  Subject,
-  Slot,
-  ClassSchedule,
-  ClassOccurrence,
-  Exam,
-  Task,
-  Event,
   ClasseyFile,
-  ResourceLink,
-  Note,
-  Settings,
+  ClassOccurrence,
+  ClassSchedule,
+  Event,
+  Exam,
   Holiday,
+  Note,
+  ResourceLink,
+  Semester,
+  Settings,
+  Subject,
+  Task,
 } from "@/types/database";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Query } from "appwrite";
 
 async function syncReminderJobs(
   action: "sync-entity" | "clear-entity",
   entityType: "exam" | "task",
-  entityId: string
+  entityId: string,
 ): Promise<void> {
   try {
     const response = await fetch("/api/telegram/scheduler", {
@@ -74,9 +73,11 @@ export const queryKeys = {
   semester: (id: string) => ["semesters", id] as const,
   subjects: (semesterId?: string) => ["subjects", semesterId] as const,
   subject: (id: string) => ["subjects", "detail", id] as const,
-  classSchedules: (subjectId?: string) => ["classSchedules", subjectId] as const,
+  classSchedules: (subjectId?: string) =>
+    ["classSchedules", subjectId] as const,
   slots: () => ["slots"] as const,
-  classOccurrences: (subjectId?: string) => ["classOccurrences", subjectId] as const,
+  classOccurrences: (subjectId?: string) =>
+    ["classOccurrences", subjectId] as const,
   exams: (subjectId?: string) => ["exams", subjectId] as const,
   tasks: () => ["tasks"] as const,
   events: () => ["events"] as const,
@@ -116,8 +117,17 @@ export function useOngoingSemester() {
 export function useCreateSemester() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<Semester, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
-      semesterService.create(data),
+    mutationFn: (
+      data: Omit<
+        Semester,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => semesterService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.semesters });
     },
@@ -171,10 +181,22 @@ export function useSubject(id: string) {
 export function useCreateSubject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<Subject, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
-      subjectService.create(data),
+    mutationFn: (
+      data: Omit<
+        Subject,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => subjectService.create(data),
     onSuccess: (subject) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.subjects(subject.semester_id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.subjects(subject.semester_id),
+      });
+      queryClient.invalidateQueries({ queryKey: ["subjects"] });
     },
   });
 }
@@ -185,7 +207,10 @@ export function useUpdateSubject() {
     mutationFn: ({ id, data }: { id: string; data: Partial<Subject> }) =>
       subjectService.update(id, data),
     onSuccess: (subject, { id }) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.subjects(subject.semester_id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.subjects(subject.semester_id),
+      });
+      queryClient.invalidateQueries({ queryKey: ["subjects"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.subject(id) });
     },
   });
@@ -232,10 +257,21 @@ export function useSlots() {
 export function useCreateClassSchedule() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<ClassSchedule, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
-      classScheduleService.create(data),
+    mutationFn: (
+      data: Omit<
+        ClassSchedule,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => classScheduleService.create(data),
     onSuccess: (schedule) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.classSchedules(schedule.subject_id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.classSchedules(schedule.subject_id),
+      });
       queryClient.invalidateQueries({ queryKey: ["classSchedules"] });
     },
   });
@@ -247,7 +283,9 @@ export function useUpdateClassSchedule() {
     mutationFn: ({ id, data }: { id: string; data: Partial<ClassSchedule> }) =>
       classScheduleService.update(id, data),
     onSuccess: (schedule) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.classSchedules(schedule.subject_id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.classSchedules(schedule.subject_id),
+      });
       queryClient.invalidateQueries({ queryKey: ["classSchedules"] });
     },
   });
@@ -280,10 +318,21 @@ export function useClassOccurrences(subjectId?: string) {
 export function useCreateClassOccurrence() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<ClassOccurrence, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
-      classOccurrenceService.create(data),
+    mutationFn: (
+      data: Omit<
+        ClassOccurrence,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => classOccurrenceService.create(data),
     onSuccess: (occurrence) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.classOccurrences(occurrence.subject_id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.classOccurrences(occurrence.subject_id),
+      });
       queryClient.invalidateQueries({ queryKey: ["classOccurrences"] });
       queryClient.invalidateQueries({ queryKey: ["classSchedules"] });
       queryClient.invalidateQueries({ queryKey: ["subjects"] });
@@ -295,8 +344,13 @@ export function useCreateClassOccurrence() {
 export function useUpdateClassOccurrence() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<ClassOccurrence> }) =>
-      classOccurrenceService.update(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<ClassOccurrence>;
+    }) => classOccurrenceService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["classOccurrences"] });
       queryClient.invalidateQueries({ queryKey: ["classSchedules"] });
@@ -362,10 +416,22 @@ export function useUpcomingExams(days: number = 7) {
 export function useCreateExam() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<Exam, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
-      examService.create(data),
+    mutationFn: (
+      data: Omit<
+        Exam,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => examService.create(data),
     onSuccess: (exam) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.exams(exam.subject_id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.exams(exam.subject_id),
+      });
+      queryClient.invalidateQueries({ queryKey: ["exams"] });
       queryClient.invalidateQueries({ queryKey: ["exams", "upcoming"] });
       void syncReminderJobs("sync-entity", "exam", exam.$id);
     },
@@ -416,8 +482,17 @@ export function usePendingTasks() {
 export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<Task, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
-      taskService.create(data),
+    mutationFn: (
+      data: Omit<
+        Task,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => taskService.create(data),
     onSuccess: (task) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks() });
       void syncReminderJobs("sync-entity", "task", task.$id);
@@ -444,7 +519,11 @@ export function useToggleTaskComplete() {
       taskService.toggleComplete(id, isCompleted),
     onSuccess: (_, { id, isCompleted }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks() });
-      void syncReminderJobs(isCompleted ? "clear-entity" : "sync-entity", "task", id);
+      void syncReminderJobs(
+        isCompleted ? "clear-entity" : "sync-entity",
+        "task",
+        id,
+      );
     },
   });
 }
@@ -474,8 +553,17 @@ export function useEvents() {
 export function useCreateEvent() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<Event, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
-      eventService.create(data),
+    mutationFn: (
+      data: Omit<
+        Event,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => eventService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.events() });
     },
@@ -518,10 +606,22 @@ export function useFiles(subjectId?: string) {
 export function useCreateFile() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<ClasseyFile, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
-      fileService.create(data),
+    mutationFn: (
+      data: Omit<
+        ClasseyFile,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => fileService.create(data),
     onSuccess: (file) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.files(file.subject_id ?? undefined) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.files(file.subject_id ?? undefined),
+      });
+      queryClient.invalidateQueries({ queryKey: ["files"] });
     },
   });
 }
@@ -553,10 +653,22 @@ export function useResourceLinks(subjectId?: string) {
 export function useCreateResourceLink() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<ResourceLink, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
-      resourceLinkService.create(data),
+    mutationFn: (
+      data: Omit<
+        ResourceLink,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => resourceLinkService.create(data),
     onSuccess: (link) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.resourceLinks(link.subject_id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.resourceLinks(link.subject_id),
+      });
+      queryClient.invalidateQueries({ queryKey: ["resourceLinks"] });
     },
   });
 }
@@ -586,10 +698,22 @@ export function useNotes(subjectId?: string) {
 export function useCreateNote() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<Note, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
-      noteService.create(data),
+    mutationFn: (
+      data: Omit<
+        Note,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => noteService.create(data),
     onSuccess: (note) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes(note.subject_id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.notes(note.subject_id),
+      });
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
     },
   });
 }
@@ -621,7 +745,12 @@ export function useDeleteNote() {
 
 function createDefaultSettingsInput(): Omit<
   Settings,
-  "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions"
+  | "$id"
+  | "$createdAt"
+  | "$updatedAt"
+  | "$collectionId"
+  | "$databaseId"
+  | "$permissions"
 > {
   return {
     user_id: "default-user",
@@ -665,7 +794,9 @@ function createDefaultSettingsInput(): Omit<
   };
 }
 
-function toSettingsCreatePayload(settings: ReturnType<typeof createDefaultSettingsInput>): Record<string, unknown> {
+function toSettingsCreatePayload(
+  settings: ReturnType<typeof createDefaultSettingsInput>,
+): Record<string, unknown> {
   return {
     user_id: settings.user_id,
     theme_mode: settings.theme_mode,
@@ -694,15 +825,19 @@ function toSettingsCreatePayload(settings: ReturnType<typeof createDefaultSettin
     telegram_notify_tasks: settings.telegram_notify_tasks,
     telegram_notify_classes: settings.telegram_notify_classes,
     pre_class_reminder_minutes: settings.pre_class_reminder_minutes,
-    exam_default_reminder_offsets_json: settings.exam_default_reminder_offsets_json,
-    task_default_reminder_offsets_json: settings.task_default_reminder_offsets_json,
+    exam_default_reminder_offsets_json:
+      settings.exam_default_reminder_offsets_json,
+    task_default_reminder_offsets_json:
+      settings.task_default_reminder_offsets_json,
     ai_requests_today: settings.ai_requests_today,
     ai_requests_reset_date: settings.ai_requests_reset_date,
     last_opened_path: settings.last_opened_path,
   };
 }
 
-function toSettingsUpdatePayload(data: Partial<Settings>): Record<string, unknown> {
+function toSettingsUpdatePayload(
+  data: Partial<Settings>,
+): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
   const allowedKeys: Array<keyof Settings> = [
     "theme_mode",
@@ -767,7 +902,7 @@ function extractUnknownAttribute(message: string): string | null {
 
 async function createSettingsWithAdaptivePayload(
   payload: Record<string, unknown>,
-  defaults: Record<string, unknown>
+  defaults: Record<string, unknown>,
 ) {
   const workingPayload: Record<string, unknown> = { ...payload };
 
@@ -777,7 +912,11 @@ async function createSettingsWithAdaptivePayload(
     } catch (error) {
       const message = getErrorMessage(error);
       const missingKey = extractMissingRequiredAttribute(message);
-      if (missingKey && workingPayload[missingKey] === undefined && missingKey in defaults) {
+      if (
+        missingKey &&
+        workingPayload[missingKey] === undefined &&
+        missingKey in defaults
+      ) {
         workingPayload[missingKey] = defaults[missingKey];
         continue;
       }
@@ -795,8 +934,18 @@ async function createSettingsWithAdaptivePayload(
   return settingsService.create(workingPayload);
 }
 
-async function updateSettingsWithAdaptivePayload(id: string, payload: Record<string, unknown>) {
+async function updateSettingsWithAdaptivePayload(
+  id: string,
+  payload: Record<string, unknown>,
+) {
   const workingPayload: Record<string, unknown> = { ...payload };
+  if (Object.keys(workingPayload).length === 0) {
+    const current = await settingsService.getFirst();
+    if (!current) {
+      throw new Error("Settings document not found.");
+    }
+    return current;
+  }
 
   for (let attempt = 0; attempt < 8; attempt++) {
     try {
@@ -806,6 +955,13 @@ async function updateSettingsWithAdaptivePayload(id: string, payload: Record<str
       const unknownKey = extractUnknownAttribute(message);
       if (unknownKey && unknownKey in workingPayload) {
         delete workingPayload[unknownKey];
+        if (Object.keys(workingPayload).length === 0) {
+          const current = await settingsService.getFirst();
+          if (!current) {
+            throw new Error("Settings document not found.");
+          }
+          return current;
+        }
         continue;
       }
       throw error;
@@ -823,7 +979,10 @@ export function useSettings() {
       if (existing) return existing;
       const defaults = createDefaultSettingsInput();
       const payload = toSettingsCreatePayload(defaults);
-      return createSettingsWithAdaptivePayload(payload, defaults as Record<string, unknown>);
+      return createSettingsWithAdaptivePayload(
+        payload,
+        defaults as Record<string, unknown>,
+      );
     },
   });
 }
@@ -839,7 +998,10 @@ export function useUpdateSettings() {
           ...data,
         } as ReturnType<typeof createDefaultSettingsInput>;
         const payload = toSettingsCreatePayload(defaults);
-        return createSettingsWithAdaptivePayload(payload, defaults as Record<string, unknown>);
+        return createSettingsWithAdaptivePayload(
+          payload,
+          defaults as Record<string, unknown>,
+        );
       }
       const payload = toSettingsUpdatePayload(data);
       return updateSettingsWithAdaptivePayload(current.$id, payload);
@@ -864,8 +1026,17 @@ export function useHolidays(semesterId?: string) {
 export function useCreateHoliday() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<Holiday, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
-      holidayService.create(data),
+    mutationFn: (
+      data: Omit<
+        Holiday,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+      >,
+    ) => holidayService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["holidays"] });
       queryClient.invalidateQueries({ queryKey: ["classOccurrences"] });
