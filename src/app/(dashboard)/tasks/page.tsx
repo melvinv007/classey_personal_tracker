@@ -47,12 +47,12 @@ export default function TasksPage(): React.ReactNode {
     toggleTaskComplete,
     deleteTask,
     activeSemesters,
-    ongoingSemester,
+    activeSemester,
     isLoading,
   } = useData();
 
-  const activeSemesterFilterId = ongoingSemester?.$id ?? null;
-  const modalSemester = ongoingSemester ?? activeSemesters[0] ?? null;
+  const activeSemesterFilterId = activeSemester?.$id ?? null;
+  const modalSemester = activeSemester ?? activeSemesters[0] ?? null;
   const tasks = allTasks.filter(
     (t) =>
       !t.deleted_at &&

@@ -1,396 +1,329 @@
 "use client";
 
+import { TimeGridView } from "@/components/calendar/TimeGridView";
+import type { CalendarGridEvent } from "@/components/calendar/types";
+import { CreateEventModal } from "@/components/modals/CreateEventModal";
+import {
+  useTimetableColumnWidthSetting,
+  useTimetableHourRowHeightSetting,
+  useTimetableWeekendSetting,
+} from "@/hooks/use-timetable-weekend-setting";
 import { useData } from "@/hooks/use-data";
-import { useTimetableWeekendSetting } from "@/hooks/use-timetable-weekend-setting";
-import { cn, DAY_SHORT_NAMES, normalizeTimeHM } from "@/lib/utils";
-import { motion } from "framer-motion";
-import { ArrowLeft, Loader2, MapPin } from "lucide-react";
+import { cn, normalizeTimeHM } from "@/lib/utils";
+import {
+  addDays,
+  addMinutes,
+  format,
+  startOfWeek,
+  subDays,
+} from "date-fns";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronLeft, ChevronRight, ExternalLink, Loader2, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 
-const GRID_START = "00:00";
-const GRID_END = "23:55";
-const HOUR_ROW_HEIGHT = 72;
-const TIME_SLOTS = Array.from(
-  { length: 24 },
-  (_, hour) => `${String(hour).padStart(2, "0")}:00`,
-);
-
-const ALL_DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
-const WEEKDAY_DAYS = [1, 2, 3, 4, 5] as const;
-
-interface TimetableEvent {
-  id: string;
-  subjectId: string;
-  semesterId: string;
-  subjectName: string;
-  shortName: string;
-  color: string;
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-  room: string | null;
-  slotId: string | null;
+interface EventModalDefaults {
+  title?: string;
+  description?: string;
+  location?: string;
+  start_date?: string;
+  start_time?: string;
+  end_date?: string;
+  end_time?: string;
+  is_all_day?: boolean;
+  recurrence?: "none" | "daily" | "weekly" | "monthly";
+  color?: string;
 }
 
-/**
- * Convert time string "HH:MM" to minutes since midnight
- */
-function timeToMinutes(time: string): number {
-  const normalized = normalizeTimeHM(time);
-  const [hours, minutes] = normalized.split(":").map(Number);
-  return hours * 60 + minutes;
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
-/**
- * Calculate position and height for a timetable event
- */
-function getEventStyle(
-  startTime: string,
-  endTime: string,
-): React.CSSProperties {
-  const startMinutes = timeToMinutes(startTime);
-  const endMinutes = timeToMinutes(endTime);
-  const gridStartMinutes = timeToMinutes(GRID_START);
-  const gridEndMinutes = timeToMinutes(GRID_END);
-  const totalMinutes = gridEndMinutes - gridStartMinutes;
-
-  const top = ((startMinutes - gridStartMinutes) / totalMinutes) * 100;
-  const height = ((endMinutes - startMinutes) / totalMinutes) * 100;
-
-  return {
-    top: `${top}%`,
-    height: `${height}%`,
-  };
-}
-
-/**
- * Format time for display (24h to readable)
- */
-function formatTime(time: string): string {
-  return normalizeTimeHM(time);
-}
-
-const containerVariants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.03 } },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 10 },
-  visible: { opacity: 1, y: 0 },
-};
-
-export default function TimetablePage() {
-  const {
-    classSchedules,
-    subjects,
-    getSubjectById,
-    ongoingSemester,
-    isLoading,
-  } = useData();
-  const verticalScrollRef = useRef<HTMLDivElement>(null);
-  const horizontalScrollRef = useRef<HTMLDivElement>(null);
-  const activeSemesterFilterId = ongoingSemester?.$id ?? null;
-  const currentDay = useMemo(() => {
-    const today = new Date().getDay();
-    return today === 0 ? 7 : today;
-  }, []);
-  const showWeekends = useTimetableWeekendSetting();
-  const visibleDays: readonly number[] = showWeekends ? ALL_DAYS : WEEKDAY_DAYS;
-  const focusedDay = visibleDays.includes(currentDay)
-    ? currentDay
-    : visibleDays[visibleDays.length - 1];
-
-  useEffect(() => {
-    const container = verticalScrollRef.current;
-    if (!container) return;
-    const now = new Date();
-    const minutes = now.getHours() * 60 + now.getMinutes();
-    const total = timeToMinutes(GRID_END) - timeToMinutes(GRID_START);
-    const ratio = Math.max(
-      0,
-      Math.min(1, (minutes - timeToMinutes(GRID_START)) / total),
-    );
-    const target = ratio * (TIME_SLOTS.length * HOUR_ROW_HEIGHT);
-    container.scrollTop = Math.max(0, target - container.clientHeight * 0.35);
-  }, []);
-
-  // Build timetable events from schedules
-  const events: TimetableEvent[] = classSchedules
-    .filter((schedule) => {
-      if (!activeSemesterFilterId) return false;
-      if (schedule.deleted_at) return false;
-      const subject = getSubjectById(schedule.subject_id);
-      if (!subject || subject.deleted_at) return false;
-      if (subject.semester_id !== activeSemesterFilterId) return false;
-      return true;
-    })
-    .map((schedule) => {
-      const subject = getSubjectById(schedule.subject_id)!;
-      return {
-        id: schedule.$id,
-        subjectId: subject.$id,
-        semesterId: subject.semester_id,
-        subjectName: subject.name,
-        shortName: subject.short_name,
-        color: subject.color,
-        dayOfWeek: schedule.day_of_week,
-        startTime: normalizeTimeHM(schedule.start_time),
-        endTime: normalizeTimeHM(schedule.end_time),
-        room: schedule.room,
-        slotId: schedule.slot_id,
-      };
-    });
-
-  // Group events by day
-  const eventsByDay = visibleDays.reduce(
-    (acc, day) => {
-      acc[day] = events.filter((e) => e.dayOfWeek === day);
-      return acc;
-    },
-    {} as Record<number, TimetableEvent[]>,
+export default function TimetablePage(): React.ReactNode {
+  const router = useRouter();
+  const [focusDate, setFocusDate] = useState(() => new Date());
+  const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
+  const [eventDefaults, setEventDefaults] = useState<EventModalDefaults | undefined>(
+    undefined,
   );
+  const [selectedEvent, setSelectedEvent] = useState<{
+    event: CalendarGridEvent;
+    anchorRect: DOMRect;
+  } | null>(null);
 
-  useEffect(() => {
-    const container = horizontalScrollRef.current;
-    if (!container) return;
-    const dayWidth = Math.max(
-      0,
-      (container.scrollWidth - 60) / visibleDays.length,
-    );
-    const dayIndex = Math.max(0, visibleDays.indexOf(focusedDay));
-    const targetLeft = Math.max(
-      0,
-      60 + dayIndex * dayWidth - container.clientWidth / 2 + dayWidth / 2,
-    );
-    container.scrollLeft = targetLeft;
-  }, [focusedDay, visibleDays]);
+  const showWeekends = useTimetableWeekendSetting();
+  const hourRowHeight = useTimetableHourRowHeightSetting();
+  const columnMinWidth = useTimetableColumnWidthSetting();
+
+  const { classSchedules, subjects, getSubjectById, activeSemester, isLoading } =
+    useData();
+  const activeSemesterId = activeSemester?.$id ?? null;
+
+  const visibleDays = useMemo(() => {
+    const weekStart = startOfWeek(focusDate, { weekStartsOn: 1 });
+    const length = showWeekends ? 7 : 5;
+    return Array.from({ length }, (_, index) => addDays(weekStart, index));
+  }, [focusDate, showWeekends]);
+
+  const timetableEvents = useMemo<CalendarGridEvent[]>(() => {
+    if (!activeSemesterId) return [];
+
+    return classSchedules
+      .filter((schedule) => {
+        if (schedule.deleted_at) return false;
+        const subject = getSubjectById(schedule.subject_id);
+        if (!subject || subject.deleted_at) return false;
+        return subject.semester_id === activeSemesterId;
+      })
+      .flatMap((schedule) => {
+        const subject = getSubjectById(schedule.subject_id);
+        if (!subject) return [];
+
+        return visibleDays
+          .filter((day) => {
+            const dayOfWeek = day.getDay() === 0 ? 7 : day.getDay();
+            return dayOfWeek === schedule.day_of_week;
+          })
+          .map((day) => ({
+            id: `${schedule.$id}-${format(day, "yyyy-MM-dd")}`,
+            type: "class" as const,
+            title: subject.short_name,
+            start: new Date(`${format(day, "yyyy-MM-dd")}T${normalizeTimeHM(schedule.start_time)}:00`),
+            end: new Date(`${format(day, "yyyy-MM-dd")}T${normalizeTimeHM(schedule.end_time)}:00`),
+            color: subject.color,
+            location: schedule.room ?? null,
+            subjectId: subject.$id,
+            semesterId: subject.semester_id,
+          }));
+      });
+  }, [activeSemesterId, classSchedules, getSubjectById, visibleDays]);
+
+  const openCreateEventAt = (dateTime: Date) => {
+    const startDate = format(dateTime, "yyyy-MM-dd");
+    const startTime = format(dateTime, "HH:mm");
+    const endDateTime = addMinutes(dateTime, 60);
+    setEventDefaults({
+      start_date: startDate,
+      start_time: startTime,
+      end_date: format(endDateTime, "yyyy-MM-dd"),
+      end_time: format(endDateTime, "HH:mm"),
+      recurrence: "none",
+      is_all_day: false,
+    });
+    setIsCreateEventOpen(true);
+  };
+
+  const focusToday = () => {
+    setFocusDate(new Date());
+  };
+
+  const navigatePrevWeek = () => {
+    setFocusDate((prev) => subDays(prev, 7));
+  };
+
+  const navigateNextWeek = () => {
+    setFocusDate((prev) => addDays(prev, 7));
+  };
+
+  const openEventDetail = (event: CalendarGridEvent, anchorRect: DOMRect) => {
+    setSelectedEvent({ event, anchorRect });
+  };
+
+  const popoverStyle =
+    selectedEvent && typeof window !== "undefined"
+      ? {
+          top: clamp(
+            selectedEvent.anchorRect.bottom + 8,
+            72,
+            window.innerHeight - 250,
+          ),
+          left: clamp(
+            selectedEvent.anchorRect.left,
+            16,
+            window.innerWidth - 340,
+          ),
+        }
+      : undefined;
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[rgb(var(--accent))]" />
+        <Loader2 className="h-8 w-8 animate-spin text-[rgb(var(--accent))]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen pb-24">
-      {/* Header */}
-      <motion.header
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-30 border-b border-[var(--glass-border-elevated)] backdrop-blur-[var(--glass-blur-elevated)]"
-        style={{ background: "var(--glass-bg-elevated)" }}
-      >
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/"
-              className="p-2 rounded-xl btn-muted-themed interactive-focus"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div>
-              <h1 className="text-xl font-bold">Weekly Timetable</h1>
-              <p className="text-sm text-white/50">
-                {ongoingSemester?.name ?? "No active semester"}
-              </p>
+    <div className="min-h-screen pb-24 px-4 py-4 md:px-6">
+      <header className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <h1 className="text-xl font-bold">Weekly Timetable</h1>
+            <p className="text-sm text-muted-foreground">
+              {activeSemester?.name ?? "No active semester"} •{" "}
+              {format(visibleDays[0] ?? new Date(), "MMM d")} -{" "}
+              {format(visibleDays[visibleDays.length - 1] ?? new Date(), "MMM d, yyyy")}
+            </p>
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <div className="rounded-full border border-white/12 bg-white/5 px-3 py-1.5 text-sm text-foreground">
+              Timetable
             </div>
+            <button
+              type="button"
+              onClick={focusToday}
+              className="rounded-xl border border-white/15 px-3 py-1.5 text-sm text-foreground transition-all duration-150 hover:bg-white/5"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={navigatePrevWeek}
+              className="rounded-xl border border-white/15 p-2 transition-all duration-150 hover:bg-white/5"
+              aria-label="Previous week"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={navigateNextWeek}
+              className="rounded-xl border border-white/15 p-2 transition-all duration-150 hover:bg-white/5"
+              aria-label="Next week"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
         </div>
-      </motion.header>
+      </header>
 
-      {/* Timetable Grid */}
-      <main className="container mx-auto px-4 py-6">
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="glass-card overflow-hidden"
-        >
-          <div ref={horizontalScrollRef} className="overflow-x-auto">
-            <div style={{ minWidth: showWeekends ? 860 : 680 }}>
-              {/* Day headers */}
-              <div
-                className={cn(
-                  "grid border-b border-white/10",
-                  showWeekends
-                    ? "grid-cols-[60px_repeat(7,1fr)]"
-                    : "grid-cols-[60px_repeat(5,1fr)]",
-                )}
+      <TimeGridView
+        days={visibleDays}
+        events={timetableEvents}
+        hourRowHeight={hourRowHeight}
+        columnMinWidth={columnMinWidth}
+        showWeekendDim={showWeekends}
+        showNowLineMode="week"
+        onSelectEvent={openEventDetail}
+        onSelectEmptyCell={activeSemesterId ? openCreateEventAt : undefined}
+      />
+
+      {/* Subjects section (kept unchanged in structure) */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl"
+      >
+        <h3 className="mb-3 text-sm font-medium text-white/70">Subjects</h3>
+        <div className="flex flex-wrap gap-3">
+          {subjects
+            .filter(
+              (subject) =>
+                !subject.deleted_at &&
+                !!activeSemesterId &&
+                subject.semester_id === activeSemesterId,
+            )
+            .map((subject) => (
+              <Link
+                key={subject.$id}
+                href={`/semester/${activeSemesterId}/subject/${subject.$id}`}
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors duration-150 hover:bg-white/10"
+                style={{ backgroundColor: `color-mix(in srgb, ${subject.color} 22%, transparent)` }}
               >
-                <div className="p-3 text-center text-sm text-white/30">
-                  Time
+                <span
+                  className="h-3 w-3 rounded-full"
+                  style={{ backgroundColor: subject.color }}
+                />
+                <span className="text-sm">{subject.short_name}</span>
+              </Link>
+            ))}
+        </div>
+      </motion.div>
+
+      <CreateEventModal
+        isOpen={isCreateEventOpen}
+        onClose={() => {
+          setIsCreateEventOpen(false);
+          setEventDefaults(undefined);
+        }}
+        semesterId={activeSemesterId ?? undefined}
+        defaultValues={eventDefaults}
+      />
+
+      <AnimatePresence>
+        {selectedEvent && popoverStyle && (
+          <>
+            <motion.button
+              type="button"
+              className="fixed inset-0 z-40 bg-black/20"
+              onClick={() => setSelectedEvent(null)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 6 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="fixed z-50 w-[320px] rounded-2xl border border-white/12 bg-black/75 p-4 backdrop-blur-xl"
+              style={popoverStyle}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {selectedEvent.event.type}
+                  </p>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {selectedEvent.event.title}
+                  </h3>
                 </div>
-                {visibleDays.map((day) => (
-                  <motion.div
-                    key={day}
-                    variants={itemVariants}
-                    className={cn(
-                      "p-3 text-center text-sm font-medium border-l border-white/10",
-                      day === focusedDay && "bg-[rgba(var(--accent),0.1)]",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        day === focusedDay && "text-[rgb(var(--accent))]",
-                      )}
-                    >
-                      {DAY_SHORT_NAMES[day]}
-                    </span>
-                    {day === focusedDay && (
-                      <div className="text-xs text-white/50 mt-0.5">Today</div>
-                    )}
-                  </motion.div>
-                ))}
+                <button
+                  type="button"
+                  onClick={() => setSelectedEvent(null)}
+                  className="rounded-lg p-1 text-muted-foreground transition-colors duration-150 hover:bg-white/10 hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-
-              {/* Time grid */}
-              <div
-                ref={verticalScrollRef}
-                className="max-h-[72vh] overflow-y-auto"
-              >
-                <div
+              <p className="mt-2 text-xs text-muted-foreground">
+                {format(selectedEvent.event.start, "EEE, MMM d • HH:mm")} -{" "}
+                {format(selectedEvent.event.end, "HH:mm")}
+              </p>
+              {selectedEvent.event.location && (
+                <p className="mt-2 text-xs text-foreground/90">
+                  {selectedEvent.event.location}
+                </p>
+              )}
+              {selectedEvent.event.subjectId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    router.push(
+                      `/semester/${selectedEvent.event.semesterId}/subject/${selectedEvent.event.subjectId}`,
+                    );
+                    setSelectedEvent(null);
+                  }}
                   className={cn(
-                    "grid",
-                    showWeekends
-                      ? "grid-cols-[64px_repeat(7,1fr)]"
-                      : "grid-cols-[64px_repeat(5,1fr)]",
+                    "mt-3 inline-flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs text-foreground transition-colors duration-150 hover:bg-white/10",
                   )}
                 >
-                  {/* Time labels */}
-                  <div className="relative">
-                    {TIME_SLOTS.map((time) => (
-                      <div
-                        key={time}
-                        className="border-b border-white/8 flex items-start justify-center pt-1"
-                        style={{ height: `${HOUR_ROW_HEIGHT}px` }}
-                      >
-                        <span className="text-xs text-white/40">{time}</span>
-                      </div>
-                    ))}
-                  </div>
+                  Open Subject
+                  <ExternalLink className="h-3 w-3" />
+                </button>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
-                  {/* Day columns */}
-                  {visibleDays.map((day) => (
-                    <motion.div
-                      key={day}
-                      variants={itemVariants}
-                      className={cn(
-                        "relative border-l border-white/10",
-                        day === focusedDay && "bg-[rgba(var(--accent),0.03)]",
-                      )}
-                      style={{
-                        height: `${TIME_SLOTS.length * HOUR_ROW_HEIGHT}px`,
-                      }}
-                    >
-                      {/* Hour grid lines */}
-                      {TIME_SLOTS.map((_, i) => (
-                        <div
-                          key={i}
-                          className="absolute left-0 right-0 border-b border-white/8"
-                          style={{ top: `${(i + 1) * HOUR_ROW_HEIGHT}px` }}
-                        />
-                      ))}
-
-                      {/* Events */}
-                      {eventsByDay[day]?.map((event) => (
-                        <TimetableEventCard key={event.id} event={event} />
-                      ))}
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Legend */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mt-6 p-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl"
-        >
-          <h3 className="text-sm font-medium text-white/70 mb-3">Subjects</h3>
-          <div className="flex flex-wrap gap-3">
-              {subjects
-                .filter(
-                  (s) =>
-                    !s.deleted_at &&
-                    !!activeSemesterFilterId &&
-                    s.semester_id === activeSemesterFilterId,
-                )
-                .map((subject) => (
-                <div
-                  key={subject.$id}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
-                  style={{ backgroundColor: `${subject.color}20` }}
-                >
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: subject.color }}
-                  />
-                  <span className="text-sm">{subject.short_name}</span>
-                </div>
-              ))}
-          </div>
-        </motion.div>
-      </main>
+      {!activeSemester && (
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-muted-foreground">
+          No active semester. Timetable is empty until a semester is active.
+        </div>
+      )}
     </div>
   );
 }
 
-/**
- * Individual timetable event card
- */
-function TimetableEventCard({ event }: { event: TimetableEvent }) {
-  const style = getEventStyle(event.startTime, event.endTime);
-  const duration =
-    timeToMinutes(event.endTime) - timeToMinutes(event.startTime);
-  const isCompact = duration <= 55; // Less than 1 hour
-
-  return (
-    <Link href={`/semester/${event.semesterId}/subject/${event.subjectId}`}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        whileHover={{ scale: 1.02, zIndex: 10 }}
-        className={cn(
-          "absolute left-1 right-1 rounded-lg p-2 cursor-pointer",
-          "border transition-all duration-150",
-          "hover:shadow-lg",
-        )}
-        style={{
-          ...style,
-          backgroundColor: `${event.color}30`,
-          borderColor: `${event.color}50`,
-        }}
-      >
-        <div className="h-full flex flex-col overflow-hidden">
-          <span
-            className="font-semibold text-xs truncate"
-            style={{ color: event.color }}
-          >
-            {event.shortName}
-          </span>
-          {!isCompact && (
-            <>
-              <span className="text-[10px] text-white/60 mt-0.5">
-                {formatTime(event.startTime)} - {formatTime(event.endTime)}
-              </span>
-              {event.room && (
-                <span className="text-[10px] text-white/40 flex items-center gap-1 mt-auto">
-                  <MapPin className="w-2.5 h-2.5" />
-                  {event.room}
-                </span>
-              )}
-            </>
-          )}
-        </div>
-      </motion.div>
-    </Link>
-  );
-}

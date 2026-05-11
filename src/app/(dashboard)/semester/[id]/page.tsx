@@ -79,6 +79,7 @@ export default function SemesterDetailPage(): React.ReactNode {
     addHoliday,
     updateHoliday,
     deleteHoliday,
+    settings,
     refetch,
     isLoading,
   } = useData();
@@ -285,18 +286,26 @@ export default function SemesterDetailPage(): React.ReactNode {
     setEditingPeriodId(null);
   }, [semester?.start_date]);
 
-  // Set this semester's accent color
+  const globalAccentColor = settings?.accent_color_default ?? "#8B5CF6";
+
+  // Scope accent color to this semester page only.
   useEffect(() => {
-    if (semester) {
-      setAccentColor(semester.color);
-      if (!periodStartDate) {
-        setPeriodStartDate(semester.start_date);
-      }
-      if (!periodEndDate) {
-        setPeriodEndDate(semester.start_date);
-      }
+    if (!semester) return;
+    setAccentColor(semester.color);
+    return () => {
+      setAccentColor(globalAccentColor);
+    };
+  }, [semester, setAccentColor, globalAccentColor]);
+
+  useEffect(() => {
+    if (!semester) return;
+    if (!periodStartDate) {
+      setPeriodStartDate(semester.start_date);
     }
-  }, [semester, setAccentColor, periodStartDate, periodEndDate]);
+    if (!periodEndDate) {
+      setPeriodEndDate(semester.start_date);
+    }
+  }, [semester, periodStartDate, periodEndDate]);
 
   const handleDeleteSemester = async () => {
     if (!semester) return;

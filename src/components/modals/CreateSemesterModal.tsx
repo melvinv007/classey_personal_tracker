@@ -9,7 +9,7 @@ import { addMonths, format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
 import { Calendar, GraduationCap, Palette, X } from "lucide-react";
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -69,7 +69,7 @@ export function CreateSemesterModal({
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     setValue,
     reset,
     formState: { errors, isSubmitting },
@@ -87,9 +87,11 @@ export function CreateSemesterModal({
     },
   });
 
-  const selectedColor = watch("color");
-  const status = watch("status");
-  const isQuickInput = watch("is_quick_input");
+  const selectedColor = useWatch({ control, name: "color" });
+  const status = useWatch({ control, name: "status" });
+  const isQuickInput = useWatch({ control, name: "is_quick_input" });
+  const startDateValue = useWatch({ control, name: "start_date" }) || "";
+  const endDateValue = useWatch({ control, name: "end_date" }) || "";
 
   // Reset form when modal closes
   useEffect(() => {
@@ -245,7 +247,7 @@ export function CreateSemesterModal({
                       Start Date
                     </label>
                     <ThemedDateInput
-                      value={watch("start_date")}
+                      value={startDateValue}
                       onChange={(value) =>
                         setValue("start_date", value, { shouldValidate: true })
                       }
@@ -262,7 +264,7 @@ export function CreateSemesterModal({
                       End Date
                     </label>
                     <ThemedDateInput
-                      value={watch("end_date")}
+                      value={endDateValue}
                       onChange={(value) =>
                         setValue("end_date", value, { shouldValidate: true })
                       }

@@ -1,21 +1,34 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
-import { X, Calendar, Clock, MapPin, BookOpen, Award } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useCreateExam, useSettings } from "@/hooks/use-appwrite";
-import { ThemedDateInput, ThemedTimeInput } from "@/components/ui/ThemedDateTimeInput";
-import { toast } from "sonner";
 import { ReminderOffsetsEditor } from "@/components/forms/ReminderOffsetsEditor";
+import {
+  ThemedDateInput,
+  ThemedTimeInput,
+} from "@/components/ui/ThemedDateTimeInput";
+import { useCreateExam, useSettings } from "@/hooks/use-appwrite";
+import {
+  parseReminderOffsetsJson,
+  serializeReminderOffsetsJson,
+} from "@/lib/appwrite-db";
 import type { ReminderOffset } from "@/types/database";
-import { parseReminderOffsetsJson, serializeReminderOffsetsJson } from "@/lib/appwrite-db";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AnimatePresence, motion } from "framer-motion";
+import { Award, BookOpen, Calendar, Clock, MapPin, X } from "lucide-react";
+import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 
 const examSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  type: z.enum(["quiz", "assignment", "midterm", "final", "practical", "other"]),
+  type: z.enum([
+    "quiz",
+    "assignment",
+    "midterm",
+    "final",
+    "practical",
+    "other",
+  ]),
   date: z.string().min(1, "Date is required"),
   start_time: z.string().optional(),
   duration_minutes: z.string().optional(),
@@ -55,25 +68,32 @@ const EXAM_TYPES = [
   { value: "other", label: "Other", color: "#6B7280" },
 ];
 
-export function CreateExamModal({ isOpen, onClose, subjectId }: CreateExamModalProps): React.ReactNode {
+export function CreateExamModal({
+  isOpen,
+  onClose,
+  subjectId,
+}: CreateExamModalProps): React.ReactNode {
   const createExam = useCreateExam();
   const { data: settings } = useSettings();
-  const [reminderOffsets, setReminderOffsets] = useState<ReminderOffset[]>([
-    { value: 24, unit: "hours" },
-    { value: 2, unit: "hours" },
-  ]);
-
-  useEffect(() => {
-    const parsed = parseReminderOffsetsJson(settings?.exam_default_reminder_offsets_json ?? null);
-    if (parsed.length > 0) {
-      setReminderOffsets(parsed);
-    }
-  }, [settings?.exam_default_reminder_offsets_json]);
+  const [customReminderOffsets, setCustomReminderOffsets] = useState<
+    ReminderOffset[] | null
+  >(null);
+  const configuredReminderOffsets = parseReminderOffsetsJson(
+    settings?.exam_default_reminder_offsets_json ?? null,
+  );
+  const reminderOffsets =
+    customReminderOffsets ??
+    (configuredReminderOffsets.length > 0
+      ? configuredReminderOffsets
+      : [
+          { value: 24, unit: "hours" as const },
+          { value: 2, unit: "hours" as const },
+        ]);
 
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     setValue,
     reset,
     formState: { errors, isSubmitting },
@@ -85,7 +105,9 @@ export function CreateExamModal({ isOpen, onClose, subjectId }: CreateExamModalP
     },
   });
 
-  const selectedType = watch("type");
+  const selectedType = useWatch({ control, name: "type" });
+  const dateValue = useWatch({ control, name: "date" }) || "";
+  const startTimeValue = useWatch({ control, name: "start_time" }) || "";
 
   const onSubmit = async (data: ExamFormData) => {
     try {
@@ -95,11 +117,15 @@ export function CreateExamModal({ isOpen, onClose, subjectId }: CreateExamModalP
         type: data.type,
         date: data.date,
         start_time: data.start_time || null,
-        duration_minutes: data.duration_minutes ? parseInt(data.duration_minutes) : null,
+        duration_minutes: data.duration_minutes
+          ? parseInt(data.duration_minutes)
+          : null,
         location: data.location || null,
         marks_obtained: null,
         marks_total: parseInt(data.marks_total),
-        weightage_percent: data.weightage_percent ? parseFloat(data.weightage_percent) : null,
+        weightage_percent: data.weightage_percent
+          ? parseFloat(data.weightage_percent)
+          : null,
         syllabus: data.syllabus || null,
         notes: data.notes || null,
         reminder_offsets_json: serializeReminderOffsetsJson(reminderOffsets),
@@ -109,6 +135,7 @@ export function CreateExamModal({ isOpen, onClose, subjectId }: CreateExamModalP
 
       toast.success("Exam created");
       reset();
+      setCustomReminderOffsets(null);
       onClose();
     } catch {
       toast.error("Failed to create exam");
@@ -117,6 +144,7 @@ export function CreateExamModal({ isOpen, onClose, subjectId }: CreateExamModalP
 
   const handleClose = () => {
     reset();
+    setCustomReminderOffsets(null);
     onClose();
   };
 
@@ -166,15 +194,21 @@ export function CreateExamModal({ isOpen, onClose, subjectId }: CreateExamModalP
                     <button
                       key={type.value}
                       type="button"
-                      onClick={() => setValue("type", type.value as ExamFormData["type"])}
+                      onClick={() =>
+                        setValue("type", type.value as ExamFormData["type"])
+                      }
                       className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                         selectedType === type.value
                           ? "ring-2 ring-offset-2 ring-offset-background"
                           : "hover:bg-white/10"
                       }`}
                       style={{
-                        backgroundColor: selectedType === type.value ? `${type.color}30` : "rgba(255,255,255,0.05)",
-                        color: selectedType === type.value ? type.color : "inherit",
+                        backgroundColor:
+                          selectedType === type.value
+                            ? `${type.color}30`
+                            : "rgba(255,255,255,0.05)",
+                        color:
+                          selectedType === type.value ? type.color : "inherit",
                         // @ts-expect-error CSS custom property
                         "--tw-ring-color": type.color,
                       }}
@@ -197,7 +231,9 @@ export function CreateExamModal({ isOpen, onClose, subjectId }: CreateExamModalP
                   className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)] transition-all"
                 />
                 {errors.name && (
-                  <p className="text-red-400 text-xs mt-1">{errors.name.message}</p>
+                  <p className="text-red-400 text-xs mt-1">
+                    {errors.name.message}
+                  </p>
                 )}
               </div>
 
@@ -209,12 +245,16 @@ export function CreateExamModal({ isOpen, onClose, subjectId }: CreateExamModalP
                     Date <span className="text-red-400">*</span>
                   </label>
                   <ThemedDateInput
-                    value={watch("date") || ""}
-                    onChange={(value) => setValue("date", value, { shouldValidate: true })}
+                    value={dateValue}
+                    onChange={(value) =>
+                      setValue("date", value, { shouldValidate: true })
+                    }
                   />
                   <input type="hidden" {...register("date")} />
                   {errors.date && (
-                    <p className="text-red-400 text-xs mt-1">{errors.date.message}</p>
+                    <p className="text-red-400 text-xs mt-1">
+                      {errors.date.message}
+                    </p>
                   )}
                 </div>
                 <div>
@@ -223,8 +263,10 @@ export function CreateExamModal({ isOpen, onClose, subjectId }: CreateExamModalP
                     Start Time
                   </label>
                   <ThemedTimeInput
-                    value={watch("start_time") || ""}
-                    onChange={(value) => setValue("start_time", value, { shouldValidate: true })}
+                    value={startTimeValue}
+                    onChange={(value) =>
+                      setValue("start_time", value, { shouldValidate: true })
+                    }
                   />
                   <input type="hidden" {...register("start_time")} />
                 </div>
@@ -271,7 +313,9 @@ export function CreateExamModal({ isOpen, onClose, subjectId }: CreateExamModalP
                     className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)] transition-all"
                   />
                   {errors.marks_total && (
-                    <p className="text-red-400 text-xs mt-1">{errors.marks_total.message}</p>
+                    <p className="text-red-400 text-xs mt-1">
+                      {errors.marks_total.message}
+                    </p>
                   )}
                 </div>
                 <div>
@@ -318,7 +362,7 @@ export function CreateExamModal({ isOpen, onClose, subjectId }: CreateExamModalP
                 label="Exam reminders"
                 description="Per-exam offsets. These override defaults from Settings."
                 value={reminderOffsets}
-                onChange={setReminderOffsets}
+                onChange={setCustomReminderOffsets}
               />
 
               {/* Submit */}

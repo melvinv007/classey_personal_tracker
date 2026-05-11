@@ -83,7 +83,9 @@ export function ThemedColorPicker({ value, onChange, colors, className }: Themed
   const [v, setV] = React.useState(initialHsv.v);
   const [hexInput, setHexInput] = React.useState(value.toUpperCase());
   const svRef = React.useRef<HTMLDivElement | null>(null);
-  const hueRef = React.useRef<HTMLInputElement | null>(null);
+  const isDraggingSVRef = React.useRef(false);
+  const rafIdRef = React.useRef<number | null>(null);
+  const pendingPointerRef = React.useRef<{ x: number; y: number } | null>(null);
 
   React.useEffect(() => {
     const next = rgbToHsv(hexToRgb(value));
@@ -95,18 +97,39 @@ export function ThemedColorPicker({ value, onChange, colors, className }: Themed
 
   const currentHex = React.useMemo(() => rgbToHex(hsvToRgb(h, s, v)).toUpperCase(), [h, s, v]);
 
-  const applySvFromPointer = (clientX: number, clientY: number): void => {
-    const node = svRef.current;
-    if (!node) return;
-    const rect = node.getBoundingClientRect();
-    const nextS = clamp((clientX - rect.left) / rect.width, 0, 1);
-    const nextV = clamp(1 - (clientY - rect.top) / rect.height, 0, 1);
-    setS(nextS);
-    setV(nextV);
-    const nextHex = rgbToHex(hsvToRgb(h, nextS, nextV)).toUpperCase();
-    setHexInput(nextHex);
-    onChange(nextHex);
-  };
+  const applySvFromPointer = React.useCallback(
+    (clientX: number, clientY: number): void => {
+      const node = svRef.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      const nextS = clamp((clientX - rect.left) / rect.width, 0, 1);
+      const nextV = clamp(1 - (clientY - rect.top) / rect.height, 0, 1);
+      setS(nextS);
+      setV(nextV);
+      const nextHex = rgbToHex(hsvToRgb(h, nextS, nextV)).toUpperCase();
+      setHexInput(nextHex);
+      onChange(nextHex);
+    },
+    [h, onChange],
+  );
+
+  const scheduleSvUpdate = React.useCallback(() => {
+    if (rafIdRef.current !== null) return;
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      const pending = pendingPointerRef.current;
+      if (!pending) return;
+      applySvFromPointer(pending.x, pending.y);
+    });
+  }, [applySvFromPointer]);
+
+  React.useEffect(() => {
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
+  }, []);
 
   return (
     <Popover.Root>
@@ -133,7 +156,10 @@ export function ThemedColorPicker({ value, onChange, colors, className }: Themed
               <button
                 key={color}
                 type="button"
-                onClick={() => onChange(color)}
+                onClick={() => {
+                  setHexInput(color.toUpperCase());
+                  onChange(color);
+                }}
                 className="relative h-8 w-8 rounded-lg border border-white/15 interactive-surface interactive-focus"
                 style={{ backgroundColor: color }}
               >
@@ -148,18 +174,35 @@ export function ThemedColorPicker({ value, onChange, colors, className }: Themed
 
           <div
             ref={svRef}
-            className="relative mb-3 h-36 w-full cursor-crosshair rounded-xl"
+            className="relative mb-3 h-36 w-full cursor-crosshair rounded-xl touch-none"
             style={{
               backgroundColor: `hsl(${h}, 100%, 50%)`,
               backgroundImage: "linear-gradient(to right, #fff, rgba(255,255,255,0)), linear-gradient(to top, #000, rgba(0,0,0,0))",
             }}
             onPointerDown={(event) => {
-              (event.target as HTMLElement).setPointerCapture(event.pointerId);
-              applySvFromPointer(event.clientX, event.clientY);
+              event.currentTarget.setPointerCapture(event.pointerId);
+              isDraggingSVRef.current = true;
+              pendingPointerRef.current = {
+                x: event.clientX,
+                y: event.clientY,
+              };
+              scheduleSvUpdate();
             }}
             onPointerMove={(event) => {
-              if (event.buttons !== 1) return;
-              applySvFromPointer(event.clientX, event.clientY);
+              if (!isDraggingSVRef.current) return;
+              pendingPointerRef.current = {
+                x: event.clientX,
+                y: event.clientY,
+              };
+              scheduleSvUpdate();
+            }}
+            onPointerUp={(event) => {
+              isDraggingSVRef.current = false;
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+            onPointerCancel={(event) => {
+              isDraggingSVRef.current = false;
+              event.currentTarget.releasePointerCapture(event.pointerId);
             }}
           >
             <div
@@ -169,13 +212,12 @@ export function ThemedColorPicker({ value, onChange, colors, className }: Themed
           </div>
 
           <input
-            ref={hueRef}
             type="range"
             min={0}
             max={360}
             value={h}
-            onChange={(event) => {
-              const nextH = Number(event.target.value);
+            onInput={(event) => {
+              const nextH = Number(event.currentTarget.value);
               setH(nextH);
               const nextHex = rgbToHex(hsvToRgb(nextH, s, v)).toUpperCase();
               setHexInput(nextHex);

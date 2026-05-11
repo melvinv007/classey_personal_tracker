@@ -126,9 +126,8 @@ async function validateFileLinkPayload(
     Boolean,
   ).length;
   if (linkedCount === 0) {
-    throw new UploadValidationError(
-      "Please link this file to at least one entity (subject, exam, task, event, or class).",
-    );
+    // Global file: allowed to exist without any entity links.
+    return { subjectId, examId, taskId, eventId, occurrenceId };
   }
 
   const semesterIds = new Set<string>();

@@ -1,24 +1,30 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  X,
-  Upload,
-  FileText,
-  FileImage,
-  FileCode,
-  File,
-  Loader2,
-  CheckCircle,
-  AlertCircle,
-  Trash2,
-} from "lucide-react";
-import { toast } from "sonner";
-import { useData } from "@/hooks/use-data";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
-import { uploadFile, validateFile, formatFileSize } from "@/lib/appwrite-storage";
+import { queryKeys } from "@/hooks/use-appwrite";
+import { useData } from "@/hooks/use-data";
+import {
+  formatFileSize,
+  uploadFile,
+  validateFile,
+} from "@/lib/appwrite-storage";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  AlertCircle,
+  CheckCircle,
+  File,
+  FileCode,
+  FileImage,
+  FileText,
+  Loader2,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
 
 interface UploadFileModalProps {
   isOpen: boolean;
@@ -61,21 +67,24 @@ export function UploadFileModal({
   defaultExamId,
   defaultTaskId,
 }: UploadFileModalProps): React.ReactNode {
-  const { subjects = [], exams = [], ongoingSemester } = useData();
+  const { subjects = [], exams = [], activeSemester } = useData();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [files, setFiles] = useState<FileToUpload[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [subjectId, setSubjectId] = useState(defaultSubjectId || "");
   const [examId, setExamId] = useState(defaultExamId || "");
-  const [taskId, setTaskId] = useState(defaultTaskId || "");
+  const taskId = defaultTaskId || "";
   const [isPastPaper, setIsPastPaper] = useState(false);
   const [description, setDescription] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
-  const activeSemesterId = ongoingSemester?.$id ?? null;
+  const queryClient = useQueryClient();
+  const activeSemesterId = activeSemester?.$id ?? null;
   const activeSubjects = subjects.filter(
-    (s) => !s.deleted_at && (!activeSemesterId || s.semester_id === activeSemesterId)
+    (s) =>
+      !s.deleted_at &&
+      (!activeSemesterId || s.semester_id === activeSemesterId),
   );
   const subjectExams = subjectId
     ? exams.filter((e) => e.subject_id === subjectId && !e.deleted_at)
@@ -98,7 +107,11 @@ export function UploadFileModal({
     fileArray.forEach((file) => {
       const validation = validateFile(file);
       if (validation.valid) {
-        validatedFiles.push({ file, displayName: file.name, status: "pending" });
+        validatedFiles.push({
+          file,
+          displayName: file.name,
+          status: "pending",
+        });
       } else {
         toast.error(`${file.name}: ${validation.error}`);
       }
@@ -115,7 +128,7 @@ export function UploadFileModal({
         addFiles(e.dataTransfer.files);
       }
     },
-    [addFiles]
+    [addFiles],
   );
 
   const handleFileSelect = useCallback(
@@ -124,7 +137,7 @@ export function UploadFileModal({
         addFiles(e.target.files);
       }
     },
-    [addFiles]
+    [addFiles],
   );
 
   const removeFile = useCallback((index: number) => {
@@ -147,7 +160,7 @@ export function UploadFileModal({
 
       // Update status to uploading
       setFiles((prev) =>
-        prev.map((f, idx) => (idx === i ? { ...f, status: "uploading" } : f))
+        prev.map((f, idx) => (idx === i ? { ...f, status: "uploading" } : f)),
       );
 
       try {
@@ -162,9 +175,19 @@ export function UploadFileModal({
 
         // Update status to success
         setFiles((prev) =>
-          prev.map((f, idx) => (idx === i ? { ...f, status: "success" } : f))
+          prev.map((f, idx) => (idx === i ? { ...f, status: "success" } : f)),
         );
         successCount++;
+        // Invalidate files cache so files list refreshes across pages
+        try {
+          queryClient.invalidateQueries({ queryKey: queryKeys.files() });
+          if (subjectId) {
+            queryClient.invalidateQueries({ queryKey: queryKeys.files(subjectId) });
+          }
+        } catch (e) {
+          // ignore cache invalidation errors
+          console.warn("Failed to invalidate file queries", e);
+        }
       } catch (error) {
         // Update status to error
         setFiles((prev) =>
@@ -173,10 +196,11 @@ export function UploadFileModal({
               ? {
                   ...f,
                   status: "error",
-                  error: error instanceof Error ? error.message : "Upload failed",
+                  error:
+                    error instanceof Error ? error.message : "Upload failed",
                 }
-              : f
-          )
+              : f,
+          ),
         );
         errorCount++;
       }
@@ -185,7 +209,9 @@ export function UploadFileModal({
     setIsUploading(false);
 
     if (successCount > 0) {
-      toast.success(`${successCount} file${successCount > 1 ? "s" : ""} uploaded`);
+      toast.success(
+        `${successCount} file${successCount > 1 ? "s" : ""} uploaded`,
+      );
     }
     if (errorCount > 0) {
       toast.error(`${errorCount} file${errorCount > 1 ? "s" : ""} failed`);
@@ -250,7 +276,7 @@ export function UploadFileModal({
                 "relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all",
                 isDragging
                   ? "border-[rgb(var(--accent))] bg-[rgba(var(--accent),0.1)]"
-                  : "border-white/20 hover:border-white/40 hover:bg-white/5"
+                  : "border-white/20 hover:border-white/40 hover:bg-white/5",
               )}
             >
               <input
@@ -264,11 +290,15 @@ export function UploadFileModal({
               <Upload
                 className={cn(
                   "w-10 h-10 mx-auto mb-3",
-                  isDragging ? "text-[rgb(var(--accent))]" : "text-muted-foreground"
+                  isDragging
+                    ? "text-[rgb(var(--accent))]"
+                    : "text-muted-foreground",
                 )}
               />
               <p className="font-medium">
-                {isDragging ? "Drop files here" : "Drag & drop files or click to browse"}
+                {isDragging
+                  ? "Drop files here"
+                  : "Drag & drop files or click to browse"}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
                 PDF, DOC, TXT, Code files, Images • Max 100MB each
@@ -291,15 +321,22 @@ export function UploadFileModal({
                       >
                         <Icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{f.file.name}</p>
+                          <p className="text-sm font-medium truncate">
+                            {f.file.name}
+                          </p>
                           {f.status === "pending" && (
                             <input
                               value={f.displayName}
                               onChange={(event) =>
                                 setFiles((prev) =>
                                   prev.map((file, fileIdx) =>
-                                    fileIdx === idx ? { ...file, displayName: event.target.value } : file
-                                  )
+                                    fileIdx === idx
+                                      ? {
+                                          ...file,
+                                          displayName: event.target.value,
+                                        }
+                                      : file,
+                                  ),
                                 )
                               }
                               className="mt-1 w-full rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)]"
@@ -351,7 +388,10 @@ export function UploadFileModal({
                 }}
                 options={[
                   { value: "__none__", label: "No subject (general)" },
-                  ...activeSubjects.map((s) => ({ value: s.$id, label: s.name })),
+                  ...activeSubjects.map((s) => ({
+                    value: s.$id,
+                    label: s.name,
+                  })),
                 ]}
               />
 
@@ -359,10 +399,15 @@ export function UploadFileModal({
               {subjectId && subjectExams.length > 0 && (
                 <ThemedSelect
                   value={examId || "__none__"}
-                  onChange={(value) => setExamId(value === "__none__" ? "" : value)}
+                  onChange={(value) =>
+                    setExamId(value === "__none__" ? "" : value)
+                  }
                   options={[
                     { value: "__none__", label: "No specific exam" },
-                    ...subjectExams.map((e) => ({ value: e.$id, label: e.name })),
+                    ...subjectExams.map((e) => ({
+                      value: e.$id,
+                      label: e.name,
+                    })),
                   ]}
                 />
               )}
@@ -372,14 +417,14 @@ export function UploadFileModal({
                 <div
                   className={cn(
                     "w-10 h-6 rounded-full transition-colors relative",
-                    isPastPaper ? "bg-[rgb(var(--accent))]" : "bg-white/20"
+                    isPastPaper ? "bg-[rgb(var(--accent))]" : "bg-white/20",
                   )}
                   onClick={() => setIsPastPaper(!isPastPaper)}
                 >
                   <div
                     className={cn(
                       "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform",
-                      isPastPaper ? "translate-x-5" : "translate-x-1"
+                      isPastPaper ? "translate-x-5" : "translate-x-1",
                     )}
                   />
                 </div>
@@ -418,7 +463,8 @@ export function UploadFileModal({
               ) : (
                 <>
                   <Upload className="w-4 h-4" />
-                  Upload {pendingFiles.length > 0 ? `(${pendingFiles.length})` : ""}
+                  Upload{" "}
+                  {pendingFiles.length > 0 ? `(${pendingFiles.length})` : ""}
                 </>
               )}
             </button>

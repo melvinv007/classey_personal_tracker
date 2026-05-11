@@ -6,16 +6,27 @@ import { ThemedColorPicker } from "@/components/ui/ThemedColorPicker";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
 import { useSettings, useUpdateSettings } from "@/hooks/use-appwrite";
 import {
+  setCalendarColumnWidthSetting,
+  setCalendarHourRowHeightSetting,
+  setCalendarWeekendsSetting,
+  setTimetableColumnWidthSetting,
+  setTimetableHourRowHeightSetting,
   setTimetableWeekendSetting,
+  useCalendarColumnWidthSetting,
+  useCalendarHourRowHeightSetting,
+  useCalendarWeekendsSetting,
+  useTimetableColumnWidthSetting,
+  useTimetableHourRowHeightSetting,
   useTimetableWeekendSetting,
 } from "@/hooks/use-timetable-weekend-setting";
 import {
   parseReminderOffsetsJson,
   serializeReminderOffsetsJson,
 } from "@/lib/appwrite-db";
-import { cn } from "@/lib/utils";
 import {
   backgroundDisplayNames,
+  isPersistedBackgroundStyle,
+  toBackgroundStyleToken,
   toUIStyleToken,
   useThemeStore,
   type BackgroundStyle,
@@ -181,6 +192,13 @@ function AppearanceSettings(): React.ReactNode {
     "boxes",
     "dot-pattern",
     "noise-grid",
+    "aurora",
+    "beams",
+    "animated-grid",
+    "mesh-gradient",
+    "starfield",
+    "spiral-bloom",
+    "meteor-shower",
   ];
 
   const accentOptions = [
@@ -246,7 +264,13 @@ function AppearanceSettings(): React.ReactNode {
     },
   ];
   const updateSettings = useUpdateSettings();
+  const showWeekendsInCalendar = useCalendarWeekendsSetting();
+  const calendarHourRowHeight = useCalendarHourRowHeightSetting();
+  const calendarColumnMinWidth = useCalendarColumnWidthSetting();
   const showWeekendsInTimetable = useTimetableWeekendSetting();
+  const timetableHourRowHeight = useTimetableHourRowHeightSetting();
+  const timetableColumnMinWidth = useTimetableColumnWidthSetting();
+  const selectedUIStyle = uiStyleOptions.find((item) => item.value === uiStyle);
 
   const commitAppearance = async (patch: Partial<Settings>): Promise<void> => {
     try {
@@ -255,6 +279,16 @@ function AppearanceSettings(): React.ReactNode {
       console.error("Failed to update appearance settings:", error);
       toast.error("Failed to sync appearance settings");
     }
+  };
+
+  const syncThemeTokens = (nextUIStyle: UIStyle, nextBackground: BackgroundStyle) => {
+    const serializedTokens = `${toUIStyleToken(nextUIStyle)};${toBackgroundStyleToken(nextBackground)}`;
+    void commitAppearance({
+      background_custom_css: serializedTokens,
+      background_style: isPersistedBackgroundStyle(nextBackground)
+        ? nextBackground
+        : "spooky-smoke",
+    });
   };
 
   return (
@@ -305,68 +339,166 @@ function AppearanceSettings(): React.ReactNode {
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {uiStyleOptions.map((style) => (
-            <button
-              key={style.value}
-              onClick={() => {
-                setUIStyle(style.value);
-                void commitAppearance({
-                  background_custom_css: toUIStyleToken(style.value),
-                });
-              }}
-              type="button"
-              className={cn(
-                "rounded-xl border px-4 py-3 text-left transition-all",
-                "interactive-surface interactive-focus",
-                uiStyle === style.value
-                  ? "border-accent bg-accent/10"
-                  : "border-border bg-muted hover:border-accent/50",
-              )}
-            >
-              <p className="text-sm font-semibold text-foreground">
-                {style.label}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {style.description}
-              </p>
-            </button>
-          ))}
+        <div className="space-y-3">
+          <ThemedSelect
+            value={uiStyle}
+            onChange={(value) => {
+              const nextValue = value as UIStyle;
+              setUIStyle(nextValue);
+              syncThemeTokens(nextValue, background);
+            }}
+            options={uiStyleOptions.map((style) => ({
+              value: style.value,
+              label: style.label,
+            }))}
+          />
+          <div className="rounded-xl btn-muted-themed p-3">
+            <p className="text-xs text-muted-foreground">
+              Current:{" "}
+              <span className="font-semibold text-foreground">
+                {selectedUIStyle?.label ?? "Classic Glass"}
+              </span>
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {selectedUIStyle?.description}
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Timetable days */}
+      {/* Calendar and timetable controls */}
       <div className="glass-card p-5">
         <div className="mb-4 flex items-center gap-3">
           <Calendar className="h-5 w-5 text-accent" />
           <div>
-            <h3 className="font-semibold">Timetable Weekends</h3>
+            <h3 className="font-semibold">Calendar & Timetable Grid</h3>
             <p className="text-sm text-muted-foreground">
-              Show or hide Saturday and Sunday in timetable view.
+              Configure weekends, block height, and column width separately.
             </p>
           </div>
         </div>
-        <button
-          onClick={() => {
-            const next = !showWeekendsInTimetable;
-            setTimetableWeekendSetting(next);
-          }}
-          type="button"
-          className="flex w-full items-center justify-between rounded-xl btn-muted-themed p-4 interactive-focus"
-        >
-          <span className="font-medium">
-            {showWeekendsInTimetable
-              ? "Show Saturday & Sunday"
-              : "Hide Saturday & Sunday"}
-          </span>
-          <div className="flex h-8 w-14 items-center rounded-full bg-accent/20 p-1">
-            <motion.div
-              className="h-6 w-6 rounded-full bg-accent"
-              animate={{ x: showWeekendsInTimetable ? 24 : 0 }}
-              transition={{ type: "spring", stiffness: 500, damping: 30 }}
-            />
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-xl btn-muted-themed p-4">
+            <p className="text-sm font-semibold">Calendar (Week/Day)</p>
+            <button
+              onClick={() => {
+                setCalendarWeekendsSetting(!showWeekendsInCalendar);
+              }}
+              type="button"
+              className="mt-3 flex w-full items-center justify-between rounded-xl bg-white/5 p-3 interactive-focus"
+            >
+              <span className="text-sm">
+                {showWeekendsInCalendar ? "Weekends visible" : "Weekends hidden"}
+              </span>
+              <div className="flex h-7 w-12 items-center rounded-full bg-accent/20 p-1">
+                <motion.div
+                  className="h-5 w-5 rounded-full bg-accent"
+                  animate={{ x: showWeekendsInCalendar ? 20 : 0 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                />
+              </div>
+            </button>
+            <div className="mt-4">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">Block height</p>
+                <p className="text-xs text-muted-foreground">
+                  {calendarHourRowHeight}px
+                </p>
+              </div>
+              <input
+                type="range"
+                min={72}
+                max={140}
+                step={2}
+                value={calendarHourRowHeight}
+                onChange={(event) =>
+                  setCalendarHourRowHeightSetting(Number(event.target.value))
+                }
+                className="w-full accent-[rgb(var(--accent))]"
+              />
+            </div>
+            <div className="mt-4">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">Column width</p>
+                <p className="text-xs text-muted-foreground">
+                  {calendarColumnMinWidth}px
+                </p>
+              </div>
+              <input
+                type="range"
+                min={110}
+                max={220}
+                step={2}
+                value={calendarColumnMinWidth}
+                onChange={(event) =>
+                  setCalendarColumnWidthSetting(Number(event.target.value))
+                }
+                className="w-full accent-[rgb(var(--accent))]"
+              />
+            </div>
           </div>
-        </button>
+
+          <div className="rounded-xl btn-muted-themed p-4">
+            <p className="text-sm font-semibold">Timetable</p>
+            <button
+              onClick={() => {
+                setTimetableWeekendSetting(!showWeekendsInTimetable);
+              }}
+              type="button"
+              className="mt-3 flex w-full items-center justify-between rounded-xl bg-white/5 p-3 interactive-focus"
+            >
+              <span className="text-sm">
+                {showWeekendsInTimetable ? "Weekends visible" : "Weekends hidden"}
+              </span>
+              <div className="flex h-7 w-12 items-center rounded-full bg-accent/20 p-1">
+                <motion.div
+                  className="h-5 w-5 rounded-full bg-accent"
+                  animate={{ x: showWeekendsInTimetable ? 20 : 0 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                />
+              </div>
+            </button>
+            <div className="mt-4">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">Block height</p>
+                <p className="text-xs text-muted-foreground">
+                  {timetableHourRowHeight}px
+                </p>
+              </div>
+              <input
+                type="range"
+                min={72}
+                max={140}
+                step={2}
+                value={timetableHourRowHeight}
+                onChange={(event) =>
+                  setTimetableHourRowHeightSetting(Number(event.target.value))
+                }
+                className="w-full accent-[rgb(var(--accent))]"
+              />
+            </div>
+            <div className="mt-4">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">Column width</p>
+                <p className="text-xs text-muted-foreground">
+                  {timetableColumnMinWidth}px
+                </p>
+              </div>
+              <input
+                type="range"
+                min={110}
+                max={220}
+                step={2}
+                value={timetableColumnMinWidth}
+                onChange={(event) =>
+                  setTimetableColumnWidthSetting(Number(event.target.value))
+                }
+                className="w-full accent-[rgb(var(--accent))]"
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Background Style */}
@@ -376,28 +508,29 @@ function AppearanceSettings(): React.ReactNode {
           <div>
             <h3 className="font-semibold">Background Style</h3>
             <p className="text-sm text-muted-foreground">
-              Choose your animated background
+              Choose from 12 styles: 7 static and 5 dynamic.
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {backgrounds.map((bg) => (
-            <button
-              key={bg}
-              onClick={() => {
-                setBackground(bg);
-                void commitAppearance({ background_style: bg });
-              }}
-              className={`rounded-xl border-2 px-3 py-3 text-sm font-medium transition-all ${
-                background === bg
-                  ? "border-accent bg-accent/10 text-accent"
-                  : "border-border bg-muted hover:border-accent/50"
-              } interactive-surface interactive-focus`}
-              type="button"
-            >
-              {backgroundDisplayNames[bg]}
-            </button>
-          ))}
+        <div className="space-y-3">
+          <ThemedSelect
+            value={background}
+            onChange={(value) => {
+              const nextBackground = value as BackgroundStyle;
+              setBackground(nextBackground);
+              syncThemeTokens(uiStyle, nextBackground);
+            }}
+            options={backgrounds.map((bg) => ({
+              value: bg,
+              label: backgroundDisplayNames[bg],
+            }))}
+          />
+          <p className="text-xs text-muted-foreground">
+            Current:{" "}
+            <span className="font-semibold text-foreground">
+              {backgroundDisplayNames[background]}
+            </span>
+          </p>
         </div>
       </div>
 
@@ -433,26 +566,26 @@ function AppearanceSettings(): React.ReactNode {
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-          {fonts.map((font) => (
-            <button
-              key={font.value}
-              onClick={() => {
-                setFontFamily(font.value);
-                const titleCase = font.label;
-                void commitAppearance({ font_family: titleCase });
-              }}
-              type="button"
-              className={`rounded-xl border-2 px-3 py-3 text-sm font-medium transition-all ${
-                fontFamily === font.value
-                  ? "border-accent bg-accent/10 text-accent"
-                  : "border-border bg-muted hover:border-accent/50"
-              } interactive-surface interactive-focus`}
-              style={{ fontFamily: font.label }}
-            >
-              {font.label}
-            </button>
-          ))}
+        <div className="space-y-3">
+          <ThemedSelect
+            value={fontFamily}
+            onChange={(value) => {
+              const nextFont = value as FontFamily;
+              const selected = fonts.find((font) => font.value === nextFont);
+              setFontFamily(nextFont);
+              void commitAppearance({ font_family: selected?.label ?? "Nunito" });
+            }}
+            options={fonts.map((font) => ({
+              value: font.value,
+              label: font.label,
+            }))}
+          />
+          <p
+            className="rounded-xl btn-muted-themed px-3 py-2 text-sm"
+            style={{ fontFamily: fonts.find((item) => item.value === fontFamily)?.label }}
+          >
+            Current: {fonts.find((item) => item.value === fontFamily)?.label}
+          </p>
         </div>
       </div>
     </div>

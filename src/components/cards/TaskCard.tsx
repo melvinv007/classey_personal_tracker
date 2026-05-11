@@ -1,10 +1,16 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { CheckCircle2, Circle, Calendar, Flag, MoreHorizontal } from "lucide-react";
-import { format, isPast, differenceInDays, differenceInHours } from "date-fns";
-import type { Task } from "@/types/database";
 import { cn } from "@/lib/utils";
+import type { Task } from "@/types/database";
+import { differenceInDays, differenceInHours, format, isPast } from "date-fns";
+import { motion } from "framer-motion";
+import {
+  Calendar,
+  CheckCircle2,
+  Circle,
+  Flag,
+  MoreHorizontal,
+} from "lucide-react";
 
 export interface TaskCardProps {
   task: Task;
@@ -16,7 +22,10 @@ export interface TaskCardProps {
   onClick?: () => void;
 }
 
-const priorityConfig: Record<NonNullable<Task["priority"]>, { color: string; bg: string; label: string }> = {
+const priorityConfig: Record<
+  NonNullable<Task["priority"]>,
+  { color: string; bg: string; label: string }
+> = {
   urgent: { color: "text-red-400", bg: "bg-red-400/20", label: "Urgent" },
   high: { color: "text-orange-400", bg: "bg-orange-400/20", label: "High" },
   medium: { color: "text-yellow-400", bg: "bg-yellow-400/20", label: "Medium" },
@@ -31,8 +40,6 @@ export function TaskCard({
   subjectName,
   subjectColor,
   onToggleComplete,
-  onEdit,
-  onDelete,
   onClick,
 }: TaskCardProps): React.ReactNode {
   const isCompleted = task.is_completed;
@@ -45,7 +52,7 @@ export function TaskCard({
     if (!deadlineDate) return null;
     if (isCompleted) return "Completed";
     if (isPast(deadlineDate)) return "Overdue";
-    
+
     const days = differenceInDays(deadlineDate, new Date());
     if (days > 0) return `${days}d left`;
     const hours = differenceInHours(deadlineDate, new Date());
@@ -65,12 +72,13 @@ export function TaskCard({
         "group relative rounded-xl p-4 cursor-pointer transition-all duration-200",
         "glass-card interactive-surface interactive-glow",
         "hover:bg-white/8 hover:border-white/15",
-        isCompleted && "opacity-60"
+        isCompleted && "opacity-60",
       )}
       style={{
-        boxShadow: subjectColor && !isCompleted
-          ? `0 0 20px ${subjectColor}15, inset 0 0 30px ${subjectColor}05`
-          : undefined,
+        boxShadow:
+          subjectColor && !isCompleted
+            ? `0 0 20px ${subjectColor}15, inset 0 0 30px ${subjectColor}05`
+            : undefined,
       }}
     >
       {/* Overdue indicator */}
@@ -87,7 +95,9 @@ export function TaskCard({
           }}
           className={cn(
             "flex-shrink-0 mt-0.5 transition-colors rounded-md interactive-focus",
-            isCompleted ? "text-green-400" : "text-muted-foreground hover:text-accent"
+            isCompleted
+              ? "text-green-400"
+              : "text-muted-foreground hover:text-accent",
           )}
         >
           {isCompleted ? (
@@ -102,7 +112,9 @@ export function TaskCard({
           <h4
             className={cn(
               "font-medium truncate",
-              isCompleted ? "line-through text-muted-foreground" : "text-foreground"
+              isCompleted
+                ? "line-through text-muted-foreground"
+                : "text-foreground",
             )}
           >
             {task.title}
@@ -124,16 +136,18 @@ export function TaskCard({
               <span
                 className={cn(
                   "flex items-center gap-1 text-xs",
-                  isOverdue ? "text-red-400" : "text-muted-foreground"
+                  isOverdue ? "text-red-400" : "text-muted-foreground",
                 )}
               >
                 <Calendar className="w-3 h-3" />
                 {format(deadlineDate!, "MMM d")}
                 {getTimeUntil() && (
-                  <span className={cn(
-                    "ml-1",
-                    isOverdue ? "text-red-400 font-medium" : ""
-                  )}>
+                  <span
+                    className={cn(
+                      "ml-1",
+                      isOverdue ? "text-red-400 font-medium" : "",
+                    )}
+                  >
                     ({getTimeUntil()})
                   </span>
                 )}
@@ -146,7 +160,7 @@ export function TaskCard({
                 className={cn(
                   "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium",
                   priority.bg,
-                  priority.color
+                  priority.color,
                 )}
               >
                 <Flag className="w-2.5 h-2.5" />

@@ -14,7 +14,14 @@ export type BackgroundStyle =
   | "dotted"
   | "boxes"
   | "dot-pattern"
-  | "noise-grid";
+  | "noise-grid"
+  | "aurora"
+  | "beams"
+  | "animated-grid"
+  | "mesh-gradient"
+  | "starfield"
+  | "spiral-bloom"
+  | "meteor-shower";
 
 /**
  * Available font families
@@ -158,17 +165,46 @@ export function isFontFamily(value: unknown): value is FontFamily {
  * Background style display names
  */
 export const backgroundDisplayNames: Record<BackgroundStyle, string> = {
-  "spooky-smoke": "Spooky Smoke",
-  dotted: "Dotted",
-  boxes: "Animated Boxes",
+  "spooky-smoke": "Spooky Smoke (Dynamic)",
+  dotted: "Dotted Grid",
+  boxes: "Soft Boxes",
   "dot-pattern": "Dot Pattern",
   "noise-grid": "Noise Grid",
+  aurora: "Aurora Flow (Dynamic)",
+  beams: "Light Beams",
+  "animated-grid": "Pulse Grid (Dynamic)",
+  "mesh-gradient": "Mesh Gradient",
+  starfield: "Starfield",
+  "spiral-bloom": "Spiral Bloom (Dynamic)",
+  "meteor-shower": "Meteor Shower (Dynamic)",
 };
 
 /**
  * Runtime guard for persisted/server background values.
  */
 export function isBackgroundStyle(value: unknown): value is BackgroundStyle {
+  return (
+    value === "spooky-smoke" ||
+    value === "dotted" ||
+    value === "boxes" ||
+    value === "dot-pattern" ||
+    value === "noise-grid" ||
+    value === "aurora" ||
+    value === "beams" ||
+    value === "animated-grid" ||
+    value === "mesh-gradient" ||
+    value === "starfield" ||
+    value === "spiral-bloom" ||
+    value === "meteor-shower"
+  );
+}
+
+/**
+ * Runtime guard for settings.background_style safe persisted values.
+ */
+export function isPersistedBackgroundStyle(
+  value: unknown,
+): value is "spooky-smoke" | "dotted" | "boxes" | "dot-pattern" | "noise-grid" {
   return (
     value === "spooky-smoke" ||
     value === "dotted" ||
@@ -206,14 +242,15 @@ export function isUIStyle(value: unknown): value is UIStyle {
  */
 export function parseUIStyleToken(value: string | null): UIStyle | null {
   if (!value) return null;
-  const token = value.trim().toLowerCase();
-  if (token === "ui-style:classic-glass") return "classic-glass";
-  if (token === "ui-style:organic-glass") return "organic-glass";
-  if (token === "ui-style:frosted-prism-glass") return "frosted-prism-glass";
-  if (token === "ui-style:liquid-glass") return "liquid-glass";
-  if (token === "ui-style:layered-pane-glass") return "layered-pane-glass";
-  if (token === "ui-style:iridescent-glass") return "iridescent-glass";
-  if (token === "ui-style:smoked-matte-glass") return "smoked-matte-glass";
+  const tokens = value
+    .toLowerCase()
+    .split(/[;,]/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const uiToken = tokens.find((token) => token.startsWith("ui-style:"));
+  if (!uiToken) return null;
+  const candidate = uiToken.replace("ui-style:", "");
+  if (isUIStyle(candidate)) return candidate;
   return null;
 }
 
@@ -222,4 +259,30 @@ export function parseUIStyleToken(value: string | null): UIStyle | null {
  */
 export function toUIStyleToken(uiStyle: UIStyle): string {
   return `ui-style:${uiStyle}`;
+}
+
+/**
+ * Parse background style token from settings.background_custom_css.
+ */
+export function parseBackgroundStyleToken(
+  value: string | null,
+): BackgroundStyle | null {
+  if (!value) return null;
+  const tokens = value
+    .toLowerCase()
+    .split(/[;,]/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const backgroundToken = tokens.find((token) => token.startsWith("bg-style:"));
+  if (!backgroundToken) return null;
+  const candidate = backgroundToken.replace("bg-style:", "");
+  if (isBackgroundStyle(candidate)) return candidate;
+  return null;
+}
+
+/**
+ * Serialize background style token for settings.background_custom_css.
+ */
+export function toBackgroundStyleToken(backgroundStyle: BackgroundStyle): string {
+  return `bg-style:${backgroundStyle}`;
 }

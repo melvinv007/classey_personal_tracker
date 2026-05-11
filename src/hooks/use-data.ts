@@ -32,10 +32,7 @@ import {
   useCreateClassSchedule,
   useCreateEvent,
   useCreateExam,
-  useCreateFile,
   useCreateHoliday,
-  useCreateNote,
-  useCreateResourceLink,
   useCreateSemester,
   useCreateSubject,
   useCreateTask,
@@ -43,7 +40,6 @@ import {
   useDeleteClassSchedule,
   useDeleteEvent,
   useDeleteExam,
-  useDeleteFile,
   useDeleteHoliday,
   useDeleteNote,
   useDeleteResourceLink,
@@ -194,11 +190,7 @@ export function useData() {
   const createEventMutation = useCreateEvent();
   const updateEventMutation = useUpdateEvent();
   const deleteEventMutation = useDeleteEvent();
-  const createFileMutation = useCreateFile();
-  const deleteFileMutation = useDeleteFile();
-  const createLinkMutation = useCreateResourceLink();
   const deleteLinkMutation = useDeleteResourceLink();
-  const createNoteMutation = useCreateNote();
   const updateNoteMutation = useUpdateNote();
   const deleteNoteMutation = useDeleteNote();
   const markAttendanceMutation = useMarkAttendance();
@@ -274,6 +266,11 @@ export function useData() {
   const ongoingSemester = useMemo(() => {
     return selectedCurrentSemester || autoCurrentSemesters[0] || null;
   }, [selectedCurrentSemester, autoCurrentSemesters]);
+
+  const activeSemester = useMemo(() => {
+    // Priority: user-selected semester (selectedSemester) → currently ongoing semester → first active semester
+    return selectedSemester ?? ongoingSemester ?? activeSemesters[0] ?? null;
+  }, [selectedSemester, ongoingSemester, activeSemesters]);
 
   // Getter functions
   const getSemesterById = useCallback(
@@ -892,6 +889,7 @@ export function useData() {
     archivedSemesters,
     currentSemesters,
     ongoingSemester,
+    activeSemester,
     activeSemesterId,
     setActiveSemesterId,
 

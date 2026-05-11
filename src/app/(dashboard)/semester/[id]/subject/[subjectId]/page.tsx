@@ -242,6 +242,7 @@ export default function SubjectDetailPage(): React.ReactNode {
   const present = occurrences.filter((o) => o.attendance === "present").length;
   const absent = occurrences.filter((o) => o.attendance === "absent").length;
   const requirement = subject?.attendance_requirement_percent ?? 75;
+  const globalAccentColor = settings?.accent_color_default ?? "#8B5CF6";
 
   // Calculate bunk capacity
   const percentage =
@@ -523,12 +524,14 @@ export default function SubjectDetailPage(): React.ReactNode {
     }
   };
 
-  // Set semester accent color
+  // Scope accent color to this subject page only.
   useEffect(() => {
-    if (semester) {
-      setAccentColor(semester.color);
-    }
-  }, [semester, setAccentColor]);
+    if (!semester) return;
+    setAccentColor(semester.color);
+    return () => {
+      setAccentColor(globalAccentColor);
+    };
+  }, [semester, setAccentColor, globalAccentColor]);
 
   if (isLoading) {
     return (

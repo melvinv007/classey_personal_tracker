@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, Clock, MapPin, Repeat, Type } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { format } from "date-fns";
-import { useCreateEvent } from "@/hooks/use-appwrite";
-import { ThemedDateInput, ThemedTimeInput } from "@/components/ui/ThemedDateTimeInput";
+import {
+  ThemedDateInput,
+  ThemedTimeInput,
+} from "@/components/ui/ThemedDateTimeInput";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
+import { useCreateEvent } from "@/hooks/use-appwrite";
 import { cn } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { format } from "date-fns";
+import { AnimatePresence, motion } from "framer-motion";
+import { Calendar, Clock, MapPin, Repeat, Type, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 
 const eventSchema = z.object({
   title: z.string().min(1, "Title is required").max(100),
@@ -43,9 +46,36 @@ const recurrenceOptions = [
 ] as const;
 
 const colorOptions = [
-  "#8B5CF6", "#EC4899", "#F59E0B", "#10B981", "#3B82F6",
-  "#EF4444", "#6366F1", "#14B8A6", "#F97316", "#84CC16",
+  "#8B5CF6",
+  "#EC4899",
+  "#F59E0B",
+  "#10B981",
+  "#3B82F6",
+  "#EF4444",
+  "#6366F1",
+  "#14B8A6",
+  "#F97316",
+  "#84CC16",
 ];
+
+function buildEventDefaults(defaultValues?: Partial<EventFormData>): EventFormData {
+  const today = format(new Date(), "yyyy-MM-dd");
+  const nextHour = format(new Date(), "HH:00");
+  return {
+    title: defaultValues?.title || "",
+    description: defaultValues?.description || "",
+    location: defaultValues?.location || "",
+    start_date: defaultValues?.start_date || today,
+    start_time: defaultValues?.start_time || nextHour,
+    end_date: defaultValues?.end_date || today,
+    end_time:
+      defaultValues?.end_time ||
+      format(new Date(new Date().getTime() + 3600000), "HH:00"),
+    is_all_day: defaultValues?.is_all_day || false,
+    recurrence: defaultValues?.recurrence || "none",
+    color: defaultValues?.color || colorOptions[0],
+  };
+}
 
 /**
  * CreateEventModal - Modal for creating personal calendar events
@@ -59,9 +89,6 @@ export function CreateEventModal({
   const createEvent = useCreateEvent();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const today = format(new Date(), "yyyy-MM-dd");
-  const nextHour = format(new Date(), "HH:00");
-
   const {
     register,
     handleSubmit,
@@ -71,22 +98,16 @@ export function CreateEventModal({
     formState: { errors },
   } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
-    defaultValues: {
-      title: defaultValues?.title || "",
-      description: defaultValues?.description || "",
-      location: defaultValues?.location || "",
-      start_date: defaultValues?.start_date || today,
-      start_time: defaultValues?.start_time || nextHour,
-      end_date: defaultValues?.end_date || today,
-      end_time: defaultValues?.end_time || format(new Date(new Date().getTime() + 3600000), "HH:00"),
-      is_all_day: defaultValues?.is_all_day || false,
-      recurrence: defaultValues?.recurrence || "none",
-      color: defaultValues?.color || colorOptions[0],
-    },
+    defaultValues: buildEventDefaults(defaultValues),
   });
 
   const isAllDay = watch("is_all_day");
   const selectedColor = watch("color");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    reset(buildEventDefaults(defaultValues));
+  }, [defaultValues, isOpen, reset]);
 
   const onSubmit = async (data: EventFormData): Promise<void> => {
     setIsSubmitting(true);
@@ -114,7 +135,7 @@ export function CreateEventModal({
       toast.success("Event created successfully!");
       reset();
       onClose();
-    } catch (error) {
+    } catch {
       toast.error("Failed to create event");
     } finally {
       setIsSubmitting(false);
@@ -155,7 +176,10 @@ export function CreateEventModal({
                     className="w-10 h-10 rounded-xl flex items-center justify-center"
                     style={{ backgroundColor: `${selectedColor}20` }}
                   >
-                    <Calendar className="w-5 h-5" style={{ color: selectedColor }} />
+                    <Calendar
+                      className="w-5 h-5"
+                      style={{ color: selectedColor }}
+                    />
                   </div>
                   <h2 className="text-xl font-semibold">New Event</h2>
                 </div>
@@ -182,17 +206,21 @@ export function CreateEventModal({
                       "w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10",
                       "focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/25",
                       "placeholder:text-muted-foreground/50",
-                      errors.title && "border-red-400"
+                      errors.title && "border-red-400",
                     )}
                   />
                   {errors.title && (
-                    <p className="text-red-400 text-xs mt-1">{errors.title.message}</p>
+                    <p className="text-red-400 text-xs mt-1">
+                      {errors.title.message}
+                    </p>
                   )}
                 </div>
 
                 {/* Description */}
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Description (optional)</label>
+                  <label className="text-sm font-medium mb-2 block">
+                    Description (optional)
+                  </label>
                   <textarea
                     {...register("description")}
                     placeholder="Add details..."
@@ -209,13 +237,13 @@ export function CreateEventModal({
                     onClick={() => setValue("is_all_day", !isAllDay)}
                     className={cn(
                       "w-12 h-6 rounded-full transition-colors relative",
-                      isAllDay ? "bg-accent" : "bg-white/20"
+                      isAllDay ? "bg-accent" : "bg-white/20",
                     )}
                   >
                     <div
                       className={cn(
                         "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform",
-                        isAllDay ? "translate-x-7" : "translate-x-1"
+                        isAllDay ? "translate-x-7" : "translate-x-1",
                       )}
                     />
                   </button>
@@ -230,7 +258,9 @@ export function CreateEventModal({
                     </label>
                     <ThemedDateInput
                       value={watch("start_date") || ""}
-                      onChange={(value) => setValue("start_date", value, { shouldValidate: true })}
+                      onChange={(value) =>
+                        setValue("start_date", value, { shouldValidate: true })
+                      }
                     />
                     <input type="hidden" {...register("start_date")} />
                   </div>
@@ -242,25 +272,37 @@ export function CreateEventModal({
                       </label>
                       <ThemedTimeInput
                         value={watch("start_time") || ""}
-                        onChange={(value) => setValue("start_time", value, { shouldValidate: true })}
+                        onChange={(value) =>
+                          setValue("start_time", value, {
+                            shouldValidate: true,
+                          })
+                        }
                       />
                       <input type="hidden" {...register("start_time")} />
                     </div>
                   )}
                   <div>
-                    <label className="text-sm font-medium mb-2 block">End Date</label>
+                    <label className="text-sm font-medium mb-2 block">
+                      End Date
+                    </label>
                     <ThemedDateInput
                       value={watch("end_date") || ""}
-                      onChange={(value) => setValue("end_date", value, { shouldValidate: true })}
+                      onChange={(value) =>
+                        setValue("end_date", value, { shouldValidate: true })
+                      }
                     />
                     <input type="hidden" {...register("end_date")} />
                   </div>
                   {!isAllDay && (
                     <div>
-                      <label className="text-sm font-medium mb-2 block">End Time</label>
+                      <label className="text-sm font-medium mb-2 block">
+                        End Time
+                      </label>
                       <ThemedTimeInput
                         value={watch("end_time") || ""}
-                        onChange={(value) => setValue("end_time", value, { shouldValidate: true })}
+                        onChange={(value) =>
+                          setValue("end_time", value, { shouldValidate: true })
+                        }
                       />
                       <input type="hidden" {...register("end_time")} />
                     </div>
@@ -288,15 +330,26 @@ export function CreateEventModal({
                   </label>
                   <ThemedSelect
                     value={watch("recurrence")}
-                    onChange={(value) => setValue("recurrence", value as EventFormData["recurrence"], { shouldValidate: true })}
-                    options={recurrenceOptions.map((opt) => ({ value: opt.value, label: opt.label }))}
+                    onChange={(value) =>
+                      setValue(
+                        "recurrence",
+                        value as EventFormData["recurrence"],
+                        { shouldValidate: true },
+                      )
+                    }
+                    options={recurrenceOptions.map((opt) => ({
+                      value: opt.value,
+                      label: opt.label,
+                    }))}
                   />
                   <input type="hidden" {...register("recurrence")} />
                 </div>
 
                 {/* Color picker */}
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Color</label>
+                  <label className="text-sm font-medium mb-2 block">
+                    Color
+                  </label>
                   <div className="flex flex-wrap gap-2">
                     {colorOptions.map((color) => (
                       <button
@@ -305,7 +358,8 @@ export function CreateEventModal({
                         onClick={() => setValue("color", color)}
                         className={cn(
                           "w-8 h-8 rounded-lg transition-all",
-                          selectedColor === color && "ring-2 ring-white ring-offset-2 ring-offset-background"
+                          selectedColor === color &&
+                            "ring-2 ring-white ring-offset-2 ring-offset-background",
                         )}
                         style={{ backgroundColor: color }}
                       />
@@ -328,7 +382,7 @@ export function CreateEventModal({
                     className={cn(
                       "flex-1 px-4 py-3 rounded-xl font-medium transition-all",
                       "bg-accent hover:bg-accent/90 text-white",
-                      isSubmitting && "opacity-50 cursor-not-allowed"
+                      isSubmitting && "opacity-50 cursor-not-allowed",
                     )}
                   >
                     {isSubmitting ? "Creating..." : "Create Event"}

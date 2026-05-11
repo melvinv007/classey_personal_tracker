@@ -6,7 +6,7 @@ import {
   fontFamilyMap,
   isBackgroundStyle,
   isFontFamily,
-  isUIStyle,
+  parseBackgroundStyleToken,
   parseUIStyleToken,
   useThemeStore,
   type FontFamily,
@@ -80,7 +80,6 @@ export function ThemeProvider({
     mode,
     accentColor,
     fontFamily,
-    background,
     uiStyle,
     hydrated,
     setMode,
@@ -100,36 +99,44 @@ export function ThemeProvider({
 
   useIsomorphicLayoutEffect(() => {
     if (!hydrated || !settings) return;
-    if (settings.theme_mode !== mode) {
+    const state = useThemeStore.getState();
+
+    if (settings.theme_mode !== state.mode) {
       setMode(settings.theme_mode);
     }
     if (
-      settings.accent_color_default.toLowerCase() !== accentColor.toLowerCase()
+      settings.accent_color_default.toLowerCase() !==
+      state.accentColor.toLowerCase()
     ) {
       setAccentColor(settings.accent_color_default);
     }
-    if (
-      isBackgroundStyle(settings.background_style) &&
-      settings.background_style !== background
-    ) {
-      setBackground(settings.background_style);
+
+    const parsedBackground = parseBackgroundStyleToken(
+      settings.background_custom_css,
+    );
+
+    const targetBackground =
+      parsedBackground ??
+      (isBackgroundStyle(settings.background_style)
+        ? settings.background_style
+        : null);
+
+    if (targetBackground && targetBackground !== state.background) {
+      setBackground(targetBackground);
     }
+
     const parsedStyle = parseUIStyleToken(settings.background_custom_css);
-    if (parsedStyle && parsedStyle !== uiStyle && isUIStyle(parsedStyle)) {
+    if (parsedStyle && parsedStyle !== state.uiStyle) {
       setUIStyle(parsedStyle);
     }
+
     const next = settings.font_family.trim().toLowerCase().replace(/\s+/g, "-");
-    if (next !== fontFamily && isFontFamily(next)) {
+    if (next !== state.fontFamily && isFontFamily(next)) {
       setFontFamily(next);
     }
   }, [
     hydrated,
     settings,
-    mode,
-    accentColor,
-    background,
-    fontFamily,
-    uiStyle,
     setAccentColor,
     setBackground,
     setFontFamily,

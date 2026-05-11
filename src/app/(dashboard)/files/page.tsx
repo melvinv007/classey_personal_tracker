@@ -32,7 +32,7 @@ import {
   Upload,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 // File type to icon mapping
@@ -103,6 +103,7 @@ function formatDate(dateString: string): string {
 }
 
 type FilterType = "all" | "documents" | "code" | "images" | "past-papers";
+type FileScope = "active-semester" | "global-files";
 
 const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
   { value: "all", label: "All Files" },
@@ -133,13 +134,14 @@ export default function FilesPage(): React.ReactNode {
     tasks,
     events,
     classOccurrences,
-    ongoingSemester,
+    activeSemester,
     isLoading,
     refetch,
   } = useData();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
+  const [fileScope, setFileScope] = useState<FileScope>("active-semester");
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(
     null,
   );
@@ -147,7 +149,8 @@ export default function FilesPage(): React.ReactNode {
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const activeSemesterId = ongoingSemester?.$id ?? null;
+  const activeSemesterId = activeSemester?.$id ?? null;
+  const canUpload = fileScope === "global-files" || Boolean(activeSemesterId);
   const subjectSemesterMap = useMemo(
     () =>
       new Map(
@@ -224,9 +227,12 @@ export default function FilesPage(): React.ReactNode {
   );
 
   const allFiles = useMemo(() => {
+    if (fileScope === "global-files") {
+      return files.filter((file) => resolveFileSemesterId(file) === null);
+    }
     if (!activeSemesterId) return [];
     return files.filter((file) => resolveFileSemesterId(file) === activeSemesterId);
-  }, [activeSemesterId, files, resolveFileSemesterId]);
+  }, [activeSemesterId, fileScope, files, resolveFileSemesterId]);
 
   const activeSubjects = subjects.filter(
     (s) =>
@@ -234,6 +240,10 @@ export default function FilesPage(): React.ReactNode {
       !!activeSemesterId &&
       s.semester_id === activeSemesterId,
   );
+
+  useEffect(() => {
+    setSelectedSubjectId(null);
+  }, [fileScope]);
 
   // Filter files
   const filteredFiles = useMemo(() => {
@@ -378,18 +388,18 @@ export default function FilesPage(): React.ReactNode {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    if (!activeSemesterId) {
-      toast.error("No active semester. Activate a semester to upload files.");
+    if (!canUpload) {
+      toast.error("No active semester selected.");
       return;
     }
     if (e.dataTransfer.files.length > 0) {
       // Open upload modal with dropped files
       setIsUploadModalOpen(true);
     }
-  }, [activeSemesterId]);
+  }, [canUpload]);
 
   const getSubjectName = (subjectId: string | null): string => {
-    if (!subjectId) return "General";
+    if (!subjectId) return "Global";
     const subject = subjects.find((s) => s.$id === subjectId);
     return subject?.short_name || subject?.name || "Unknown";
   };
@@ -452,6 +462,7 @@ export default function FilesPage(): React.ReactNode {
               Files
             </h1>
             <p className="text-muted-foreground text-sm">
+              {fileScope === "global-files" ? "Global Files" : "Active Semester"} •{" "}
               {filteredFiles.length} file{filteredFiles.length !== 1 ? "s" : ""}{" "}
               •{" "}
               {formatFileSize(
@@ -463,16 +474,14 @@ export default function FilesPage(): React.ReactNode {
           {/* Upload button in header */}
           <button
             onClick={() => {
-              if (!activeSemesterId) {
-                toast.error(
-                  "No active semester. Activate a semester to upload files.",
-                );
+              if (!canUpload) {
+                toast.error("No active semester selected.");
                 return;
               }
               setIsUploadModalOpen(true);
             }}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[rgb(var(--accent))] hover:bg-[rgb(var(--accent))]/90 text-white font-medium transition-colors disabled:opacity-60"
-            disabled={!activeSemesterId}
+            disabled={!canUpload}
           >
             <Upload className="w-4 h-4" />
             <span className="hidden sm:inline">Upload</span>
@@ -496,6 +505,33 @@ export default function FilesPage(): React.ReactNode {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)]"
             />
+          </div>
+
+          <div className="mb-4 inline-flex rounded-xl border border-white/10 bg-white/5 p-1">
+            <button
+              type="button"
+              onClick={() => setFileScope("active-semester")}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-sm transition-colors",
+                fileScope === "active-semester"
+                  ? "bg-[rgba(var(--accent),0.2)] text-[rgb(var(--accent))]"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Active Semester
+            </button>
+            <button
+              type="button"
+              onClick={() => setFileScope("global-files")}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-sm transition-colors",
+                fileScope === "global-files"
+                  ? "bg-[rgba(var(--accent),0.2)] text-[rgb(var(--accent))]"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Global Files
+            </button>
           </div>
 
           {/* Filter buttons */}
@@ -527,11 +563,14 @@ export default function FilesPage(): React.ReactNode {
                 }
                 options={[
                   { value: "__all__", label: "All Subjects" },
-                  ...activeSubjects.map((subject) => ({
+                  ...(fileScope === "global-files"
+                    ? []
+                    : activeSubjects.map((subject) => ({
                     value: subject.$id,
                     label: subject.name,
-                  })),
+                  }))),
                 ]}
+                disabled={fileScope === "global-files"}
               />
             </div>
           </div>
@@ -543,10 +582,8 @@ export default function FilesPage(): React.ReactNode {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.15 }}
           onClick={() => {
-            if (!activeSemesterId) {
-              toast.error(
-                "No active semester. Activate a semester to upload files.",
-              );
+            if (!canUpload) {
+              toast.error("No active semester selected.");
               return;
             }
             setIsUploadModalOpen(true);
@@ -575,7 +612,9 @@ export default function FilesPage(): React.ReactNode {
             </h3>
               <p className="text-muted-foreground text-sm">
                 {!activeSemesterId
-                  ? "No active semester. Files appear when a semester is active."
+                  ? fileScope === "global-files"
+                    ? "No global files yet. Upload one to get started."
+                    : "No active semester. Switch to Global Files or activate a semester."
                   : searchQuery || filter !== "all" || selectedSubjectId
                 ? "Try adjusting your filters"
                 : "Upload your first file to get started"}

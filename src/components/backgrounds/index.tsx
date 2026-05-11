@@ -6,6 +6,13 @@ import { DotPatternBackground } from "./DotPatternBackground";
 import { SpookySmokeBackground } from "./SpookySmokeBackground";
 import { NoiseGridBackground } from "./NoiseGridBackground";
 import { AnimatedGridBackground } from "./AnimatedGridBackground";
+import { BoxesBackground } from "./BoxesBackground";
+import { AuroraBackground } from "./AuroraBackground";
+import { BeamsBackground } from "./BeamsBackground";
+import { MeshGradientBackground } from "./MeshGradientBackground";
+import { StarfieldBackground } from "./StarfieldBackground";
+import { SpiralBloomBackground } from "./SpiralBloomBackground";
+import { MeteorShowerBackground } from "./MeteorShowerBackground";
 
 /**
  * Background component map
@@ -13,9 +20,16 @@ import { AnimatedGridBackground } from "./AnimatedGridBackground";
 const backgroundComponents: Record<BackgroundStyle, React.ComponentType> = {
   "spooky-smoke": SpookySmokeBackground,
   dotted: DottedBackground,
-  boxes: AnimatedGridBackground,
+  boxes: BoxesBackground,
   "dot-pattern": DotPatternBackground,
   "noise-grid": NoiseGridBackground,
+  aurora: AuroraBackground,
+  beams: BeamsBackground,
+  "animated-grid": AnimatedGridBackground,
+  "mesh-gradient": MeshGradientBackground,
+  starfield: StarfieldBackground,
+  "spiral-bloom": SpiralBloomBackground,
+  "meteor-shower": MeteorShowerBackground,
 };
 
 /**
@@ -43,3 +57,9 @@ export { BoxesBackground } from "./BoxesBackground";
 export { AnimatedGridBackground } from "./AnimatedGridBackground";
 export { DotPatternBackground } from "./DotPatternBackground";
 export { NoiseGridBackground } from "./NoiseGridBackground";
+export { AuroraBackground } from "./AuroraBackground";
+export { BeamsBackground } from "./BeamsBackground";
+export { MeshGradientBackground } from "./MeshGradientBackground";
+export { StarfieldBackground } from "./StarfieldBackground";
+export { SpiralBloomBackground } from "./SpiralBloomBackground";
+export { MeteorShowerBackground } from "./MeteorShowerBackground";

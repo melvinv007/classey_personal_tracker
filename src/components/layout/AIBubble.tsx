@@ -1,24 +1,33 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Sparkles, 
-  X, 
-  Send, 
-  Loader2, 
-  Bot, 
-  User,
+import { AI_QUICK_PROMPTS } from "@/lib/ai";
+import {
+  useAIEntityStore,
+  type AIEntityAction,
+} from "@/stores/ai-entity-store";
+import type { AiConversation } from "@/types/database";
+import { AnimatePresence, motion } from "framer-motion";
+import {
   AlertCircle,
-  Zap,
   BookOpen,
+  Bot,
   Calendar,
   CheckSquare,
-  PlusCircle
+  Loader2,
+  PlusCircle,
+  Send,
+  Sparkles,
+  User,
+  X,
+  Zap,
 } from "lucide-react";
-import type { AiConversation } from "@/types/database";
-import { AI_QUICK_PROMPTS } from "@/lib/ai";
-import { useAIEntityStore, type AIEntityAction } from "@/stores/ai-entity-store";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { toast } from "sonner";
 
 interface ChatMessage {
@@ -46,10 +55,10 @@ export function AIBubble(): React.ReactNode {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [aiStatus, setAiStatus] = useState<AIStatus>({ 
-    requestsToday: 0, 
-    remaining: 50, 
-    limit: 50 
+  const [aiStatus, setAiStatus] = useState<AIStatus>({
+    requestsToday: 0,
+    remaining: 50,
+    limit: 50,
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -140,14 +149,15 @@ export function AIBubble(): React.ReactNode {
 
       if (data.success) {
         // Check for entity action
-        const entityAction = data.entityAction?.action === "create" 
-          ? {
-              action: "create" as const,
-              entity_type: data.entityAction.entity_type,
-              fields: data.entityAction.fields,
-              timestamp: Date.now(),
-            }
-          : undefined;
+        const entityAction =
+          data.entityAction?.action === "create"
+            ? {
+                action: "create" as const,
+                entity_type: data.entityAction.entity_type,
+                fields: data.entityAction.fields,
+                timestamp: Date.now(),
+              }
+            : undefined;
 
         // Update loading message with actual response
         setMessages((prev) =>
@@ -160,8 +170,8 @@ export function AIBubble(): React.ReactNode {
                   isLoading: false,
                   entityAction,
                 }
-              : m
-          )
+              : m,
+          ),
         );
 
         // Update remaining requests
@@ -176,7 +186,9 @@ export function AIBubble(): React.ReactNode {
         // Handle entity creation action - store it for modal handling
         if (entityAction) {
           setPendingAction(entityAction);
-          const entityName = entityAction.entity_type.charAt(0).toUpperCase() + entityAction.entity_type.slice(1);
+          const entityName =
+            entityAction.entity_type.charAt(0).toUpperCase() +
+            entityAction.entity_type.slice(1);
           toast.success(`Ready to create ${entityName}`, {
             description: "Click the button below to open the form",
             duration: 5000,
@@ -193,11 +205,11 @@ export function AIBubble(): React.ReactNode {
                   isLoading: false,
                   error: data.error || "Failed to get response",
                 }
-              : m
-          )
+              : m,
+          ),
         );
       }
-    } catch (error) {
+    } catch {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === loadingMessage.id
@@ -207,8 +219,8 @@ export function AIBubble(): React.ReactNode {
                 isLoading: false,
                 error: "Network error. Please try again.",
               }
-            : m
-        )
+            : m,
+        ),
       );
     } finally {
       setIsLoading(false);
@@ -282,7 +294,8 @@ export function AIBubble(): React.ReactNode {
                   <div>
                     <h3 className="font-semibold">AI Assistant</h3>
                     <p className="text-xs text-muted-foreground">
-                      Powered by {aiStatus.remaining > 40 ? "Groq" : "AI"} • {aiStatus.remaining}/{aiStatus.limit} left
+                      Powered by {aiStatus.remaining > 40 ? "Groq" : "AI"} •{" "}
+                      {aiStatus.remaining}/{aiStatus.limit} left
                     </p>
                   </div>
                 </div>
@@ -307,29 +320,37 @@ export function AIBubble(): React.ReactNode {
                     >
                       <Bot className="h-8 w-8 text-accent" />
                     </div>
-                    <h4 className="font-medium">Hi! I&apos;m your study assistant</h4>
+                    <h4 className="font-medium">
+                      Hi! I&apos;m your study assistant
+                    </h4>
                     <p className="mt-2 text-sm text-muted-foreground">
                       Ask me about your schedule, exams, or tasks.
                     </p>
-                    
+
                     {/* Quick prompts */}
                     <div className="mt-6 grid gap-2 w-full max-w-xs">
                       <button
-                        onClick={() => handleQuickPrompt(AI_QUICK_PROMPTS.STUDY_TIPS)}
+                        onClick={() =>
+                          handleQuickPrompt(AI_QUICK_PROMPTS.STUDY_TIPS)
+                        }
                         className="interactive-surface interactive-focus flex items-center gap-2 rounded-xl border border-border bg-card/50 px-3 py-2 text-left text-sm hover:bg-muted"
                       >
                         <BookOpen className="h-4 w-4 text-accent" />
                         <span>What should I study today?</span>
                       </button>
                       <button
-                        onClick={() => handleQuickPrompt(AI_QUICK_PROMPTS.ATTENDANCE_CHECK)}
+                        onClick={() =>
+                          handleQuickPrompt(AI_QUICK_PROMPTS.ATTENDANCE_CHECK)
+                        }
                         className="interactive-surface interactive-focus flex items-center gap-2 rounded-xl border border-border bg-card/50 px-3 py-2 text-left text-sm hover:bg-muted"
                       >
                         <Calendar className="h-4 w-4 text-accent" />
                         <span>Check my attendance</span>
                       </button>
                       <button
-                        onClick={() => handleQuickPrompt(AI_QUICK_PROMPTS.EXAM_PREP)}
+                        onClick={() =>
+                          handleQuickPrompt(AI_QUICK_PROMPTS.EXAM_PREP)
+                        }
                         className="interactive-surface interactive-focus flex items-center gap-2 rounded-xl border border-border bg-card/50 px-3 py-2 text-left text-sm hover:bg-muted"
                       >
                         <CheckSquare className="h-4 w-4 text-accent" />
@@ -387,9 +408,13 @@ export function AIBubble(): React.ReactNode {
                                   onClick={() => {
                                     setPendingAction(message.entityAction!);
                                     setIsOpen(false);
-                                    toast.info(`Opening ${message.entityAction!.entity_type} form...`, {
-                                      description: "Navigate to the relevant page to complete creation",
-                                    });
+                                    toast.info(
+                                      `Opening ${message.entityAction!.entity_type} form...`,
+                                      {
+                                        description:
+                                          "Navigate to the relevant page to complete creation",
+                                      },
+                                    );
                                   }}
                                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-accent/20 px-3 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent/30"
                                 >
@@ -414,7 +439,10 @@ export function AIBubble(): React.ReactNode {
               </div>
 
               {/* Input Area */}
-              <form onSubmit={handleSubmit} className="border-t border-border p-4">
+              <form
+                onSubmit={handleSubmit}
+                className="border-t border-border p-4"
+              >
                 <div className="flex items-center gap-2">
                   <input
                     ref={inputRef}
@@ -427,7 +455,11 @@ export function AIBubble(): React.ReactNode {
                   />
                   <button
                     type="submit"
-                    disabled={!inputValue.trim() || isLoading || aiStatus.remaining === 0}
+                    disabled={
+                      !inputValue.trim() ||
+                      isLoading ||
+                      aiStatus.remaining === 0
+                    }
                     className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-white transition-opacity disabled:opacity-50"
                     aria-label="Send message"
                   >

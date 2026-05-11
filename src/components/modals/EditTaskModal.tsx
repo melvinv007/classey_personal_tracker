@@ -1,18 +1,21 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, Flag, Folder, AlignLeft } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useSubjects, useUpdateTask } from "@/hooks/use-appwrite";
-import { ThemedSelect } from "@/components/ui/ThemedSelect";
-import { ThemedDateTimeInput } from "@/components/ui/ThemedDateTimeInput";
-import type { ReminderOffset, Task } from "@/types/database";
-import { toast } from "sonner";
 import { ReminderOffsetsEditor } from "@/components/forms/ReminderOffsetsEditor";
-import { parseReminderOffsetsJson, serializeReminderOffsetsJson } from "@/lib/appwrite-db";
+import { ThemedDateTimeInput } from "@/components/ui/ThemedDateTimeInput";
+import { ThemedSelect } from "@/components/ui/ThemedSelect";
+import { useSubjects, useUpdateTask } from "@/hooks/use-appwrite";
+import {
+  parseReminderOffsetsJson,
+  serializeReminderOffsetsJson,
+} from "@/lib/appwrite-db";
+import type { ReminderOffset, Task } from "@/types/database";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AnimatePresence, motion } from "framer-motion";
+import { AlignLeft, Calendar, Flag, Folder, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 
 const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -44,9 +47,24 @@ const overlayVariants = {
 
 const PRIORITIES = [
   { value: "low", label: "Low", color: "#6B7280", bg: "rgba(107,114,128,0.2)" },
-  { value: "medium", label: "Medium", color: "#3B82F6", bg: "rgba(59,130,246,0.2)" },
-  { value: "high", label: "High", color: "#F59E0B", bg: "rgba(245,158,11,0.2)" },
-  { value: "urgent", label: "Urgent", color: "#EF4444", bg: "rgba(239,68,68,0.2)" },
+  {
+    value: "medium",
+    label: "Medium",
+    color: "#3B82F6",
+    bg: "rgba(59,130,246,0.2)",
+  },
+  {
+    value: "high",
+    label: "High",
+    color: "#F59E0B",
+    bg: "rgba(245,158,11,0.2)",
+  },
+  {
+    value: "urgent",
+    label: "Urgent",
+    color: "#EF4444",
+    bg: "rgba(239,68,68,0.2)",
+  },
 ] as const;
 
 function toDateTimeLocal(value: string | null): string {
@@ -65,16 +83,28 @@ function toUtcIsoFromLocalDateTime(value: string | null): string | null {
   return new Date(value).toISOString();
 }
 
-export function EditTaskModal({ isOpen, onClose, task }: EditTaskModalProps): React.ReactNode {
+export function EditTaskModal({
+  isOpen,
+  onClose,
+  task,
+}: EditTaskModalProps): React.ReactNode {
   const { data: subjects = [] } = useSubjects(task?.semester_id ?? undefined);
   const updateTaskMutation = useUpdateTask();
   const activeSubjects = subjects.filter((sub) => !sub.deleted_at);
-  const [reminderOffsets, setReminderOffsets] = useState<ReminderOffset[]>([]);
+  const [reminderOffsetsByTaskId, setReminderOffsetsByTaskId] = useState<
+    Record<string, ReminderOffset[]>
+  >({});
+  const baseReminderOffsets = useMemo(
+    () => parseReminderOffsetsJson(task?.reminder_offsets_json ?? null),
+    [task?.reminder_offsets_json],
+  );
+  const reminderOffsets =
+    task ? reminderOffsetsByTaskId[task.$id] ?? baseReminderOffsets : [];
 
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     setValue,
     reset,
     formState: { errors, isSubmitting },
@@ -98,24 +128,27 @@ export function EditTaskModal({ isOpen, onClose, task }: EditTaskModalProps): Re
       priority: task.priority ?? "medium",
       subject_id: task.subject_id ?? "",
     });
-    setReminderOffsets(parseReminderOffsetsJson(task.reminder_offsets_json));
   }, [task, reset]);
 
-  const selectedPriority = watch("priority");
-  const selectedSubjectId = watch("subject_id") || "__none__";
-  const deadlineValue = watch("deadline") || "";
+  const selectedPriority = useWatch({ control, name: "priority" });
+  const selectedSubjectId =
+    useWatch({ control, name: "subject_id" }) || "__none__";
+  const deadlineValue = useWatch({ control, name: "deadline" }) || "";
 
   const onSubmit = async (data: TaskFormData): Promise<void> => {
     if (!task) return;
     try {
-      await updateTaskMutation.mutateAsync({ id: task.$id, data: {
-        title: data.title,
-        description: data.description || null,
-        deadline: toUtcIsoFromLocalDateTime(data.deadline || null),
-        priority: data.priority,
-        subject_id: data.subject_id || null,
-        reminder_offsets_json: serializeReminderOffsetsJson(reminderOffsets),
-      }});
+      await updateTaskMutation.mutateAsync({
+        id: task.$id,
+        data: {
+          title: data.title,
+          description: data.description || null,
+          deadline: toUtcIsoFromLocalDateTime(data.deadline || null),
+          priority: data.priority,
+          subject_id: data.subject_id || null,
+          reminder_offsets_json: serializeReminderOffsetsJson(reminderOffsets),
+        },
+      });
       toast.success("Task updated");
       onClose();
     } catch {
@@ -169,7 +202,11 @@ export function EditTaskModal({ isOpen, onClose, task }: EditTaskModalProps): Re
                   {...register("title")}
                   className="w-full px-4 py-2.5 rounded-xl bg-white/6 border border-white/10 text-foreground placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)] transition-all"
                 />
-                {errors.title && <p className="text-red-400 text-xs mt-1">{errors.title.message}</p>}
+                {errors.title && (
+                  <p className="text-red-400 text-xs mt-1">
+                    {errors.title.message}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -189,8 +226,14 @@ export function EditTaskModal({ isOpen, onClose, task }: EditTaskModalProps): Re
                           : "hover:bg-white/10"
                       }`}
                       style={{
-                        backgroundColor: selectedPriority === priority.value ? priority.bg : "rgba(255,255,255,0.05)",
-                        color: selectedPriority === priority.value ? priority.color : "inherit",
+                        backgroundColor:
+                          selectedPriority === priority.value
+                            ? priority.bg
+                            : "rgba(255,255,255,0.05)",
+                        color:
+                          selectedPriority === priority.value
+                            ? priority.color
+                            : "inherit",
                         // @ts-expect-error CSS custom property
                         "--tw-ring-color": priority.color,
                       }}
@@ -208,10 +251,17 @@ export function EditTaskModal({ isOpen, onClose, task }: EditTaskModalProps): Re
                 </label>
                 <ThemedSelect
                   value={selectedSubjectId}
-                  onChange={(value) => setValue("subject_id", value === "__none__" ? "" : value, { shouldValidate: true })}
+                  onChange={(value) =>
+                    setValue("subject_id", value === "__none__" ? "" : value, {
+                      shouldValidate: true,
+                    })
+                  }
                   options={[
                     { value: "__none__", label: "No subject" },
-                    ...activeSubjects.map((subject) => ({ value: subject.$id, label: subject.name })),
+                    ...activeSubjects.map((subject) => ({
+                      value: subject.$id,
+                      label: subject.name,
+                    })),
                   ]}
                 />
                 <input type="hidden" {...register("subject_id")} />
@@ -224,7 +274,9 @@ export function EditTaskModal({ isOpen, onClose, task }: EditTaskModalProps): Re
                 </label>
                 <ThemedDateTimeInput
                   value={deadlineValue}
-                  onChange={(value) => setValue("deadline", value, { shouldValidate: true })}
+                  onChange={(value) =>
+                    setValue("deadline", value, { shouldValidate: true })
+                  }
                 />
                 <input type="hidden" {...register("deadline")} />
               </div>
@@ -245,7 +297,13 @@ export function EditTaskModal({ isOpen, onClose, task }: EditTaskModalProps): Re
                 label="Task reminders"
                 description="Custom offsets for this task."
                 value={reminderOffsets}
-                onChange={setReminderOffsets}
+                onChange={(value) => {
+                  if (!task) return;
+                  setReminderOffsetsByTaskId((prev) => ({
+                    ...prev,
+                    [task.$id]: value,
+                  }));
+                }}
               />
 
               <div className="flex gap-3 pt-2">

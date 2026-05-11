@@ -1,10 +1,10 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { FileText, Calendar, Clock, Award, MoreHorizontal } from "lucide-react";
-import { format, isPast, isFuture, differenceInDays, differenceInHours } from "date-fns";
-import type { Exam } from "@/types/database";
 import { cn } from "@/lib/utils";
+import type { Exam } from "@/types/database";
+import { differenceInDays, differenceInHours, format, isPast } from "date-fns";
+import { motion } from "framer-motion";
+import { Calendar, Clock, MoreHorizontal } from "lucide-react";
 
 export interface ExamCardProps {
   exam: Exam;
@@ -32,13 +32,9 @@ export function ExamCard({
   exam,
   subjectName,
   subjectColor,
-  onEdit,
-  onDelete,
-  onAddMarks,
   onClick,
 }: ExamCardProps): React.ReactNode {
   const examDate = new Date(exam.date);
-  const isUpcoming = isFuture(examDate);
   const isPastExam = isPast(examDate);
   const hasMarks = exam.marks_obtained !== null;
 
@@ -83,7 +79,7 @@ export function ExamCard({
       className={cn(
         "group relative rounded-xl p-4 cursor-pointer transition-all duration-200",
         "bg-white/5 backdrop-blur-xl border border-white/10",
-        "hover:bg-white/8 hover:border-white/15"
+        "hover:bg-white/8 hover:border-white/15",
       )}
       style={{
         boxShadow: subjectColor
@@ -109,11 +105,15 @@ export function ExamCard({
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <h4 className="font-medium text-foreground truncate">{exam.name}</h4>
+            <h4 className="font-medium text-foreground truncate">
+              {exam.name}
+            </h4>
             {subjectName && (
-              <p className="text-xs text-muted-foreground truncate">{subjectName}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {subjectName}
+              </p>
             )}
-            
+
             {/* Date and time */}
             <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
@@ -134,7 +134,12 @@ export function ExamCard({
         <div className="flex flex-col items-end gap-1">
           {hasMarks ? (
             <>
-              <div className={cn("text-lg font-bold", getPercentageColor(percentage!))}>
+              <div
+                className={cn(
+                  "text-lg font-bold",
+                  getPercentageColor(percentage!),
+                )}
+              >
                 {percentage}%
               </div>
               <div className="text-xs text-muted-foreground">

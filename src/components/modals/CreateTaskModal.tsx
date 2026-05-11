@@ -9,6 +9,8 @@ import {
   serializeReminderOffsetsJson,
 } from "@/lib/appwrite-db";
 import { formatFileSize, uploadFile } from "@/lib/appwrite-storage";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/hooks/use-appwrite";
 import type { ReminderOffset } from "@/types/database";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, motion } from "framer-motion";
@@ -21,8 +23,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useRef, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -84,29 +86,31 @@ export function CreateTaskModal({
   preselectedSubjectId,
 }: CreateTaskModalProps): React.ReactNode {
   const createTask = useCreateTask();
+  const queryClient = useQueryClient();
   const { data: settings } = useSettings();
   const { data: subjectsData } = useSubjects(semesterId);
   const subjects = subjectsData?.filter((sub) => !sub.deleted_at) ?? [];
   const attachmentInputRef = useRef<HTMLInputElement>(null);
-  const [reminderOffsets, setReminderOffsets] = useState<ReminderOffset[]>([
-    { value: 24, unit: "hours" },
-    { value: 2, unit: "hours" },
-  ]);
+  const [customReminderOffsets, setCustomReminderOffsets] = useState<
+    ReminderOffset[] | null
+  >(null);
+  const configuredReminderOffsets = parseReminderOffsetsJson(
+    settings?.task_default_reminder_offsets_json ?? null,
+  );
+  const reminderOffsets =
+    customReminderOffsets ??
+    (configuredReminderOffsets.length > 0
+      ? configuredReminderOffsets
+      : [
+          { value: 24, unit: "hours" as const },
+          { value: 2, unit: "hours" as const },
+        ]);
   const [attachments, setAttachments] = useState<File[]>([]);
-
-  useEffect(() => {
-    const parsed = parseReminderOffsetsJson(
-      settings?.task_default_reminder_offsets_json ?? null,
-    );
-    if (parsed.length > 0) {
-      setReminderOffsets(parsed);
-    }
-  }, [settings?.task_default_reminder_offsets_json]);
 
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     setValue,
     reset,
     formState: { errors, isSubmitting },
@@ -118,9 +122,9 @@ export function CreateTaskModal({
     },
   });
 
-  const selectedPriority = watch("priority");
-  const selectedSubjectId = watch("subject_id") || "__none__";
-  const deadlineValue = watch("deadline") ?? "";
+  const selectedPriority = useWatch({ control, name: "priority" });
+  const selectedSubjectId = useWatch({ control, name: "subject_id" }) || "__none__";
+  const deadlineValue = useWatch({ control, name: "deadline" }) ?? "";
 
   const onSubmit = async (data: TaskFormData) => {
     try {
@@ -159,6 +163,14 @@ export function CreateTaskModal({
         ).length;
       }
 
+      // Invalidate caches so files and tasks reflect the new uploads
+      try {
+        queryClient.invalidateQueries({ queryKey: queryKeys.files() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks() });
+      } catch (e) {
+        console.warn("Failed to invalidate queries after task creation", e);
+      }
+
       if (attachments.length > 0 && failedUploads === 0) {
         toast.success(
           `Task created with ${attachments.length} attachment${attachments.length > 1 ? "s" : ""}`,
@@ -171,6 +183,7 @@ export function CreateTaskModal({
         toast.success("Task created");
       }
       setAttachments([]);
+      setCustomReminderOffsets(null);
       reset();
       onClose();
     } catch {
@@ -180,6 +193,7 @@ export function CreateTaskModal({
 
   const handleClose = () => {
     setAttachments([]);
+    setCustomReminderOffsets(null);
     reset();
     onClose();
   };
@@ -407,7 +421,7 @@ export function CreateTaskModal({
                 label="Task reminders"
                 description="Per-task offsets. These override defaults from Settings."
                 value={reminderOffsets}
-                onChange={setReminderOffsets}
+                onChange={setCustomReminderOffsets}
               />
 
               {/* Submit */}

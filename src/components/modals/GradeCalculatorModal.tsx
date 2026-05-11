@@ -1,17 +1,17 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Calculator, Target, Award, Check, AlertTriangle, XCircle } from "lucide-react";
-import { useState, useMemo } from "react";
-import { useData } from "@/hooks/use-data";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
-import {
-  DEFAULT_GRADE_SCALE,
-  marksNeededForGrade,
-  calculateSubjectGrade,
-  getGradeColor,
-} from "@/utils/grades";
+import { useData } from "@/hooks/use-data";
 import { cn } from "@/lib/utils";
+import {
+  calculateSubjectGrade,
+  DEFAULT_GRADE_SCALE,
+  getGradeColor,
+  marksNeededForGrade,
+} from "@/utils/grades";
+import { AnimatePresence, motion } from "framer-motion";
+import { Award, Calculator, Check, Target, X, XCircle } from "lucide-react";
+import { useMemo, useState } from "react";
 
 interface GradeCalculatorModalProps {
   isOpen: boolean;
@@ -40,18 +40,18 @@ export function GradeCalculatorModal({
   const filteredSubjects = subjects.filter((sub) => !sub.deleted_at);
 
   const semesterSubjects = filteredSubjects.filter(
-    (s) => ongoingSemester && s.semester_id === ongoingSemester.$id
+    (s) => ongoingSemester && s.semester_id === ongoingSemester.$id,
   );
 
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
-    preselectedSubjectId || semesterSubjects[0]?.$id || ""
+    preselectedSubjectId || semesterSubjects[0]?.$id || "",
   );
   const [targetGrade, setTargetGrade] = useState<string>("A");
 
   // Get exams for selected subject
   const subjectExams = useMemo(() => {
     return exams.filter(
-      (e) => e.subject_id === selectedSubjectId && !e.deleted_at
+      (e) => e.subject_id === selectedSubjectId && !e.deleted_at,
     );
   }, [exams, selectedSubjectId]);
 
@@ -66,7 +66,11 @@ export function GradeCalculatorModal({
   // Calculate what's needed for each grade
   const gradeRequirements = useMemo(() => {
     return DEFAULT_GRADE_SCALE.map((grade) => {
-      const result = marksNeededForGrade(completedExams, remainingExams, grade.grade);
+      const result = marksNeededForGrade(
+        completedExams,
+        remainingExams,
+        grade.grade,
+      );
       return {
         grade: grade.grade,
         points: grade.points,
@@ -77,7 +81,9 @@ export function GradeCalculatorModal({
   }, [completedExams, remainingExams]);
 
   // Selected grade requirement
-  const selectedRequirement = gradeRequirements.find((g) => g.grade === targetGrade);
+  const selectedRequirement = gradeRequirements.find(
+    (g) => g.grade === targetGrade,
+  );
 
   return (
     <AnimatePresence>
@@ -109,7 +115,9 @@ export function GradeCalculatorModal({
                 <div className="w-10 h-10 rounded-xl bg-[rgba(var(--accent),0.15)] flex items-center justify-center">
                   <Calculator className="w-5 h-5 text-[rgb(var(--accent))]" />
                 </div>
-                <h2 className="text-xl font-bold text-foreground">Grade Calculator</h2>
+                <h2 className="text-xl font-bold text-foreground">
+                  Grade Calculator
+                </h2>
               </div>
               <button
                 onClick={onClose}
@@ -138,11 +146,16 @@ export function GradeCalculatorModal({
             <div className="bg-white/5 rounded-2xl p-4 mb-6">
               <div className="flex items-center gap-2 mb-3">
                 <Award className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Current Status</span>
+                <span className="text-sm font-medium text-muted-foreground">
+                  Current Status
+                </span>
               </div>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <p className="text-2xl font-bold" style={{ color: getGradeColor(currentGrade.percentage) }}>
+                  <p
+                    className="text-2xl font-bold"
+                    style={{ color: getGradeColor(currentGrade.percentage) }}
+                  >
                     {currentGrade.grade}
                   </p>
                   <p className="text-xs text-muted-foreground">Grade</p>
@@ -162,7 +175,8 @@ export function GradeCalculatorModal({
               </div>
               {completedExams.length > 0 && (
                 <p className="text-xs text-muted-foreground mt-3 text-center">
-                  Based on {completedExams.length} exam{completedExams.length !== 1 ? "s" : ""}
+                  Based on {completedExams.length} exam
+                  {completedExams.length !== 1 ? "s" : ""}
                 </p>
               )}
             </div>
@@ -182,15 +196,17 @@ export function GradeCalculatorModal({
                       "px-3 py-2 rounded-xl text-sm font-bold transition-all",
                       targetGrade === grade.grade
                         ? "ring-2 ring-offset-2 ring-offset-background"
-                        : "hover:bg-white/10"
+                        : "hover:bg-white/10",
                     )}
                     style={{
-                      backgroundColor: targetGrade === grade.grade 
-                        ? `${getGradeColor(grade.min_percent)}30` 
-                        : "rgba(255,255,255,0.05)",
-                      color: targetGrade === grade.grade 
-                        ? getGradeColor(grade.min_percent) 
-                        : "inherit",
+                      backgroundColor:
+                        targetGrade === grade.grade
+                          ? `${getGradeColor(grade.min_percent)}30`
+                          : "rgba(255,255,255,0.05)",
+                      color:
+                        targetGrade === grade.grade
+                          ? getGradeColor(grade.min_percent)
+                          : "inherit",
                       // @ts-expect-error CSS custom property
                       "--tw-ring-color": getGradeColor(grade.min_percent),
                     }}
@@ -203,60 +219,83 @@ export function GradeCalculatorModal({
 
             {/* Result */}
             {selectedRequirement && (
-              <div 
+              <div
                 className="rounded-2xl p-6 text-center"
-                style={{ 
-                  backgroundColor: selectedRequirement.achievable 
-                    ? "rgba(16,185,129,0.1)" 
+                style={{
+                  backgroundColor: selectedRequirement.achievable
+                    ? "rgba(16,185,129,0.1)"
                     : "rgba(239,68,68,0.1)",
                   border: `1px solid ${selectedRequirement.achievable ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)"}`,
                 }}
               >
                 {remainingExams.length === 0 ? (
                   <div>
-                    <p className="text-muted-foreground mb-2">No remaining exams</p>
+                    <p className="text-muted-foreground mb-2">
+                      No remaining exams
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                      Your final grade is <span className="font-bold text-foreground">{currentGrade.grade}</span>
+                      Your final grade is{" "}
+                      <span className="font-bold text-foreground">
+                        {currentGrade.grade}
+                      </span>
                     </p>
                   </div>
                 ) : selectedRequirement.achievable ? (
                   <>
                     <div className="flex items-center justify-center gap-2 mb-2">
                       <Check className="w-5 h-5 text-emerald-400" />
-                      <span className="text-sm font-medium text-emerald-400">Achievable</span>
+                      <span className="text-sm font-medium text-emerald-400">
+                        Achievable
+                      </span>
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">
-                      To get <span className="font-bold text-foreground">{targetGrade}</span>, you need
+                      To get{" "}
+                      <span className="font-bold text-foreground">
+                        {targetGrade}
+                      </span>
+                      , you need
                     </p>
-                    <p 
+                    <p
                       className="text-4xl font-bold mb-2"
-                      style={{ color: getGradeColor(selectedRequirement.neededPercent) }}
+                      style={{
+                        color: getGradeColor(selectedRequirement.neededPercent),
+                      }}
                     >
                       {selectedRequirement.neededPercent}%
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      in remaining {remainingExams.length} exam{remainingExams.length !== 1 ? "s" : ""} 
-                      ({selectedRequirement.remainingWeight}% weightage)
+                      in remaining {remainingExams.length} exam
+                      {remainingExams.length !== 1 ? "s" : ""}(
+                      {selectedRequirement.remainingWeight}% weightage)
                     </p>
                   </>
                 ) : selectedRequirement.neededPercent < 0 ? (
                   <>
                     <div className="flex items-center justify-center gap-2 mb-2">
                       <Check className="w-5 h-5 text-emerald-400" />
-                      <span className="text-sm font-medium text-emerald-400">Already Achieved!</span>
+                      <span className="text-sm font-medium text-emerald-400">
+                        Already Achieved!
+                      </span>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      You&apos;ve already secured grade <span className="font-bold text-foreground">{targetGrade}</span> or better
+                      You&apos;ve already secured grade{" "}
+                      <span className="font-bold text-foreground">
+                        {targetGrade}
+                      </span>{" "}
+                      or better
                     </p>
                   </>
                 ) : (
                   <>
                     <div className="flex items-center justify-center gap-2 mb-2">
                       <XCircle className="w-5 h-5 text-red-400" />
-                      <span className="text-sm font-medium text-red-400">Not Possible</span>
+                      <span className="text-sm font-medium text-red-400">
+                        Not Possible
+                      </span>
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">
-                      Would require {selectedRequirement.neededPercent}% in remaining exams
+                      Would require {selectedRequirement.neededPercent}% in
+                      remaining exams
                     </p>
                     <p className="text-xs text-red-400">
                       That&apos;s more than 100% — mathematically impossible
@@ -268,20 +307,22 @@ export function GradeCalculatorModal({
 
             {/* All Grades Overview */}
             <div className="mt-6">
-              <p className="text-sm font-medium text-muted-foreground mb-3">All Grades Overview</p>
+              <p className="text-sm font-medium text-muted-foreground mb-3">
+                All Grades Overview
+              </p>
               <div className="space-y-2">
                 {gradeRequirements.slice(0, -1).map((req) => (
                   <div
                     key={req.grade}
                     className={cn(
                       "flex items-center justify-between p-3 rounded-xl transition-all",
-                      req.achievable ? "bg-white/5" : "bg-white/3 opacity-60"
+                      req.achievable ? "bg-white/5" : "bg-white/3 opacity-60",
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      <span 
+                      <span
                         className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm"
-                        style={{ 
+                        style={{
                           backgroundColor: `${getGradeColor(req.minPercent)}20`,
                           color: getGradeColor(req.minPercent),
                         }}
@@ -295,14 +336,18 @@ export function GradeCalculatorModal({
                     <div className="text-right">
                       {req.achievable ? (
                         req.neededPercent <= 0 ? (
-                          <span className="text-xs text-emerald-400 font-medium">✓ Secured</span>
+                          <span className="text-xs text-emerald-400 font-medium">
+                            ✓ Secured
+                          </span>
                         ) : (
                           <span className="text-sm font-medium text-foreground">
                             Need {req.neededPercent}%
                           </span>
                         )
                       ) : (
-                        <span className="text-xs text-red-400">Not possible</span>
+                        <span className="text-xs text-red-400">
+                          Not possible
+                        </span>
                       )}
                     </div>
                   </div>

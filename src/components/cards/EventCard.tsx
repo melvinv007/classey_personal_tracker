@@ -1,10 +1,10 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+import type { Event } from "@/types/database";
+import { differenceInDays, format, isPast, isSameDay } from "date-fns";
 import { motion } from "framer-motion";
 import { Calendar, Clock, MapPin, MoreHorizontal, Repeat } from "lucide-react";
-import { format, isSameDay, isPast, isFuture, differenceInDays } from "date-fns";
-import type { Event } from "@/types/database";
-import { cn } from "@/lib/utils";
 
 export interface EventCardProps {
   event: Event;
@@ -23,12 +23,7 @@ const recurrenceLabels: Record<NonNullable<Event["recurrence"]>, string> = {
 /**
  * EventCard - Displays personal event with time, location, and recurrence
  */
-export function EventCard({
-  event,
-  onEdit,
-  onDelete,
-  onClick,
-}: EventCardProps): React.ReactNode {
+export function EventCard({ event, onClick }: EventCardProps): React.ReactNode {
   const startDate = new Date(event.start_datetime);
   const endDate = new Date(event.end_datetime);
   const isAllDay = event.is_all_day;
@@ -59,7 +54,7 @@ export function EventCard({
         "group relative rounded-xl p-4 cursor-pointer transition-all duration-200",
         "bg-white/5 backdrop-blur-xl border border-white/10",
         "hover:bg-white/8 hover:border-white/15",
-        isPastEvent && "opacity-60"
+        isPastEvent && "opacity-60",
       )}
       style={{
         boxShadow: `0 0 20px ${eventColor}15, inset 0 0 30px ${eventColor}05`,
@@ -75,7 +70,9 @@ export function EventCard({
         {/* Left: Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h4 className="font-medium text-foreground truncate">{event.title}</h4>
+            <h4 className="font-medium text-foreground truncate">
+              {event.title}
+            </h4>
             {event.recurrence && event.recurrence !== "none" && (
               <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
                 <Repeat className="w-3 h-3" />
@@ -94,15 +91,11 @@ export function EventCard({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <Calendar className="w-3 h-3" />
-              {isAllDay ? (
-                isSameDate ? (
-                  format(startDate, "EEE, MMM d")
-                ) : (
-                  `${format(startDate, "MMM d")} - ${format(endDate, "MMM d")}`
-                )
-              ) : (
-                format(startDate, "EEE, MMM d")
-              )}
+              {isAllDay
+                ? isSameDate
+                  ? format(startDate, "EEE, MMM d")
+                  : `${format(startDate, "MMM d")} - ${format(endDate, "MMM d")}`
+                : format(startDate, "EEE, MMM d")}
             </span>
 
             {!isAllDay && (
@@ -128,7 +121,11 @@ export function EventCard({
           <span
             className={cn(
               "text-sm font-medium",
-              isPastEvent ? "text-muted-foreground" : isToday ? "text-accent" : "text-foreground"
+              isPastEvent
+                ? "text-muted-foreground"
+                : isToday
+                  ? "text-accent"
+                  : "text-foreground",
             )}
           >
             {getTimeStatus()}

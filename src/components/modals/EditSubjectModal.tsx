@@ -17,7 +17,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, motion } from "framer-motion";
 import { BookOpen, CalendarDays, Trash2, User, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -136,7 +136,8 @@ export function EditSubjectModal({
   const {
     register,
     handleSubmit,
-    watch,
+    control,
+    getValues,
     setValue,
     reset,
     formState: { errors, isSubmitting },
@@ -160,8 +161,12 @@ export function EditSubjectModal({
     },
   });
 
-  const selectedColor = watch("color");
-  const selectedType = watch("type");
+  const selectedColor = useWatch({ control, name: "color" });
+  const selectedType = useWatch({ control, name: "type" });
+  const startDateValue = useWatch({ control, name: "start_date" }) || "";
+  const endDateValue = useWatch({ control, name: "end_date" }) || "";
+  const attendanceRequirementValue =
+    useWatch({ control, name: "attendance_requirement" }) ?? "75";
 
   useEffect(() => {
     if (isOpen) {
@@ -254,7 +259,7 @@ export function EditSubjectModal({
         subject.$id,
         selectedSlot,
         selectedSubSlotIds,
-        watch("start_date") ||
+        getValues("start_date") ||
           subject.start_date ||
           semesterStartDate ||
           new Date().toISOString().split("T")[0],
@@ -414,7 +419,7 @@ export function EditSubjectModal({
                         Start Date
                       </label>
                       <ThemedDateInput
-                        value={watch("start_date") || ""}
+                        value={startDateValue}
                         onChange={(value) =>
                           setValue("start_date", value, {
                             shouldValidate: true,
@@ -433,7 +438,7 @@ export function EditSubjectModal({
                         End Date
                       </label>
                       <ThemedDateInput
-                        value={watch("end_date") || ""}
+                        value={endDateValue}
                         onChange={(value) =>
                           setValue("end_date", value, { shouldValidate: true })
                         }
@@ -684,7 +689,7 @@ export function EditSubjectModal({
                           className="flex-1 h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[rgb(var(--accent))]"
                         />
                         <span className="w-12 text-center text-sm font-medium text-foreground">
-                          {watch("attendance_requirement") ?? "75"}%
+                          {attendanceRequirementValue}%
                         </span>
                       </div>
                     </div>
