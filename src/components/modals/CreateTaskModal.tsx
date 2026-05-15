@@ -3,16 +3,20 @@
 import { ReminderOffsetsEditor } from "@/components/forms/ReminderOffsetsEditor";
 import { ThemedDateTimeInput } from "@/components/ui/ThemedDateTimeInput";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
-import { useCreateTask, useSettings, useSubjects } from "@/hooks/use-appwrite";
+import {
+  queryKeys,
+  useCreateTask,
+  useSettings,
+  useSubjects,
+} from "@/hooks/use-appwrite";
 import {
   parseReminderOffsetsJson,
   serializeReminderOffsetsJson,
 } from "@/lib/appwrite-db";
 import { formatFileSize, uploadFile } from "@/lib/appwrite-storage";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/hooks/use-appwrite";
 import type { ReminderOffset } from "@/types/database";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlignLeft,
@@ -123,7 +127,8 @@ export function CreateTaskModal({
   });
 
   const selectedPriority = useWatch({ control, name: "priority" });
-  const selectedSubjectId = useWatch({ control, name: "subject_id" }) || "__none__";
+  const selectedSubjectId =
+    useWatch({ control, name: "subject_id" }) || "__none__";
   const deadlineValue = useWatch({ control, name: "deadline" }) ?? "";
 
   const onSubmit = async (data: TaskFormData) => {

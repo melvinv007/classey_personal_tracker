@@ -1,541 +1,485 @@
 "use client";
 
-import { MonthGridView } from "@/components/calendar/MonthGridView";
-import { TimeGridView } from "@/components/calendar/TimeGridView";
-import type { CalendarGridEvent } from "@/components/calendar/types";
-import { CreateEventModal } from "@/components/modals/CreateEventModal";
-import {
-  useCalendarColumnWidthSetting,
-  useCalendarHourRowHeightSetting,
-  useCalendarWeekendsSetting,
-} from "@/hooks/use-timetable-weekend-setting";
 import { useData } from "@/hooks/use-data";
-import { cn, normalizeTimeHM } from "@/lib/utils";
-import {
-  addDays,
-  addMinutes,
-  addMonths,
-  endOfDay,
-  endOfMonth,
-  endOfWeek,
-  format,
-  startOfDay,
-  startOfMonth,
-  startOfWeek,
-  subDays,
-  subMonths,
-} from "date-fns";
-import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, ExternalLink, Loader2, X } from "lucide-react";
+import { cn, normalizeTimeHMS } from "@/lib/utils";
+import type {
+  DatesSetArg,
+  EventClickArg,
+  EventInput,
+} from "@fullcalendar/core";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import interactionPlugin from "@fullcalendar/interaction";
+import FullCalendar from "@fullcalendar/react";
+import timeGridPlugin from "@fullcalendar/timegrid";
+import { addDays, format, parseISO } from "date-fns";
+import { motion } from "framer-motion";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
-type CalendarViewMode = "week" | "day" | "month";
+import "./calendar.css";
 
-interface EventModalDefaults {
-  title?: string;
-  description?: string;
-  location?: string;
-  start_date?: string;
-  start_time?: string;
-  end_date?: string;
-  end_time?: string;
-  is_all_day?: boolean;
-  recurrence?: "none" | "daily" | "weekly" | "monthly";
-  color?: string;
-}
+// Exam type colors
+const EXAM_COLORS = {
+  quiz: "#8B5CF6",
+  assignment: "#10B981",
+  midterm: "#F59E0B",
+  final: "#EF4444",
+  practical: "#06B6D4",
+  other: "#6B7280",
+};
 
-function isInRange(date: Date, rangeStart: Date, rangeEnd: Date): boolean {
-  return date >= rangeStart && date <= rangeEnd;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function toDateString(day: Date): string {
-  return format(day, "yyyy-MM-dd");
-}
-
+/**
+ * Weekly Calendar page using FullCalendar
+ */
 export default function CalendarPage(): React.ReactNode {
   const router = useRouter();
-  const [view, setView] = useState<CalendarViewMode>("week");
-  const [focusDate, setFocusDate] = useState(() => new Date());
-  const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
-  const [eventDefaults, setEventDefaults] = useState<EventModalDefaults | undefined>(
-    undefined,
-  );
-  const [selectedEvent, setSelectedEvent] = useState<{
-    event: CalendarGridEvent;
-    anchorRect: DOMRect;
-  } | null>(null);
-
-  const showWeekends = useCalendarWeekendsSetting();
-  const hourRowHeight = useCalendarHourRowHeightSetting();
-  const columnMinWidth = useCalendarColumnWidthSetting();
+  const calendarRef = useRef<FullCalendar>(null);
+  const nowDate = useMemo(() => new Date(), []);
+  const nowTime = useMemo(() => nowDate.toTimeString().slice(0, 8), [nowDate]);
+  const [currentDate, setCurrentDate] = useState<Date | null>(nowDate);
+  const [view, setView] = useState<
+    "timeGridWeek" | "timeGridDay" | "dayGridMonth"
+  >("timeGridWeek");
+  const [visibleRange, setVisibleRange] = useState(() => ({
+    start: format(nowDate, "yyyy-MM-dd"),
+    end: format(addDays(nowDate, 6), "yyyy-MM-dd"),
+  }));
 
   const {
     classSchedules,
     classOccurrences,
     exams,
-    tasks,
     events: personalEvents,
+    subjects,
     getSubjectById,
     getHolidaysBySemester,
-    activeSemester,
+    ongoingSemester,
     isLoading,
   } = useData();
+  const activeSemesterFilterId = ongoingSemester?.$id ?? null;
 
-  const activeSemesterId = activeSemester?.$id ?? null;
+  // Helper to add minutes to a time string - wrapped in useCallback
+  const addMinutesToTime = useCallback(
+    (time: string, minutes: number): string => {
+      const normalized = normalizeTimeHMS(time);
+      const [h, m] = normalized.split(":").map(Number);
+      const totalMinutes = h * 60 + m + minutes;
+      const newH = Math.floor(totalMinutes / 60) % 24;
+      const newM = totalMinutes % 60;
+      return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}:00`;
+    },
+    [],
+  );
 
-  const weekDays = useMemo(() => {
-    const weekStart = startOfWeek(focusDate, { weekStartsOn: 1 });
-    const length = showWeekends ? 7 : 5;
-    return Array.from({ length }, (_, index) => addDays(weekStart, index));
-  }, [focusDate, showWeekends]);
-
-  const visibleDays = useMemo(() => {
-    if (view === "day") return [focusDate];
-    if (view === "month") return [];
-    return weekDays;
-  }, [focusDate, view, weekDays]);
-
-  const visibleRange = useMemo(() => {
-    if (view === "month") {
-      const monthStart = startOfWeek(startOfMonth(focusDate), { weekStartsOn: 1 });
-      const monthEnd = endOfWeek(endOfMonth(focusDate), { weekStartsOn: 1 });
-      return { start: monthStart, end: monthEnd };
+  // Generate calendar events from schedules, exams, and events
+  const calendarEvents = useMemo((): EventInput[] => {
+    const result: EventInput[] = [];
+    if (!activeSemesterFilterId) {
+      return result;
     }
-    return {
-      start: startOfDay(visibleDays[0] ?? focusDate),
-      end: endOfDay(visibleDays[visibleDays.length - 1] ?? focusDate),
-    };
-  }, [focusDate, view, visibleDays]);
 
-  const calendarEvents = useMemo<CalendarGridEvent[]>(() => {
-    if (!activeSemesterId) return [];
-
-    const rangeStart = visibleRange.start;
-    const rangeEnd = visibleRange.end;
+    const rangeStart = parseISO(visibleRange.start);
+    const rangeEnd = parseISO(visibleRange.end);
     const holidayDates = new Set<string>();
-
-    getHolidaysBySemester(activeSemesterId).forEach((holiday) => {
+    getHolidaysBySemester(activeSemesterFilterId).forEach((holiday) => {
       const holidayStart = holiday.date;
       const holidayEnd = holiday.date_end ?? holiday.date;
-      const holidayStartDate = new Date(`${holidayStart}T00:00:00`);
-      const holidayEndDate = new Date(`${holidayEnd}T00:00:00`);
-      if (holidayEndDate < rangeStart || holidayStartDate > rangeEnd) return;
-
+      if (holidayEnd < visibleRange.start || holidayStart > visibleRange.end) {
+        return;
+      }
+      const loopStart =
+        holidayStart > visibleRange.start ? holidayStart : visibleRange.start;
+      const loopEnd =
+        holidayEnd < visibleRange.end ? holidayEnd : visibleRange.end;
+      const loopEndDate = parseISO(loopEnd);
       for (
-        let cursor = new Date(holidayStartDate);
-        cursor <= holidayEndDate;
+        let cursor = parseISO(loopStart);
+        cursor.getTime() <= loopEndDate.getTime();
         cursor = addDays(cursor, 1)
       ) {
-        holidayDates.add(toDateString(cursor));
+        holidayDates.add(format(cursor, "yyyy-MM-dd"));
       }
     });
-
     const cancelledClassKeys = new Set(
       classOccurrences
         .filter((occurrence) => occurrence.status === "cancelled")
         .map(
           (occurrence) =>
-            `${occurrence.subject_id}|${occurrence.date}|${normalizeTimeHM(occurrence.start_time)}|${normalizeTimeHM(occurrence.end_time)}`,
+            `${occurrence.subject_id}|${occurrence.date}|${normalizeTimeHMS(occurrence.start_time)}|${normalizeTimeHMS(occurrence.end_time)}`,
         ),
     );
 
-    const result: CalendarGridEvent[] = [];
+    if (view !== "dayGridMonth") {
+      classSchedules.forEach((schedule) => {
+        if (schedule.deleted_at) return;
+        const subject = getSubjectById(schedule.subject_id);
+        if (!subject || subject.deleted_at) return;
+        if (subject.semester_id !== activeSemesterFilterId) return;
 
-    classSchedules.forEach((schedule) => {
-      if (schedule.deleted_at) return;
-      const subject = getSubjectById(schedule.subject_id);
-      if (!subject || subject.deleted_at) return;
-      if (subject.semester_id !== activeSemesterId) return;
+        const startTime = normalizeTimeHMS(schedule.start_time);
+        const endTime = normalizeTimeHMS(schedule.end_time);
+        for (
+          let cursor = new Date(rangeStart);
+          cursor.getTime() <= rangeEnd.getTime();
+          cursor = addDays(cursor, 1)
+        ) {
+          const date = format(cursor, "yyyy-MM-dd");
+          const dayOfWeek = cursor.getDay() === 0 ? 7 : cursor.getDay();
+          if (dayOfWeek !== schedule.day_of_week) continue;
+          if (schedule.effective_from > date) continue;
+          if (schedule.effective_until && schedule.effective_until < date)
+            continue;
+          if (holidayDates.has(date)) continue;
+          const classKey = `${subject.$id}|${date}|${startTime}|${endTime}`;
+          if (cancelledClassKeys.has(classKey)) continue;
 
-      const startTime = normalizeTimeHM(schedule.start_time);
-      const endTime = normalizeTimeHM(schedule.end_time);
+          result.push({
+            id: `${schedule.$id}-${date}`,
+            title: subject.short_name,
+            start: `${date}T${startTime}`,
+            end: `${date}T${endTime}`,
+            backgroundColor: `${subject.color}40`,
+            borderColor: subject.color,
+            textColor: subject.color,
+            extendedProps: {
+              subjectId: subject.$id,
+              semesterId: subject.semester_id,
+              subjectName: subject.name,
+              room: schedule.room,
+              type: "class",
+            },
+          });
+        }
+      });
+    }
 
-      for (
-        let cursor = new Date(rangeStart);
-        cursor <= rangeEnd;
-        cursor = addDays(cursor, 1)
-      ) {
-        const date = toDateString(cursor);
-        const dayOfWeek = cursor.getDay() === 0 ? 7 : cursor.getDay();
-        if (dayOfWeek !== schedule.day_of_week) continue;
-        if (schedule.effective_from > date) continue;
-        if (schedule.effective_until && schedule.effective_until < date) continue;
-        if (holidayDates.has(date)) continue;
-
-        const classKey = `${subject.$id}|${date}|${startTime}|${endTime}`;
-        if (cancelledClassKeys.has(classKey)) continue;
-
-        result.push({
-          id: `${schedule.$id}-${date}`,
-          type: "class",
-          title: subject.short_name,
-          start: new Date(`${date}T${startTime}:00`),
-          end: new Date(`${date}T${endTime}:00`),
-          color: subject.color,
-          location: schedule.room ?? null,
-          subjectId: subject.$id,
-          semesterId: subject.semester_id,
-        });
-      }
-    });
-
+    // Add exams
     exams.forEach((exam) => {
       if (exam.deleted_at) return;
       const subject = getSubjectById(exam.subject_id);
-      if (!subject || subject.deleted_at) return;
-      if (subject.semester_id !== activeSemesterId) return;
+      if (!subject) return;
+      if (subject.semester_id !== activeSemesterFilterId) return;
 
-      const startTime = exam.start_time ? normalizeTimeHM(exam.start_time) : "09:00";
-      const startDate = new Date(`${exam.date}T${startTime}:00`);
-      if (!isInRange(startDate, rangeStart, rangeEnd)) return;
+      const examColor = EXAM_COLORS[exam.type] || EXAM_COLORS.other;
+      const startDateTime = exam.start_time
+        ? `${exam.date}T${normalizeTimeHMS(exam.start_time)}`
+        : `${exam.date}T09:00:00`;
+      const endDateTime =
+        exam.start_time && exam.duration_minutes
+          ? `${exam.date}T${addMinutesToTime(exam.start_time, exam.duration_minutes)}`
+          : `${exam.date}T10:00:00`;
 
-      const endDate = addMinutes(startDate, exam.duration_minutes ?? 60);
       result.push({
         id: `exam-${exam.$id}`,
-        type: "exam",
-        title: exam.name,
-        start: startDate,
-        end: endDate,
-        color: "rgb(var(--warning))",
-        subjectId: subject.$id,
-        semesterId: subject.semester_id,
+        title: `📝 ${exam.name}`,
+        start: startDateTime,
+        end: endDateTime,
+        backgroundColor: `${examColor}30`,
+        borderColor: examColor,
+        textColor: examColor,
+        extendedProps: {
+          examId: exam.$id,
+          subjectId: subject.$id,
+          semesterId: subject.semester_id,
+          type: "exam",
+          examType: exam.type,
+        },
       });
     });
 
-    tasks.forEach((task) => {
-      if (task.deleted_at || task.is_completed || !task.deadline) return;
-      if (task.semester_id !== activeSemesterId) return;
-
-      const deadline = new Date(task.deadline);
-      if (!isInRange(deadline, rangeStart, rangeEnd)) return;
-
-      const isMidnightDeadline =
-        deadline.getHours() === 0 && deadline.getMinutes() === 0;
-      result.push({
-        id: `task-${task.$id}`,
-        type: "task",
-        title: task.title,
-        start: deadline,
-        end: isMidnightDeadline ? endOfDay(deadline) : addMinutes(deadline, 30),
-        color: "rgb(var(--info))",
-        isAllDay: isMidnightDeadline,
-      });
-    });
-
+    // Add personal events
     personalEvents.forEach((event) => {
       if (event.deleted_at) return;
-      if (event.semester_id && event.semester_id !== activeSemesterId) return;
-
-      const start = new Date(event.start_datetime);
-      const end = new Date(event.end_datetime);
-      if (end < rangeStart || start > rangeEnd) return;
+      if (event.semester_id && event.semester_id !== activeSemesterFilterId) {
+        return;
+      }
 
       result.push({
         id: `event-${event.$id}`,
-        type: "event",
-        title: event.title,
-        start,
-        end,
-        color: event.color || "rgb(var(--accent))",
-        isAllDay: event.is_all_day,
-        description: event.description,
-        location: event.location,
-        semesterId: event.semester_id,
+        title: `🗓️ ${event.title}`,
+        start: event.start_datetime,
+        end: event.end_datetime,
+        backgroundColor: event.color
+          ? `${event.color}30`
+          : "rgba(139,92,246,0.3)",
+        borderColor: event.color || "#8B5CF6",
+        textColor: event.color || "#8B5CF6",
+        extendedProps: {
+          eventId: event.$id,
+          type: "event",
+        },
       });
     });
 
     return result;
   }, [
-    activeSemesterId,
-    classOccurrences,
     classSchedules,
+    classOccurrences,
     exams,
-    getHolidaysBySemester,
-    getSubjectById,
     personalEvents,
-    tasks,
-    visibleRange.end,
-    visibleRange.start,
+    getSubjectById,
+    activeSemesterFilterId,
+    addMinutesToTime,
+    visibleRange,
+    view,
+    getHolidaysBySemester,
   ]);
 
-  const label = useMemo(() => {
-    if (view === "month") return format(focusDate, "MMMM yyyy");
-    if (view === "day") return format(focusDate, "EEEE, MMM d");
-    const weekStart = visibleDays[0] ?? focusDate;
-    const weekEnd = visibleDays[visibleDays.length - 1] ?? focusDate;
-    return `${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`;
-  }, [focusDate, view, visibleDays]);
+  const handleEventClick = (info: EventClickArg) => {
+    const { extendedProps } = info.event;
+    if (extendedProps.type === "class") {
+      router.push(
+        `/semester/${extendedProps.semesterId ?? ongoingSemester?.$id}/subject/${extendedProps.subjectId}`,
+      );
+    } else if (extendedProps.type === "exam") {
+      router.push(
+        `/semester/${extendedProps.semesterId ?? ongoingSemester?.$id}/subject/${extendedProps.subjectId}`,
+      );
+    } else if (extendedProps.type === "event") {
+      // For personal events, show a toast with event details
+      const event = personalEvents.find((e) => e.$id === extendedProps.eventId);
+      if (event) {
+        toast.info(
+          `${event.title}${event.location ? ` • ${event.location}` : ""}${event.description ? `\n${event.description}` : ""}`,
+          { duration: 5000 },
+        );
+      }
+    }
+  };
 
-  const navigateToday = () => {
-    setFocusDate(new Date());
+  const handleDatesSet = (arg: DatesSetArg) => {
+    setCurrentDate(arg.start);
+    setVisibleRange({
+      start: format(arg.start, "yyyy-MM-dd"),
+      end: format(addDays(arg.end, -1), "yyyy-MM-dd"),
+    });
   };
 
   const navigatePrev = () => {
-    if (view === "month") {
-      setFocusDate((prev) => subMonths(prev, 1));
-      return;
-    }
-    if (view === "day") {
-      setFocusDate((prev) => subDays(prev, 1));
-      return;
-    }
-    setFocusDate((prev) => subDays(prev, 7));
+    calendarRef.current?.getApi().prev();
   };
 
   const navigateNext = () => {
-    if (view === "month") {
-      setFocusDate((prev) => addMonths(prev, 1));
-      return;
-    }
-    if (view === "day") {
-      setFocusDate((prev) => addDays(prev, 1));
-      return;
-    }
-    setFocusDate((prev) => addDays(prev, 7));
+    calendarRef.current?.getApi().next();
   };
 
-  const openCreateEventAt = (dateTime: Date) => {
-    const startDate = format(dateTime, "yyyy-MM-dd");
-    const startTime = format(dateTime, "HH:mm");
-    const endDateTime = addMinutes(dateTime, 60);
-    setEventDefaults({
-      start_date: startDate,
-      start_time: startTime,
-      end_date: format(endDateTime, "yyyy-MM-dd"),
-      end_time: format(endDateTime, "HH:mm"),
-      recurrence: "none",
-      is_all_day: false,
-    });
-    setIsCreateEventOpen(true);
+  const navigateToday = () => {
+    calendarRef.current?.getApi().today();
   };
 
-  const openDayFromMonth = (day: Date) => {
-    setFocusDate(day);
-    setView("day");
+  const changeView = (newView: typeof view) => {
+    setView(newView);
+    calendarRef.current?.getApi().changeView(newView);
   };
 
-  const openEventDetail = (event: CalendarGridEvent, anchorRect: DOMRect) => {
-    setSelectedEvent({ event, anchorRect });
-  };
+  useEffect(() => {
+    if (view === "dayGridMonth") return;
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    api.scrollToTime(new Date().toTimeString().slice(0, 8));
+  }, [view]);
 
-  const closeEventDetail = () => {
-    setSelectedEvent(null);
-  };
+  useEffect(() => {
+    if (view === "dayGridMonth") return;
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    const timer = setTimeout(() => {
+      api.scrollToTime(new Date().toTimeString().slice(0, 8));
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [calendarEvents, view]);
 
-  const openRelatedPage = () => {
-    if (!selectedEvent) return;
-    const { event } = selectedEvent;
-    if ((event.type === "class" || event.type === "exam") && event.subjectId) {
-      router.push(`/semester/${event.semesterId}/subject/${event.subjectId}`);
-      closeEventDetail();
-      return;
-    }
-    if (event.type === "task") {
-      router.push("/tasks");
-      closeEventDetail();
-    }
-  };
-
+  // Loading state - AFTER all hooks
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[rgb(var(--accent))]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[rgb(var(--accent))]" />
       </div>
     );
   }
 
-  const popoverStyle =
-    selectedEvent && typeof window !== "undefined"
-      ? {
-          top: clamp(
-            selectedEvent.anchorRect.bottom + 8,
-            72,
-            window.innerHeight - 250,
-          ),
-          left: clamp(
-            selectedEvent.anchorRect.left,
-            16,
-            window.innerWidth - 340,
-          ),
-        }
-      : undefined;
-
   return (
-    <div className="min-h-screen pb-24 px-4 py-4 md:px-6">
-      <header className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-        <div className="flex flex-wrap items-center gap-3">
-          <div>
-            <h1 className="text-xl font-bold">Calendar</h1>
-            <p className="text-sm text-muted-foreground">
-              {activeSemester?.name ?? "No active semester"} • {label}
-            </p>
-          </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              onClick={navigateToday}
-              className="rounded-xl border border-white/15 px-3 py-1.5 text-sm text-foreground transition-all duration-150 hover:bg-white/5"
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={navigatePrev}
-              className="rounded-xl border border-white/15 p-2 transition-all duration-150 hover:bg-white/5"
-              aria-label="Previous period"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={navigateNext}
-              className="rounded-xl border border-white/15 p-2 transition-all duration-150 hover:bg-white/5"
-              aria-label="Next period"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-3 inline-flex rounded-full border border-white/12 bg-white/5 p-1">
-          {(["week", "day", "month"] as const).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setView(item)}
-              className={cn(
-                "rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200",
-                view === item
-                  ? "bg-[rgb(var(--accent))] text-white shadow-[0_0_20px_rgba(var(--accent),0.2)]"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {item[0].toUpperCase() + item.slice(1)}
-            </button>
-          ))}
-        </div>
-      </header>
-
-      <motion.main
-        key={view}
-        initial={{ opacity: 0, y: 8 }}
+    <div className="min-h-screen pb-24">
+      {/* Header */}
+      <motion.header
+        initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2, ease: "easeInOut" }}
+        className="sticky top-0 z-30 backdrop-blur-xl bg-background/80 border-b border-white/10"
       >
-        {view === "month" ? (
-          <MonthGridView
-            monthDate={focusDate}
-            events={calendarEvents}
-            onSelectDay={openDayFromMonth}
-            onSelectEvent={openEventDetail}
-          />
-        ) : (
-          <TimeGridView
-            days={visibleDays}
-            events={calendarEvents}
-            hourRowHeight={hourRowHeight}
-            columnMinWidth={columnMinWidth}
-            showWeekendDim={view === "week" && showWeekends}
-            showNowLineMode={view === "day" ? "day" : "week"}
-            onSelectEvent={openEventDetail}
-            onSelectEmptyCell={activeSemesterId ? openCreateEventAt : undefined}
-          />
-        )}
-      </motion.main>
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link
+                href="/"
+                className="p-2 rounded-xl btn-muted-themed interactive-focus"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Link>
+              <div>
+                <h1 className="text-xl font-bold">Calendar</h1>
+                <p className="text-sm text-white/50">
+                  {ongoingSemester?.name ?? "No active semester"}
+                  {currentDate ? ` • ${format(currentDate, "MMMM yyyy")}` : ""}
+                </p>
+              </div>
+            </div>
 
-      <CreateEventModal
-        isOpen={isCreateEventOpen}
-        onClose={() => {
-          setIsCreateEventOpen(false);
-          setEventDefaults(undefined);
-        }}
-        semesterId={activeSemesterId ?? undefined}
-        defaultValues={eventDefaults}
-      />
-
-      <AnimatePresence>
-        {selectedEvent && popoverStyle && (
-          <>
-            <motion.button
-              type="button"
-              className="fixed inset-0 z-40 bg-black/20"
-              onClick={closeEventDetail}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 6 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 6 }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="fixed z-50 w-[320px] rounded-2xl border border-white/12 bg-black/75 p-4 backdrop-blur-xl"
-              style={popoverStyle}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    {selectedEvent.event.type}
-                  </p>
-                  <h3 className="text-sm font-semibold text-foreground">
-                    {selectedEvent.event.title}
-                  </h3>
-                </div>
+            {/* Navigation controls */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={navigateToday}
+                className="px-3 py-1.5 text-sm rounded-lg btn-muted-themed interactive-focus"
+              >
+                Today
+              </button>
+              <div className="flex items-center gap-1">
                 <button
-                  type="button"
-                  onClick={closeEventDetail}
-                  className="rounded-lg p-1 text-muted-foreground transition-colors duration-150 hover:bg-white/10 hover:text-foreground"
+                  onClick={navigatePrev}
+                  className="p-1.5 rounded-lg btn-muted-themed interactive-focus"
                 >
-                  <X className="h-4 w-4" />
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={navigateNext}
+                  className="p-1.5 rounded-lg btn-muted-themed interactive-focus"
+                >
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {format(selectedEvent.event.start, "EEE, MMM d • HH:mm")} -{" "}
-                {format(selectedEvent.event.end, "HH:mm")}
-              </p>
-              {selectedEvent.event.location && (
-                <p className="mt-2 text-xs text-foreground/90">
-                  {selectedEvent.event.location}
-                </p>
-              )}
-              {selectedEvent.event.description && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {selectedEvent.event.description}
-                </p>
-              )}
-              {(selectedEvent.event.type === "class" ||
-                selectedEvent.event.type === "exam" ||
-                selectedEvent.event.type === "task") && (
-                <button
-                  type="button"
-                  onClick={openRelatedPage}
-                  className="mt-3 inline-flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs text-foreground transition-colors duration-150 hover:bg-white/10"
-                >
-                  Open
-                  <ExternalLink className="h-3 w-3" />
-                </button>
-              )}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+            </div>
+          </div>
 
-      {!activeSemester && (
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-muted-foreground">
-          No active semester. Create or activate a semester to see scheduled classes.
-          <Link href="/" className="ml-2 text-[rgb(var(--accent))] underline">
-            Go to Home
-          </Link>
+          {/* View toggles */}
+          <div className="flex items-center gap-2 mt-3">
+            {(["timeGridWeek", "timeGridDay", "dayGridMonth"] as const).map(
+              (v) => (
+                <button
+                  key={v}
+                  onClick={() => changeView(v)}
+                  className={cn(
+                    "px-3 py-1.5 text-sm rounded-lg interactive-focus transition-colors",
+                    view === v
+                      ? "btn-themed text-[rgb(var(--accent))]"
+                      : "btn-muted-themed text-muted-foreground",
+                  )}
+                >
+                  {v === "timeGridWeek"
+                    ? "Week"
+                    : v === "timeGridDay"
+                      ? "Day"
+                      : "Month"}
+                </button>
+              ),
+            )}
+          </div>
         </div>
-      )}
+      </motion.header>
+
+      {/* Calendar */}
+      <main className="container mx-auto px-4 py-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="glass-card rounded-2xl p-4 overflow-hidden"
+        >
+          <div
+            className={cn(
+              view === "dayGridMonth"
+                ? "classey-month-calendar"
+                : "classey-time-calendar calendar-scroll-window",
+            )}
+          >
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              initialView={view}
+              headerToolbar={false}
+              events={calendarEvents}
+              eventClick={handleEventClick}
+              datesSet={handleDatesSet}
+              initialDate={nowDate}
+              slotMinTime="06:00:00"
+              slotMaxTime="23:55:00"
+              slotDuration="01:00:00"
+              slotLabelInterval="01:00:00"
+              snapDuration="00:05:00"
+              allDaySlot={false}
+              weekends={true}
+              firstDay={1}
+              height={view === "dayGridMonth" ? "auto" : 1650}
+              nowIndicator={true}
+              scrollTimeReset={false}
+              scrollTime={nowTime}
+              eventDisplay="block"
+              slotLabelFormat={{
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              }}
+              dayHeaderFormat={{
+                weekday: "short",
+                day: "numeric",
+              }}
+              eventContent={(arg) => {
+                const { extendedProps } = arg.event;
+                return (
+                  <div className="p-1 overflow-hidden h-full">
+                    <div className="font-medium text-xs truncate">
+                      {arg.event.title}
+                    </div>
+                    {extendedProps.room && (
+                      <div className="text-[10px] opacity-70 truncate">
+                        {extendedProps.room}
+                      </div>
+                    )}
+                    {extendedProps.type === "exam" && (
+                      <div className="text-[10px] opacity-70 truncate capitalize">
+                        {extendedProps.examType}
+                      </div>
+                    )}
+                  </div>
+                );
+              }}
+            />
+          </div>
+        </motion.div>
+
+        {/* Legend */}
+        {ongoingSemester && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mt-6 p-4 glass-card rounded-2xl"
+          >
+            <h3 className="text-sm font-medium text-white/70 mb-3">Legend</h3>
+            <div className="flex flex-wrap gap-3">
+              {subjects
+                .filter(
+                  (s) => !s.deleted_at && s.semester_id === ongoingSemester.$id,
+                )
+                .map((subject) => (
+                  <Link
+                    key={subject.$id}
+                    href={`/semester/${ongoingSemester.$id}/subject/${subject.$id}`}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg btn-muted-themed interactive-focus"
+                    style={{ backgroundColor: `${subject.color}15` }}
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: subject.color }}
+                    />
+                    <span className="text-sm">{subject.short_name}</span>
+                  </Link>
+                ))}
+            </div>
+          </motion.div>
+        )}
+      </main>
     </div>
   );
 }
-

@@ -165,7 +165,10 @@ export default function FilesPage(): React.ReactNode {
       new Map(
         exams
           .filter((exam) => !exam.deleted_at)
-          .map((exam) => [exam.$id, subjectSemesterMap.get(exam.subject_id) ?? null]),
+          .map((exam) => [
+            exam.$id,
+            subjectSemesterMap.get(exam.subject_id) ?? null,
+          ]),
       ),
     [exams, subjectSemesterMap],
   );
@@ -231,14 +234,14 @@ export default function FilesPage(): React.ReactNode {
       return files.filter((file) => resolveFileSemesterId(file) === null);
     }
     if (!activeSemesterId) return [];
-    return files.filter((file) => resolveFileSemesterId(file) === activeSemesterId);
+    return files.filter(
+      (file) => resolveFileSemesterId(file) === activeSemesterId,
+    );
   }, [activeSemesterId, fileScope, files, resolveFileSemesterId]);
 
   const activeSubjects = subjects.filter(
     (s) =>
-      !s.deleted_at &&
-      !!activeSemesterId &&
-      s.semester_id === activeSemesterId,
+      !s.deleted_at && !!activeSemesterId && s.semester_id === activeSemesterId,
   );
 
   useEffect(() => {
@@ -300,9 +303,9 @@ export default function FilesPage(): React.ReactNode {
     filteredFiles
       .filter((file) => !file.task_id)
       .forEach((file) => {
-      const key = file.subject_id || "general";
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(file);
+        const key = file.subject_id || "general";
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(file);
       });
     return grouped;
   }, [filteredFiles]);
@@ -385,18 +388,21 @@ export default function FilesPage(): React.ReactNode {
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (!canUpload) {
-      toast.error("No active semester selected.");
-      return;
-    }
-    if (e.dataTransfer.files.length > 0) {
-      // Open upload modal with dropped files
-      setIsUploadModalOpen(true);
-    }
-  }, [canUpload]);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      if (!canUpload) {
+        toast.error("No active semester selected.");
+        return;
+      }
+      if (e.dataTransfer.files.length > 0) {
+        // Open upload modal with dropped files
+        setIsUploadModalOpen(true);
+      }
+    },
+    [canUpload],
+  );
 
   const getSubjectName = (subjectId: string | null): string => {
     if (!subjectId) return "Global";
@@ -462,9 +468,11 @@ export default function FilesPage(): React.ReactNode {
               Files
             </h1>
             <p className="text-muted-foreground text-sm">
-              {fileScope === "global-files" ? "Global Files" : "Active Semester"} •{" "}
-              {filteredFiles.length} file{filteredFiles.length !== 1 ? "s" : ""}{" "}
-              •{" "}
+              {fileScope === "global-files"
+                ? "Global Files"
+                : "Active Semester"}{" "}
+              • {filteredFiles.length} file
+              {filteredFiles.length !== 1 ? "s" : ""} •{" "}
               {formatFileSize(
                 filteredFiles.reduce((acc, f) => acc + f.file_size, 0),
               )}{" "}
@@ -566,9 +574,9 @@ export default function FilesPage(): React.ReactNode {
                   ...(fileScope === "global-files"
                     ? []
                     : activeSubjects.map((subject) => ({
-                    value: subject.$id,
-                    label: subject.name,
-                  }))),
+                        value: subject.$id,
+                        label: subject.name,
+                      }))),
                 ]}
                 disabled={fileScope === "global-files"}
               />
@@ -610,17 +618,17 @@ export default function FilesPage(): React.ReactNode {
             <h3 className="text-lg font-semibold text-foreground mb-2">
               No files found
             </h3>
-              <p className="text-muted-foreground text-sm">
-                {!activeSemesterId
-                  ? fileScope === "global-files"
-                    ? "No global files yet. Upload one to get started."
-                    : "No active semester. Switch to Global Files or activate a semester."
-                  : searchQuery || filter !== "all" || selectedSubjectId
-                ? "Try adjusting your filters"
-                : "Upload your first file to get started"}
-              </p>
-            </motion.div>
-          )}
+            <p className="text-muted-foreground text-sm">
+              {!activeSemesterId
+                ? fileScope === "global-files"
+                  ? "No global files yet. Upload one to get started."
+                  : "No active semester. Switch to Global Files or activate a semester."
+                : searchQuery || filter !== "all" || selectedSubjectId
+                  ? "Try adjusting your filters"
+                  : "Upload your first file to get started"}
+            </p>
+          </motion.div>
+        )}
 
         {/* Task attachments section */}
         {taskAttachmentFiles.length > 0 && (
@@ -666,7 +674,10 @@ export default function FilesPage(): React.ReactNode {
                         className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl"
                         style={{ backgroundColor: `${fileColor}20` }}
                       >
-                        <FileIcon className="h-6 w-6" style={{ color: fileColor }} />
+                        <FileIcon
+                          className="h-6 w-6"
+                          style={{ color: fileColor }}
+                        />
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="truncate pr-8 font-medium text-foreground">

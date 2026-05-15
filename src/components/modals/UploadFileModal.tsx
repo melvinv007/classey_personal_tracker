@@ -182,7 +182,9 @@ export function UploadFileModal({
         try {
           queryClient.invalidateQueries({ queryKey: queryKeys.files() });
           if (subjectId) {
-            queryClient.invalidateQueries({ queryKey: queryKeys.files(subjectId) });
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.files(subjectId),
+            });
           }
         } catch (e) {
           // ignore cache invalidation errors

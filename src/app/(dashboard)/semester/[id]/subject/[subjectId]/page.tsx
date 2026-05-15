@@ -15,12 +15,12 @@ import { PersistentNotepad } from "@/components/ui/PersistentNotepad";
 import { ThemedTimeInput } from "@/components/ui/ThemedDateTimeInput";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
 import { useData } from "@/hooks/use-data";
-import { getSemesterDisplayStatus } from "@/lib/semester-status";
 import {
   deleteFile,
   getFileDownloadUrl,
   getFileViewUrl,
 } from "@/lib/appwrite-storage";
+import { getSemesterDisplayStatus } from "@/lib/semester-status";
 import {
   cn,
   DAY_SHORT_NAMES,
@@ -242,7 +242,6 @@ export default function SubjectDetailPage(): React.ReactNode {
   const present = occurrences.filter((o) => o.attendance === "present").length;
   const absent = occurrences.filter((o) => o.attendance === "absent").length;
   const requirement = subject?.attendance_requirement_percent ?? 75;
-  const globalAccentColor = settings?.accent_color_default ?? "#8B5CF6";
 
   // Calculate bunk capacity
   const percentage =
@@ -274,7 +273,11 @@ export default function SubjectDetailPage(): React.ReactNode {
   const currentTime = format(currentDateTime, "HH:mm");
 
   const scheduleWithinRange = useCallback(
-    (effectiveFrom: string, effectiveUntil: string | null, date: string): boolean =>
+    (
+      effectiveFrom: string,
+      effectiveUntil: string | null,
+      date: string,
+    ): boolean =>
       effectiveFrom <= date && (!effectiveUntil || effectiveUntil >= date),
     [],
   );
@@ -457,7 +460,7 @@ export default function SubjectDetailPage(): React.ReactNode {
             occurrence.date === todayDate &&
             normalizeTimeHM(occurrence.start_time) ===
               normalizeTimeHM(schedule.start_time) &&
-              normalizeTimeHM(occurrence.end_time) ===
+            normalizeTimeHM(occurrence.end_time) ===
               normalizeTimeHM(schedule.end_time),
         );
         const isHoliday = semesterHolidays.some((holiday) => {
@@ -465,7 +468,8 @@ export default function SubjectDetailPage(): React.ReactNode {
           const endDate = holiday.date_end ?? holiday.date;
           return todayDate <= endDate;
         });
-        const isCancelledOccurrence = existingOccurrence?.status === "cancelled";
+        const isCancelledOccurrence =
+          existingOccurrence?.status === "cancelled";
         return {
           schedule,
           existingOccurrence,
@@ -524,14 +528,12 @@ export default function SubjectDetailPage(): React.ReactNode {
     }
   };
 
-  // Scope accent color to this subject page only.
+  // Set semester accent color
   useEffect(() => {
-    if (!semester) return;
-    setAccentColor(semester.color);
-    return () => {
-      setAccentColor(globalAccentColor);
-    };
-  }, [semester, setAccentColor, globalAccentColor]);
+    if (semester) {
+      setAccentColor(semester.color);
+    }
+  }, [semester, setAccentColor]);
 
   if (isLoading) {
     return (
@@ -1055,7 +1057,8 @@ export default function SubjectDetailPage(): React.ReactNode {
                         <p
                           className={cn(
                             "text-sm font-medium text-foreground truncate",
-                            task.is_completed && "line-through text-muted-foreground",
+                            task.is_completed &&
+                              "line-through text-muted-foreground",
                           )}
                         >
                           {task.title}
@@ -1233,90 +1236,91 @@ export default function SubjectDetailPage(): React.ReactNode {
             <>
               <div className="space-y-3">
                 {visibleExams.map((exam) => {
-                const examDate = parseISO(exam.date);
-                const isUpcoming = exam.status === "upcoming";
-                const hasMarks = exam.marks_obtained !== null;
-                const percentage = hasMarks
-                  ? (exam.marks_obtained! / exam.marks_total) * 100
-                  : null;
+                  const examDate = parseISO(exam.date);
+                  const isUpcoming = exam.status === "upcoming";
+                  const hasMarks = exam.marks_obtained !== null;
+                  const percentage = hasMarks
+                    ? (exam.marks_obtained! / exam.marks_total) * 100
+                    : null;
 
-                return (
-                  <div
-                    key={exam.$id}
-                    className={cn(
-                      "flex items-center justify-between p-4 rounded-xl border border-white/10 transition-all hover:bg-white/5",
-                      isUpcoming && "bg-[rgba(var(--accent),0.05)]",
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={cn(
-                          "w-10 h-10 rounded-xl flex items-center justify-center",
-                          exam.type === "quiz" &&
-                            "bg-purple-500/20 text-purple-400",
-                          exam.type === "assignment" &&
-                            "bg-emerald-500/20 text-emerald-400",
-                          exam.type === "midterm" &&
-                            "bg-amber-500/20 text-amber-400",
-                          exam.type === "final" && "bg-red-500/20 text-red-400",
-                          exam.type === "practical" &&
-                            "bg-cyan-500/20 text-cyan-400",
-                          exam.type === "other" &&
-                            "bg-gray-500/20 text-gray-400",
-                        )}
-                      >
-                        <Award className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          {exam.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(examDate, "MMM d, yyyy")}
-                          {exam.start_time && ` at ${exam.start_time}`}
-                          <span className="ml-2 capitalize px-1.5 py-0.5 rounded bg-white/5 text-xs">
-                            {exam.type}
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      {hasMarks ? (
-                        <>
-                          <p
-                            className={cn(
-                              "text-lg font-bold",
-                              percentage! >= 90 && "text-emerald-400",
-                              percentage! >= 75 &&
-                                percentage! < 90 &&
-                                "text-green-400",
-                              percentage! >= 60 &&
-                                percentage! < 75 &&
-                                "text-amber-400",
-                              percentage! < 60 && "text-red-400",
-                            )}
-                          >
-                            {exam.marks_obtained}/{exam.marks_total}
+                  return (
+                    <div
+                      key={exam.$id}
+                      className={cn(
+                        "flex items-center justify-between p-4 rounded-xl border border-white/10 transition-all hover:bg-white/5",
+                        isUpcoming && "bg-[rgba(var(--accent),0.05)]",
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center",
+                            exam.type === "quiz" &&
+                              "bg-purple-500/20 text-purple-400",
+                            exam.type === "assignment" &&
+                              "bg-emerald-500/20 text-emerald-400",
+                            exam.type === "midterm" &&
+                              "bg-amber-500/20 text-amber-400",
+                            exam.type === "final" &&
+                              "bg-red-500/20 text-red-400",
+                            exam.type === "practical" &&
+                              "bg-cyan-500/20 text-cyan-400",
+                            exam.type === "other" &&
+                              "bg-gray-500/20 text-gray-400",
+                          )}
+                        >
+                          <Award className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {exam.name}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {percentage!.toFixed(1)}%
+                            {format(examDate, "MMM d, yyyy")}
+                            {exam.start_time && ` at ${exam.start_time}`}
+                            <span className="ml-2 capitalize px-1.5 py-0.5 rounded bg-white/5 text-xs">
+                              {exam.type}
+                            </span>
                           </p>
-                        </>
-                      ) : isUpcoming ? (
-                        <span className="px-2 py-1 rounded bg-[rgba(var(--accent),0.1)] text-[rgb(var(--accent))] text-xs font-medium">
-                          Upcoming
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => setExamForMarks(exam)}
-                          className="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-muted-foreground text-xs font-medium transition-colors"
-                        >
-                          + Add Marks
-                        </button>
-                      )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        {hasMarks ? (
+                          <>
+                            <p
+                              className={cn(
+                                "text-lg font-bold",
+                                percentage! >= 90 && "text-emerald-400",
+                                percentage! >= 75 &&
+                                  percentage! < 90 &&
+                                  "text-green-400",
+                                percentage! >= 60 &&
+                                  percentage! < 75 &&
+                                  "text-amber-400",
+                                percentage! < 60 && "text-red-400",
+                              )}
+                            >
+                              {exam.marks_obtained}/{exam.marks_total}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {percentage!.toFixed(1)}%
+                            </p>
+                          </>
+                        ) : isUpcoming ? (
+                          <span className="px-2 py-1 rounded bg-[rgba(var(--accent),0.1)] text-[rgb(var(--accent))] text-xs font-medium">
+                            Upcoming
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setExamForMarks(exam)}
+                            className="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-muted-foreground text-xs font-medium transition-colors"
+                          >
+                            + Add Marks
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
+                  );
                 })}
               </div>
               {exams.length > PREVIEW_ITEMS && (
@@ -1365,54 +1369,54 @@ export default function SubjectDetailPage(): React.ReactNode {
             <>
               <div className="space-y-3">
                 {visibleFiles.map((file) => (
-                <div
-                  key={file.$id}
-                  className="flex items-center justify-between p-4 rounded-xl border border-white/10 hover:bg-white/5 transition-all"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {file.file_name}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {file.file_extension.toUpperCase()} •{" "}
-                      {(file.file_size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
+                  <div
+                    key={file.$id}
+                    className="flex items-center justify-between p-4 rounded-xl border border-white/10 hover:bg-white/5 transition-all"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {file.file_name}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {file.file_extension.toUpperCase()} •{" "}
+                        {(file.file_size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() =>
-                        window.open(
-                          getFileViewUrl(file.storage_file_id),
-                          "_blank",
-                        )
-                      }
-                      className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      View
-                    </button>
-                    <a
-                      href={getFileDownloadUrl(file.storage_file_id)}
-                      className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      Download
-                    </a>
-                    <button
-                      onClick={() => {
-                        setDeleteFileTarget({
-                          fileId: file.$id,
-                          storageFileId: file.storage_file_id,
-                          fileName: file.file_name,
-                        });
-                        setIsConfirmDeleteFileOpen(true);
-                      }}
-                      disabled={deletingFileId === file.$id}
-                      className="px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-xs text-red-400 transition-colors disabled:opacity-50"
-                    >
-                      {deletingFileId === file.$id ? "Deleting..." : "Delete"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() =>
+                          window.open(
+                            getFileViewUrl(file.storage_file_id),
+                            "_blank",
+                          )
+                        }
+                        className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        View
+                      </button>
+                      <a
+                        href={getFileDownloadUrl(file.storage_file_id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Download
+                      </a>
+                      <button
+                        onClick={() => {
+                          setDeleteFileTarget({
+                            fileId: file.$id,
+                            storageFileId: file.storage_file_id,
+                            fileName: file.file_name,
+                          });
+                          setIsConfirmDeleteFileOpen(true);
+                        }}
+                        disabled={deletingFileId === file.$id}
+                        className="px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-xs text-red-400 transition-colors disabled:opacity-50"
+                      >
+                        {deletingFileId === file.$id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
                   </div>
-                </div>
                 ))}
               </div>
               {files.length > PREVIEW_ITEMS && (
@@ -1462,74 +1466,74 @@ export default function SubjectDetailPage(): React.ReactNode {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {visibleResources.map((link) => {
-                const TypeIcon =
-                  link.type === "youtube"
-                    ? PlayCircle
-                    : link.type === "github"
-                      ? Code2
-                      : link.type === "notion" || link.type === "drive"
-                        ? FileText
-                        : Globe;
-                const typeColor =
-                  link.type === "youtube"
-                    ? "#FF0000"
-                    : link.type === "github"
-                      ? "#6e5494"
-                      : link.type === "notion"
-                        ? "#000000"
-                        : link.type === "drive"
-                          ? "#4285F4"
-                          : "#8B5CF6";
+                  const TypeIcon =
+                    link.type === "youtube"
+                      ? PlayCircle
+                      : link.type === "github"
+                        ? Code2
+                        : link.type === "notion" || link.type === "drive"
+                          ? FileText
+                          : Globe;
+                  const typeColor =
+                    link.type === "youtube"
+                      ? "#FF0000"
+                      : link.type === "github"
+                        ? "#6e5494"
+                        : link.type === "notion"
+                          ? "#000000"
+                          : link.type === "drive"
+                            ? "#4285F4"
+                            : "#8B5CF6";
 
-                return (
-                  <a
-                    key={link.$id}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex items-start gap-3 p-3 rounded-xl border border-white/10 hover:bg-white/5 hover:border-white/15 transition-all"
-                  >
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: `${typeColor}20` }}
+                  return (
+                    <a
+                      key={link.$id}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex items-start gap-3 p-3 rounded-xl border border-white/10 hover:bg-white/5 hover:border-white/15 transition-all"
                     >
-                      <TypeIcon
-                        className="w-5 h-5"
-                        style={{ color: typeColor }}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-foreground truncate group-hover:text-[rgb(var(--accent))] transition-colors">
-                        {link.title}
-                      </p>
-                      {link.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                          {link.description}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground/60 truncate mt-1">
-                        {link.url}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ExternalLink className="w-4 h-4 text-muted-foreground" />
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setDeleteLinkTarget({
-                            id: link.$id,
-                            title: link.title,
-                          });
-                          setIsConfirmDeleteLinkOpen(true);
-                        }}
-                        className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: `${typeColor}20` }}
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </a>
-                );
+                        <TypeIcon
+                          className="w-5 h-5"
+                          style={{ color: typeColor }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground truncate group-hover:text-[rgb(var(--accent))] transition-colors">
+                          {link.title}
+                        </p>
+                        {link.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                            {link.description}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground/60 truncate mt-1">
+                          {link.url}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setDeleteLinkTarget({
+                              id: link.$id,
+                              title: link.title,
+                            });
+                            setIsConfirmDeleteLinkOpen(true);
+                          }}
+                          className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </a>
+                  );
                 })}
               </div>
               {resourceLinks.length > PREVIEW_ITEMS && (
@@ -1581,62 +1585,64 @@ export default function SubjectDetailPage(): React.ReactNode {
             <>
               <div className="space-y-3">
                 {visibleNotes.map((note) => (
-                <div
-                  key={note.$id}
-                  className={cn(
-                    "group relative p-4 rounded-xl border transition-all",
-                    note.is_pinned
-                      ? "bg-amber-500/5 border-amber-500/20"
-                      : "bg-white/3 border-white/10 hover:bg-white/5",
-                  )}
-                >
-                  {note.is_pinned && (
-                    <Pin className="absolute top-3 right-3 w-4 h-4 text-amber-400 fill-current" />
-                  )}
-                  <p className="text-sm text-foreground whitespace-pre-wrap pr-8">
-                    {note.content}
-                  </p>
-                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/5">
-                    <p className="text-xs text-muted-foreground">
-                      {format(parseISO(note.$createdAt), "MMM d, yyyy")}
+                  <div
+                    key={note.$id}
+                    className={cn(
+                      "group relative p-4 rounded-xl border transition-all",
+                      note.is_pinned
+                        ? "bg-amber-500/5 border-amber-500/20"
+                        : "bg-white/3 border-white/10 hover:bg-white/5",
+                    )}
+                  >
+                    {note.is_pinned && (
+                      <Pin className="absolute top-3 right-3 w-4 h-4 text-amber-400 fill-current" />
+                    )}
+                    <p className="text-sm text-foreground whitespace-pre-wrap pr-8">
+                      {note.content}
                     </p>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => {
-                          updateNote(note.$id, { is_pinned: !note.is_pinned });
-                          toast.success(
-                            note.is_pinned ? "Note unpinned" : "Note pinned",
-                          );
-                        }}
-                        className={cn(
-                          "p-1 rounded transition-colors",
-                          note.is_pinned
-                            ? "hover:bg-amber-500/20 text-amber-400"
-                            : "hover:bg-white/10 text-muted-foreground",
-                        )}
-                      >
-                        <Pin
+                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/5">
+                      <p className="text-xs text-muted-foreground">
+                        {format(parseISO(note.$createdAt), "MMM d, yyyy")}
+                      </p>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => {
+                            updateNote(note.$id, {
+                              is_pinned: !note.is_pinned,
+                            });
+                            toast.success(
+                              note.is_pinned ? "Note unpinned" : "Note pinned",
+                            );
+                          }}
                           className={cn(
-                            "w-4 h-4",
-                            note.is_pinned && "fill-current",
+                            "p-1 rounded transition-colors",
+                            note.is_pinned
+                              ? "hover:bg-amber-500/20 text-amber-400"
+                              : "hover:bg-white/10 text-muted-foreground",
                           )}
-                        />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setDeleteNoteTarget({
-                            id: note.$id,
-                            preview: note.content.slice(0, 40),
-                          });
-                          setIsConfirmDeleteNoteOpen(true);
-                        }}
-                        className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        >
+                          <Pin
+                            className={cn(
+                              "w-4 h-4",
+                              note.is_pinned && "fill-current",
+                            )}
+                          />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteNoteTarget({
+                              id: note.$id,
+                              preview: note.content.slice(0, 40),
+                            });
+                            setIsConfirmDeleteNoteOpen(true);
+                          }}
+                          className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
                 ))}
               </div>
               {notes.length > PREVIEW_ITEMS && (
@@ -1681,84 +1687,84 @@ export default function SubjectDetailPage(): React.ReactNode {
             <>
               <div className="space-y-2">
                 {visibleAttendanceHistory.map((occurrence) => {
-                const date = parseISO(occurrence.date);
-                const dayOfWeek = date.getDay();
-                const ourDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+                  const date = parseISO(occurrence.date);
+                  const dayOfWeek = date.getDay();
+                  const ourDay = dayOfWeek === 0 ? 7 : dayOfWeek;
 
-                return (
-                  <div
-                    key={occurrence.$id}
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-xl border transition-colors",
-                      occurrence.status === "cancelled"
-                        ? "bg-white/3 border-white/5 opacity-60"
-                        : occurrence.attendance === "present"
-                          ? "bg-emerald-500/5 border-emerald-500/20"
-                          : occurrence.attendance === "absent"
-                            ? "bg-red-500/5 border-red-500/20"
-                            : "bg-white/5 border-white/10",
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={cn(
-                          "w-8 h-8 rounded-full flex items-center justify-center",
-                          occurrence.status === "cancelled"
-                            ? "bg-white/10 text-muted-foreground"
-                            : occurrence.attendance === "present"
-                              ? "bg-emerald-500/20 text-emerald-400"
-                              : occurrence.attendance === "absent"
-                                ? "bg-red-500/20 text-red-400"
-                                : "bg-amber-500/20 text-amber-400",
-                        )}
-                      >
-                        {occurrence.status === "cancelled" ? (
-                          <MinusCircle className="w-4 h-4" />
-                        ) : occurrence.attendance === "present" ? (
-                          <Check className="w-4 h-4" />
-                        ) : occurrence.attendance === "absent" ? (
-                          <X className="w-4 h-4" />
-                        ) : (
-                          <Clock className="w-4 h-4" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          {format(date, "MMM d, yyyy")}
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {DAY_SHORT_NAMES[ourDay] || ""}
-                          </span>
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {occurrence.start_time} - {occurrence.end_time}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span
-                        className={cn(
-                          "text-xs font-medium px-2 py-1 rounded capitalize",
-                          occurrence.status === "cancelled"
-                            ? "bg-white/10 text-muted-foreground"
-                            : occurrence.attendance === "present"
-                              ? "bg-emerald-500/20 text-emerald-400"
-                              : occurrence.attendance === "absent"
-                                ? "bg-red-500/20 text-red-400"
-                                : "bg-amber-500/20 text-amber-400",
-                        )}
-                      >
-                        {occurrence.status === "cancelled"
-                          ? "Cancelled"
-                          : (occurrence.attendance ?? "Unmarked")}
-                      </span>
-                      {occurrence.attendance_note && (
-                        <p className="text-xs text-muted-foreground mt-1 max-w-[120px] truncate">
-                          {occurrence.attendance_note}
-                        </p>
+                  return (
+                    <div
+                      key={occurrence.$id}
+                      className={cn(
+                        "flex items-center justify-between p-3 rounded-xl border transition-colors",
+                        occurrence.status === "cancelled"
+                          ? "bg-white/3 border-white/5 opacity-60"
+                          : occurrence.attendance === "present"
+                            ? "bg-emerald-500/5 border-emerald-500/20"
+                            : occurrence.attendance === "absent"
+                              ? "bg-red-500/5 border-red-500/20"
+                              : "bg-white/5 border-white/10",
                       )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center",
+                            occurrence.status === "cancelled"
+                              ? "bg-white/10 text-muted-foreground"
+                              : occurrence.attendance === "present"
+                                ? "bg-emerald-500/20 text-emerald-400"
+                                : occurrence.attendance === "absent"
+                                  ? "bg-red-500/20 text-red-400"
+                                  : "bg-amber-500/20 text-amber-400",
+                          )}
+                        >
+                          {occurrence.status === "cancelled" ? (
+                            <MinusCircle className="w-4 h-4" />
+                          ) : occurrence.attendance === "present" ? (
+                            <Check className="w-4 h-4" />
+                          ) : occurrence.attendance === "absent" ? (
+                            <X className="w-4 h-4" />
+                          ) : (
+                            <Clock className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {format(date, "MMM d, yyyy")}
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              {DAY_SHORT_NAMES[ourDay] || ""}
+                            </span>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {occurrence.start_time} - {occurrence.end_time}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span
+                          className={cn(
+                            "text-xs font-medium px-2 py-1 rounded capitalize",
+                            occurrence.status === "cancelled"
+                              ? "bg-white/10 text-muted-foreground"
+                              : occurrence.attendance === "present"
+                                ? "bg-emerald-500/20 text-emerald-400"
+                                : occurrence.attendance === "absent"
+                                  ? "bg-red-500/20 text-red-400"
+                                  : "bg-amber-500/20 text-amber-400",
+                          )}
+                        >
+                          {occurrence.status === "cancelled"
+                            ? "Cancelled"
+                            : (occurrence.attendance ?? "Unmarked")}
+                        </span>
+                        {occurrence.attendance_note && (
+                          <p className="text-xs text-muted-foreground mt-1 max-w-[120px] truncate">
+                            {occurrence.attendance_note}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
+                  );
                 })}
               </div>
               {attendanceHistory.length > PREVIEW_ITEMS && (
