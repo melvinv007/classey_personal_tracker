@@ -155,7 +155,14 @@ export function TimeGridView({
 
   const timedEventsByDay = useMemo(() => {
     const timedEvents = events.filter((event) => !isAllDayEvent(event));
-    return days.map((day) => buildSegmentsForDay(day, timedEvents));
+    return days.map((day) => {
+      const dayStart = startOfDay(day);
+      const dayEnd = endOfDay(day);
+      const dayEvents = timedEvents.filter(
+        (event) => event.start < dayEnd && event.end > dayStart,
+      );
+      return buildSegmentsForDay(day, dayEvents);
+    });
   }, [days, events]);
 
   const hasAllDayEvents = allDayEventsByDay.some((items) => items.length > 0);

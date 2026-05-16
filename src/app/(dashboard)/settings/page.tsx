@@ -44,6 +44,7 @@ import {
   CheckSquare,
   Clock,
   FileText,
+  GraduationCap,
   Loader2,
   LogOut,
   MessageSquare,
@@ -63,7 +64,7 @@ import { toast } from "sonner";
  * Settings page - Appearance and Notification preferences
  */
 export default function SettingsPage(): React.ReactNode {
-  const [activeTab, setActiveTab] = useState<"appearance" | "notifications">(
+  const [activeTab, setActiveTab] = useState<"appearance" | "notifications" | "academic">(
     "appearance",
   );
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -150,6 +151,17 @@ export default function SettingsPage(): React.ReactNode {
           <Bell className="h-4 w-4" />
           Notifications
         </button>
+        <button
+          onClick={() => setActiveTab("academic")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === "academic"
+              ? "bg-accent text-white"
+              : "bg-muted hover:bg-muted/80"
+          }`}
+        >
+          <GraduationCap className="h-4 w-4" />
+          Academic
+        </button>
       </motion.div>
 
       {/* Content */}
@@ -161,6 +173,8 @@ export default function SettingsPage(): React.ReactNode {
       >
         {activeTab === "appearance" ? (
           <AppearanceSettings />
+        ) : activeTab === "academic" ? (
+          <AcademicSettings />
         ) : (
           <NotificationSettings />
         )}
@@ -1066,5 +1080,75 @@ function ToggleRow({
         />
       </div>
     </button>
+  );
+}
+
+/**
+ * Academic settings section — Home Department for minor course eligibility
+ */
+function AcademicSettings(): React.ReactNode {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+  const [dept, setDept] = useState(settings?.home_department || "");
+
+  useEffect(() => {
+    if (settings?.home_department !== undefined) {
+      setDept(settings.home_department || "");
+    }
+  }, [settings?.home_department]);
+
+  const handleSave = (): void => {
+    updateSettings.mutate({
+      home_department: dept.trim() || null,
+    });
+    toast.success("Academic settings saved");
+  };
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+      {/* Home Department */}
+      <div className="glass-card p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <div
+            className="flex h-9 w-9 items-center justify-center rounded-xl"
+            style={{ background: "rgba(var(--accent-rgb), 0.15)" }}
+          >
+            <GraduationCap className="h-5 w-5 text-accent" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Home Department</h3>
+            <p className="text-xs text-muted-foreground">
+              Used by the Course Explorer to determine which &quot;Advanced&quot; courses you&apos;re eligible for
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            value={dept}
+            onChange={(e) => setDept(e.target.value)}
+            placeholder="e.g. Computer Science, Electrical Engineering"
+            className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition-colors focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+          />
+          <button
+            onClick={handleSave}
+            disabled={updateSettings.isPending}
+            className="btn-themed px-4 py-2.5 text-sm font-medium"
+          >
+            {updateSettings.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Save"
+            )}
+          </button>
+        </div>
+
+        <p className="mt-3 text-xs text-muted-foreground">
+          In the Course Explorer, <strong>STEM</strong> courses from all departments are always visible.{" "}
+          <strong>Advanced</strong> courses are only shown from your home department.
+        </p>
+      </div>
+    </div>
   );
 }

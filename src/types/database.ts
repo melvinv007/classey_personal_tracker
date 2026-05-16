@@ -241,6 +241,7 @@ export interface Settings extends AppwriteDocument {
   ai_requests_today: number;
   ai_requests_reset_date: string;
   last_opened_path: string | null;
+  home_department: string | null;
 }
 
 export interface NotificationLog extends AppwriteDocument {
@@ -342,4 +343,72 @@ export interface AiConversation extends AppwriteDocument {
   timestamp: string;
   tokens_used: number | null;
   provider: "groq" | "google" | null;
+}
+
+/**
+ * Minor entity — a minor program the user is tracking
+ */
+export interface Minor extends AppwriteDocument {
+  name: string;
+  credits_required: number;
+  courses_required: number;
+  deleted_at: string | null;
+}
+
+/**
+ * Minor Course — a course that can count toward a minor (bucket entry)
+ * A short_code can appear in multiple minors independently.
+ */
+export interface MinorCourse extends AppwriteDocument {
+  minor_id: string;
+  short_code: string;
+  short_code_normalized: string;
+  name: string;
+  credits: number;
+  is_required: boolean;
+  slot: string | null;
+  prerequisites: string;       // JSON stringified string[]
+  cutoff: string | null;
+  difficulty: string | null;   // "Easy" | "Medium" | "Hard"
+  instructors: string;         // JSON stringified string[]
+  duration: string;            // "full" | "first_half" | "second_half"
+  typically_offered: string;   // "odd" | "even" | "both"
+  notes: string | null;
+  deleted_at: string | null;
+}
+
+/**
+ * Semester Course — a course offered by a department in a given semester
+ * Populated via LLM extraction or manually.
+ */
+export interface SemesterCourse extends AppwriteDocument {
+  semester_id: string;
+  department: string;
+  short_code: string;
+  short_code_normalized: string;
+  name: string;
+  instructors: string;         // JSON stringified string[]
+  slot: string | null;
+  classroom: string | null;
+  student_limit: number | null;
+  category: string | null;     // "stem" | "advanced"
+  course_type: string;         // "theory" | "lab" | "seminar" | "project" | "other"
+  duration: string;            // "full" | "first_half" | "second_half"
+  deleted_at: string | null;
+}
+
+/**
+ * Helper to parse JSON string arrays (for prerequisites, instructors)
+ */
+export function parseJsonStringArray(value: string | null | undefined): string[] {
+  if (!value || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === "string");
+    }
+  } catch {
+    // ignore
+  }
+  return [];
 }

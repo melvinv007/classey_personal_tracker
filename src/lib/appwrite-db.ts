@@ -10,16 +10,20 @@ import type {
   Event,
   Exam,
   Holiday,
+  Minor,
+  MinorCourse,
   Note,
   NotificationLog,
   ReminderOffset,
   ResourceLink,
   Semester,
+  SemesterCourse,
   Settings,
   Slot,
   Subject,
   Task,
 } from "@/types/database";
+import { normalizeShortCode } from "@/utils/short-code";
 import { COLLECTIONS, DATABASE_ID, databases, ID, Query } from "./appwrite";
 
 type AppwriteDoc = object;
@@ -795,4 +799,261 @@ export const noteService = {
       Query.equal("subject_id", subjectId),
       Query.orderDesc("$createdAt"),
     ]),
+};
+
+// ============================================================
+// MINORS
+// ============================================================
+
+export const minorService = {
+  list: (queries?: string[]) =>
+    listDocuments<Minor>(COLLECTIONS.MINORS, queries),
+  get: (id: string) => getDocument<Minor>(COLLECTIONS.MINORS, id),
+  create: (
+    data: Omit<
+      Minor,
+      | "$id"
+      | "$createdAt"
+      | "$updatedAt"
+      | "$collectionId"
+      | "$databaseId"
+      | "$permissions"
+    >,
+  ) => createDocument<Minor>(COLLECTIONS.MINORS, data),
+  update: (id: string, data: Partial<Minor>) =>
+    updateDocument<Minor>(COLLECTIONS.MINORS, id, data),
+  delete: (id: string) =>
+    softDeleteDocument<Minor>(COLLECTIONS.MINORS, id),
+  restore: (id: string) =>
+    restoreDocument<Minor>(COLLECTIONS.MINORS, id),
+};
+
+// ============================================================
+// MINOR COURSES (bucket)
+// ============================================================
+
+export const minorCourseService = {
+  list: (queries?: string[]) =>
+    listDocuments<MinorCourse>(COLLECTIONS.MINOR_COURSES, queries),
+  get: (id: string) =>
+    getDocument<MinorCourse>(COLLECTIONS.MINOR_COURSES, id),
+  create: (
+    data: Omit<
+      MinorCourse,
+      | "$id"
+      | "$createdAt"
+      | "$updatedAt"
+      | "$collectionId"
+      | "$databaseId"
+      | "$permissions"
+    >,
+  ) => {
+    const normalized = normalizeShortCode(data.short_code);
+    return createDocument<MinorCourse>(COLLECTIONS.MINOR_COURSES, {
+      ...data,
+      short_code_normalized: normalized,
+    });
+  },
+  update: (id: string, data: Partial<MinorCourse>) => {
+    const patch: Record<string, unknown> = { ...data };
+    if (data.short_code !== undefined) {
+      patch.short_code_normalized = normalizeShortCode(data.short_code);
+    }
+    return updateDocument<MinorCourse>(COLLECTIONS.MINOR_COURSES, id, patch);
+  },
+  delete: (id: string) =>
+    softDeleteDocument<MinorCourse>(COLLECTIONS.MINOR_COURSES, id),
+
+  getByMinor: (minorId: string) =>
+    listDocuments<MinorCourse>(COLLECTIONS.MINOR_COURSES, [
+      Query.equal("minor_id", minorId),
+      Query.orderAsc("short_code"),
+      Query.limit(200),
+    ]),
+
+  batchCreate: async (
+    minorId: string,
+    courses: Array<
+      Omit<
+        MinorCourse,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+        | "minor_id"
+        | "short_code_normalized"
+      >
+    >,
+  ): Promise<MinorCourse[]> => {
+    const results: MinorCourse[] = [];
+    for (const course of courses) {
+      const doc = await createDocument<MinorCourse>(
+        COLLECTIONS.MINOR_COURSES,
+        {
+          ...course,
+          minor_id: minorId,
+          short_code_normalized: normalizeShortCode(course.short_code),
+        },
+      );
+      results.push(doc);
+    }
+    return results;
+  },
+
+  replaceForMinor: async (
+    minorId: string,
+    courses: Array<
+      Omit<
+        MinorCourse,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+        | "minor_id"
+        | "short_code_normalized"
+      >
+    >,
+  ): Promise<MinorCourse[]> => {
+    // Soft-delete existing courses for this minor
+    const existing = await listDocuments<MinorCourse>(
+      COLLECTIONS.MINOR_COURSES,
+      [Query.equal("minor_id", minorId), Query.limit(500)],
+    );
+    for (const doc of existing) {
+      await softDeleteDocument<MinorCourse>(COLLECTIONS.MINOR_COURSES, doc.$id);
+    }
+    // Create new courses
+    return minorCourseService.batchCreate(minorId, courses);
+  },
+};
+
+// ============================================================
+// SEMESTER COURSES
+// ============================================================
+
+export const semesterCourseService = {
+  list: (queries?: string[]) =>
+    listDocuments<SemesterCourse>(COLLECTIONS.SEMESTER_COURSES, queries),
+  get: (id: string) =>
+    getDocument<SemesterCourse>(COLLECTIONS.SEMESTER_COURSES, id),
+  create: (
+    data: Omit<
+      SemesterCourse,
+      | "$id"
+      | "$createdAt"
+      | "$updatedAt"
+      | "$collectionId"
+      | "$databaseId"
+      | "$permissions"
+    >,
+  ) => {
+    const normalized = normalizeShortCode(data.short_code);
+    return createDocument<SemesterCourse>(COLLECTIONS.SEMESTER_COURSES, {
+      ...data,
+      short_code_normalized: normalized,
+    });
+  },
+  update: (id: string, data: Partial<SemesterCourse>) => {
+    const patch: Record<string, unknown> = { ...data };
+    if (data.short_code !== undefined) {
+      patch.short_code_normalized = normalizeShortCode(data.short_code);
+    }
+    return updateDocument<SemesterCourse>(
+      COLLECTIONS.SEMESTER_COURSES,
+      id,
+      patch,
+    );
+  },
+  delete: (id: string) =>
+    softDeleteDocument<SemesterCourse>(COLLECTIONS.SEMESTER_COURSES, id),
+
+  getBySemester: (semesterId: string) =>
+    listDocuments<SemesterCourse>(COLLECTIONS.SEMESTER_COURSES, [
+      Query.equal("semester_id", semesterId),
+      Query.orderAsc("department"),
+      Query.orderAsc("short_code"),
+      Query.limit(500),
+    ]),
+
+  getByDepartment: (semesterId: string, department: string) =>
+    listDocuments<SemesterCourse>(COLLECTIONS.SEMESTER_COURSES, [
+      Query.equal("semester_id", semesterId),
+      Query.equal("department", department),
+      Query.orderAsc("short_code"),
+      Query.limit(200),
+    ]),
+
+  batchCreate: async (
+    semesterId: string,
+    department: string,
+    courses: Array<
+      Omit<
+        SemesterCourse,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+        | "semester_id"
+        | "department"
+        | "short_code_normalized"
+      >
+    >,
+  ): Promise<SemesterCourse[]> => {
+    const results: SemesterCourse[] = [];
+    for (const course of courses) {
+      const doc = await createDocument<SemesterCourse>(
+        COLLECTIONS.SEMESTER_COURSES,
+        {
+          ...course,
+          semester_id: semesterId,
+          department,
+          short_code_normalized: normalizeShortCode(course.short_code),
+        },
+      );
+      results.push(doc);
+    }
+    return results;
+  },
+
+  replaceForDepartment: async (
+    semesterId: string,
+    department: string,
+    courses: Array<
+      Omit<
+        SemesterCourse,
+        | "$id"
+        | "$createdAt"
+        | "$updatedAt"
+        | "$collectionId"
+        | "$databaseId"
+        | "$permissions"
+        | "semester_id"
+        | "department"
+        | "short_code_normalized"
+      >
+    >,
+  ): Promise<SemesterCourse[]> => {
+    // Soft-delete existing courses for this semester + department
+    const existing = await listDocuments<SemesterCourse>(
+      COLLECTIONS.SEMESTER_COURSES,
+      [
+        Query.equal("semester_id", semesterId),
+        Query.equal("department", department),
+        Query.limit(500),
+      ],
+    );
+    for (const doc of existing) {
+      await softDeleteDocument<SemesterCourse>(
+        COLLECTIONS.SEMESTER_COURSES,
+        doc.$id,
+      );
+    }
+    return semesterCourseService.batchCreate(semesterId, department, courses);
+  },
 };

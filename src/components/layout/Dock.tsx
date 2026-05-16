@@ -8,6 +8,7 @@ import {
   CheckSquare,
   Clock,
   FolderOpen,
+  GraduationCap,
   Home,
   Settings,
   type LucideIcon,
@@ -34,6 +35,7 @@ const navItems: NavItem[] = [
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/files", label: "Files", icon: FolderOpen },
   { href: "/analytics/cgpa", label: "Analytics", icon: BarChart3 },
+  { href: "/minor", label: "Minor", icon: GraduationCap },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

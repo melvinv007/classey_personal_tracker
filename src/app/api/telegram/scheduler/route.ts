@@ -59,6 +59,7 @@ function toSettings(doc: Record<string, unknown>): Settings {
     ai_requests_today: typeof doc.ai_requests_today === "number" ? doc.ai_requests_today : 0,
     ai_requests_reset_date: typeof doc.ai_requests_reset_date === "string" ? doc.ai_requests_reset_date : new Date().toISOString().split("T")[0] ?? "",
     last_opened_path: typeof doc.last_opened_path === "string" ? doc.last_opened_path : null,
+    home_department: typeof doc.home_department === "string" ? doc.home_department : null,
   };
 }
 
