@@ -47,7 +47,7 @@ export default function MinorListPage() {
   const active = useMemo(() => minors.filter((m) => !m.deleted_at), [minors]);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 md:pl-20">
+    <div className="page-medium">
       <motion.div className="mb-8 flex items-center justify-between" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Minor Programs</h1>

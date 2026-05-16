@@ -433,7 +433,7 @@ export default function FilesPage(): React.ReactNode {
 
   return (
     <div
-      className="min-h-screen p-4 md:p-8"
+      className="page-wide min-h-screen"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

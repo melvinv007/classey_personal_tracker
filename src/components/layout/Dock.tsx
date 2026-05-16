@@ -1,5 +1,6 @@
 "use client";
 
+import { useDockVisibilityStore } from "@/stores/dock-visibility-store";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {
@@ -43,9 +44,14 @@ const navItems: NavItem[] = [
  * Dock navigation component.
  * Minimal dock with icons + labels on desktop, icons only on mobile.
  * Fixed to bottom on mobile, left side on desktop.
+ * Filters tabs based on device-specific visibility settings.
  */
 export function Dock(): React.ReactNode {
   const pathname = usePathname();
+  const isTabVisible = useDockVisibilityStore((s) => s.isTabVisible);
+  const visibleTabs = useDockVisibilityStore((s) => s.visibleTabs);
+
+  const visibleItems = navItems.filter((item) => isTabVisible(item.href));
 
   return (
     <>
@@ -57,7 +63,7 @@ export function Dock(): React.ReactNode {
         transition={{ duration: 0.3, delay: 0.2 }}
       >
         <div className="glass-card flex flex-col gap-1 p-2 w-14 group-hover:w-44 transition-[width] duration-150 overflow-hidden">
-          {navItems.map((item) => {
+          {visibleItems.map((item) => {
             const isActive =
               pathname === item.href ||
               (item.href !== "/" && pathname.startsWith(item.href));
@@ -104,7 +110,7 @@ export function Dock(): React.ReactNode {
         transition={{ duration: 0.3, delay: 0.2 }}
       >
         <div className="glass-card mx-4 mb-4 flex items-center justify-around rounded-2xl p-2">
-          {navItems.map((item) => {
+          {visibleItems.map((item) => {
             const isActive =
               pathname === item.href ||
               (item.href !== "/" && pathname.startsWith(item.href));

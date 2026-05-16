@@ -194,91 +194,91 @@ export function TimeGridView({
           className="relative"
           style={{ minWidth: minGridWidth }}
         >
-          {/* Sticky day header */}
-          <div
-            className="grid border-b border-white/10 bg-black/10"
-            style={{ gridTemplateColumns }}
-          >
-            <div className="sticky left-0 z-20 border-r border-white/10 bg-black/15" />
-            {days.map((day) => {
-              const isToday = isSameDay(day, new Date());
-              const isSingleDay = days.length === 1;
-              return (
-                <div
-                  key={day.toISOString()}
-                  className="flex items-center justify-center border-l border-white/8 py-3"
-                >
-                  <div className="text-center">
-                    <p className="text-xs text-muted-foreground">
-                      {isSingleDay
-                        ? format(day, "EEEE, MMM d")
-                        : DAY_SHORT_NAMES[day.getDay() === 0 ? 7 : day.getDay()]}
-                    </p>
-                    <div
-                      className={cn(
-                        "mt-1 inline-flex h-7 items-center justify-center rounded-full px-2 text-sm font-semibold transition-colors duration-150",
-                        isToday
-                          ? "bg-[rgb(var(--accent))] text-white"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {format(day, "d")}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* All-day row (hidden if empty) */}
-          {hasAllDayEvents && (
-            <div
-              className="grid border-b border-white/10 bg-white/[0.02]"
-              style={{ gridTemplateColumns }}
-            >
-              <div className="sticky left-0 z-20 border-r border-white/10 bg-black/15 px-2 py-2 text-[11px] text-muted-foreground text-right">
-                All day
-              </div>
-              {days.map((day, dayIndex) => (
-                <div
-                  key={`all-day-${day.toISOString()}`}
-                  className="min-h-12 border-l border-white/8 px-1.5 py-1.5"
-                >
-                  <div className="space-y-1">
-                    {allDayEventsByDay[dayIndex].map((event) => {
-                      const baseColor = event.color || "rgb(var(--accent))";
-                      return (
-                        <button
-                          key={`${event.id}-all-day`}
-                          type="button"
-                          onClick={(e) =>
-                            onSelectEvent?.(
-                              event,
-                              (e.currentTarget as HTMLButtonElement).getBoundingClientRect(),
-                            )
-                          }
-                          className="w-full truncate rounded-md border-l-[3px] px-2 py-1 text-left text-[11px] font-medium transition-all duration-150 hover:brightness-110"
-                          style={{
-                            borderLeftColor: baseColor,
-                            backgroundColor: `color-mix(in srgb, ${baseColor} 22%, transparent)`,
-                            color: "rgb(var(--foreground))",
-                          }}
-                        >
-                          {event.title}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Scrollable time grid */}
+          {/* Scrollable time grid — header is sticky INSIDE so columns share scrollbar space */}
           <div
             ref={scrollRef}
             className="relative max-h-[72vh] overflow-y-auto calendar-grid-scroll"
           >
+            {/* Sticky day header */}
+            <div
+              className="sticky top-0 z-30 grid border-b border-white/10 bg-black/80 backdrop-blur-md"
+              style={{ gridTemplateColumns }}
+            >
+              <div className="sticky left-0 z-20 border-r border-white/10 bg-black/90" />
+              {days.map((day) => {
+                const isToday = isSameDay(day, new Date());
+                const isSingleDay = days.length === 1;
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className="flex items-center justify-center border-l border-white/8 py-3"
+                  >
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">
+                        {isSingleDay
+                          ? format(day, "EEEE, MMM d")
+                          : DAY_SHORT_NAMES[day.getDay() === 0 ? 7 : day.getDay()]}
+                      </p>
+                      <div
+                        className={cn(
+                          "mt-1 inline-flex h-7 items-center justify-center rounded-full px-2 text-sm font-semibold transition-colors duration-150",
+                          isToday
+                            ? "bg-[rgb(var(--accent))] text-white"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {format(day, "d")}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* All-day row (hidden if empty) — also sticky below header */}
+            {hasAllDayEvents && (
+              <div
+                className="sticky top-[62px] z-20 grid border-b border-white/10 bg-black/70 backdrop-blur-md"
+                style={{ gridTemplateColumns }}
+              >
+                <div className="sticky left-0 z-20 border-r border-white/10 bg-black/90 px-2 py-2 text-[11px] text-muted-foreground text-right">
+                  All day
+                </div>
+                {days.map((day, dayIndex) => (
+                  <div
+                    key={`all-day-${day.toISOString()}`}
+                    className="min-h-12 border-l border-white/8 px-1.5 py-1.5"
+                  >
+                    <div className="space-y-1">
+                      {allDayEventsByDay[dayIndex].map((event) => {
+                        const baseColor = event.color || "rgb(var(--accent))";
+                        return (
+                          <button
+                            key={`${event.id}-all-day`}
+                            type="button"
+                            onClick={(e) =>
+                              onSelectEvent?.(
+                                event,
+                                (e.currentTarget as HTMLButtonElement).getBoundingClientRect(),
+                              )
+                            }
+                            className="w-full truncate rounded-md border-l-[3px] px-2 py-1 text-left text-[11px] font-medium transition-all duration-150 hover:brightness-110"
+                            style={{
+                              borderLeftColor: baseColor,
+                              backgroundColor: `color-mix(in srgb, ${baseColor} 22%, transparent)`,
+                              color: "rgb(var(--foreground))",
+                            }}
+                          >
+                            {event.title}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="relative" style={{ height: totalGridHeight }}>
               {/* Full-width hour lines */}
               {Array.from({ length: HOURS_IN_DAY + 1 }).map((_, hour) => (
@@ -432,10 +432,17 @@ export function TimeGridView({
                       {/* Current time indicator */}
                       {shouldShowNowLine && (
                         <div
-                          className="absolute left-0 right-0 z-20 border-t-2 border-[rgb(var(--accent))]"
-                          style={{ top: (nowMinutes * hourRowHeight) / 60 }}
+                          className="absolute left-0 right-0 z-20"
+                          style={{
+                            top: (nowMinutes * hourRowHeight) / 60,
+                            borderTop: "2.5px solid rgb(var(--accent))",
+                            filter: "drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.45))",
+                          }}
                         >
-                          <span className="absolute -left-1 -top-[5px] h-2 w-2 rounded-full bg-[rgb(var(--accent))]" />
+                          <span
+                            className="absolute -left-1 -top-[6px] h-2.5 w-2.5 rounded-full bg-[rgb(var(--accent))]"
+                            style={{ boxShadow: "0 0 8px rgba(var(--accent-rgb), 0.5)" }}
+                          />
                         </div>
                       )}
                     </div>

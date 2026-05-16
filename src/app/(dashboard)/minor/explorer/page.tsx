@@ -158,7 +158,7 @@ export default function CourseExplorerPage() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 md:pl-20">
+    <div className="page-medium">
       <motion.div className="mb-6" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <Link href="/minor" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Back to Minors

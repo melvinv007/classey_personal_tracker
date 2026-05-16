@@ -422,13 +422,13 @@ export default function Home(): React.ReactNode {
 
   return (
     <motion.main
-      className="min-h-screen p-6 pb-28 md:pb-6"
+      className="page-wide min-h-screen"
       variants={pageVariants}
       initial="hidden"
       animate="visible"
       transition={{ duration: 0.3, ease: "easeInOut" }}
     >
-      <div className="max-w-5xl mx-auto">
+      <div>
         {/* Welcome Header */}
         <motion.div
           className="mb-8"

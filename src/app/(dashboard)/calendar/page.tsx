@@ -367,7 +367,7 @@ export default function CalendarPage(): React.ReactNode {
       : undefined;
 
   return (
-    <div className="min-h-screen pb-24 px-4 py-4 md:px-6">
+    <div className="page-fluid min-h-screen">
       <header className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
         <div className="flex flex-wrap items-center gap-3">
           <div>
@@ -432,7 +432,7 @@ export default function CalendarPage(): React.ReactNode {
         {view === "month" ? (
           <MonthGridView
             monthDate={focusDate}
-            events={calendarEvents}
+            events={calendarEvents.filter((e) => e.type !== "class")}
             onSelectDay={openDayFromMonth}
             onSelectEvent={openEventDetail}
           />

@@ -203,7 +203,7 @@ export default function TasksPage(): React.ReactNode {
       initial="hidden"
       animate="visible"
       transition={{ duration: 0.3 }}
-      className="min-h-screen pt-8 pb-32 px-4 lg:px-8"
+      className="page-medium min-h-screen"
     >
       <div className="max-w-4xl mx-auto">
         {/* Header */}
