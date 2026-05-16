@@ -35,14 +35,16 @@ export function ThemedSelect({
         className={cn(
           "w-full inline-flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl",
           "bg-white/6 border border-white/10 text-foreground interactive-surface interactive-focus",
-          "focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)]",
-          "transition-all disabled:opacity-50",
+          "hover:border-white/20 hover:bg-white/8",
+          "focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.5)] focus:border-[rgba(var(--accent),0.3)]",
+          "data-[state=open]:border-[rgba(var(--accent),0.4)] data-[state=open]:bg-white/8 data-[state=open]:ring-1 data-[state=open]:ring-[rgba(var(--accent),0.3)]",
+          "transition-all duration-150 disabled:opacity-50",
           className
         )}
       >
         <Select.Value placeholder={placeholder} />
         <Select.Icon>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-150 [[data-state=open]_&]:rotate-180" />
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>

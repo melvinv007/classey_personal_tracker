@@ -63,6 +63,9 @@ export const COLLECTIONS = {
   NOTIFICATIONS_LOG: "notifications_log",
   AUDIT_LOG: "audit_log",
   STUDY_SESSIONS: "study_sessions",
+  MINORS: "minors",
+  MINOR_COURSES: "minor_courses",
+  SEMESTER_COURSES: "semester_courses",
 } as const;
 
 export type CollectionId = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];

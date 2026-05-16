@@ -802,6 +802,42 @@ a[class*="bg-accent"]:hover {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   STANDARDISED PAGE LAYOUT CONTAINERS
+   Assign one of these to each page's outermost wrapper for visual consistency.
+   Mobile padding is tight; desktop padding is generous.
+   --------------------------------------------------------------------------- */
+.page-narrow {
+  max-width: 48rem;
+  margin-inline: auto;
+  padding: 1rem 1rem 6rem;
+}
+.page-medium {
+  max-width: 64rem;
+  margin-inline: auto;
+  padding: 1rem 1rem 6rem;
+}
+.page-wide {
+  max-width: 80rem;
+  margin-inline: auto;
+  padding: 1rem 1rem 6rem;
+}
+.page-fluid {
+  padding: 1rem 1rem 6rem;
+}
+
+@media (min-width: 768px) {
+  .page-narrow { padding: 1.5rem 1.5rem 1.5rem; }
+  .page-medium { padding: 1.5rem 1.5rem 1.5rem; }
+  .page-wide   { padding: 1.5rem 1.5rem 1.5rem; }
+  .page-fluid  { padding: 1rem 1.5rem 1.5rem; }
+}
+
+/* Force calendar scroll area to account for scrollbar width in header */
+.calendar-grid-scroll {
+  scrollbar-gutter: stable;
+}
+
 /* Prevent layout shift during hydration */
 .no-fouc {
   visibility: hidden;

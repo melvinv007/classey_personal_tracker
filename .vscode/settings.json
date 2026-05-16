@@ -99,5 +99,5 @@
   },
 
   // --- Extensions recommended ---
-  "extensions.ignoreRecommendations": false
+  "extensions.ignoreRecommendations": true
 }

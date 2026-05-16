@@ -10,8 +10,11 @@ import {
   examService,
   fileService,
   holidayService,
+  minorCourseService,
+  minorService,
   noteService,
   resourceLinkService,
+  semesterCourseService,
   semesterService,
   settingsService,
   slotService,
@@ -25,9 +28,12 @@ import type {
   Event,
   Exam,
   Holiday,
+  Minor,
+  MinorCourse,
   Note,
   ResourceLink,
   Semester,
+  SemesterCourse,
   Settings,
   Subject,
   Task,
@@ -86,6 +92,11 @@ export const queryKeys = {
   notes: (subjectId?: string) => ["notes", subjectId] as const,
   settings: () => ["settings"] as const,
   holidays: (semesterId?: string) => ["holidays", semesterId] as const,
+  minors: ["minors"] as const,
+  minor: (id: string) => ["minors", id] as const,
+  minorCourses: (minorId: string) => ["minorCourses", minorId] as const,
+  semesterCourses: (semesterId: string, department?: string) =>
+    ["semesterCourses", semesterId, department] as const,
 };
 
 // ============================================================
@@ -791,6 +802,7 @@ function createDefaultSettingsInput(): Omit<
     ai_requests_today: 0,
     ai_requests_reset_date: new Date().toISOString().split("T")[0] ?? "",
     last_opened_path: null,
+    home_department: null,
   };
 }
 
@@ -832,6 +844,7 @@ function toSettingsCreatePayload(
     ai_requests_today: settings.ai_requests_today,
     ai_requests_reset_date: settings.ai_requests_reset_date,
     last_opened_path: settings.last_opened_path,
+    home_department: settings.home_department,
   };
 }
 
@@ -871,6 +884,7 @@ function toSettingsUpdatePayload(
     "ai_requests_today",
     "ai_requests_reset_date",
     "last_opened_path",
+    "home_department",
   ];
 
   for (const key of allowedKeys) {
@@ -1063,6 +1077,201 @@ export function useDeleteHoliday() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["holidays"] });
       queryClient.invalidateQueries({ queryKey: ["classOccurrences"] });
+    },
+  });
+}
+
+// ============================================================
+// MINORS
+// ============================================================
+
+export function useMinors() {
+  return useQuery({
+    queryKey: queryKeys.minors,
+    queryFn: () => minorService.list(),
+  });
+}
+
+export function useMinor(id: string) {
+  return useQuery({
+    queryKey: queryKeys.minor(id),
+    queryFn: () => minorService.get(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateMinor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; credits_required: number; courses_required: number }) =>
+      minorService.create({ ...data, deleted_at: null }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.minors });
+    },
+  });
+}
+
+export function useUpdateMinor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Minor> }) =>
+      minorService.update(id, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.minors });
+      queryClient.invalidateQueries({ queryKey: queryKeys.minor(variables.id) });
+    },
+  });
+}
+
+export function useDeleteMinor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => minorService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.minors });
+    },
+  });
+}
+
+// ============================================================
+// MINOR COURSES
+// ============================================================
+
+export function useMinorCourses(minorId: string) {
+  return useQuery({
+    queryKey: queryKeys.minorCourses(minorId),
+    queryFn: () => minorCourseService.getByMinor(minorId),
+    enabled: !!minorId,
+  });
+}
+
+export function useCreateMinorCourse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Omit<MinorCourse, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
+      minorCourseService.create(data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.minorCourses(variables.minor_id) });
+    },
+  });
+}
+
+export function useUpdateMinorCourse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, minorId, data }: { id: string; minorId: string; data: Partial<MinorCourse> }) =>
+      minorCourseService.update(id, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.minorCourses(variables.minorId) });
+    },
+  });
+}
+
+export function useDeleteMinorCourse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, minorId }: { id: string; minorId: string }) =>
+      minorCourseService.delete(id),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.minorCourses(variables.minorId) });
+    },
+  });
+}
+
+export function useBatchCreateMinorCourses() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ minorId, courses }: { minorId: string; courses: Parameters<typeof minorCourseService.batchCreate>[1] }) =>
+      minorCourseService.batchCreate(minorId, courses),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.minorCourses(variables.minorId) });
+    },
+  });
+}
+
+export function useReplaceMinorCourses() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ minorId, courses }: { minorId: string; courses: Parameters<typeof minorCourseService.replaceForMinor>[1] }) =>
+      minorCourseService.replaceForMinor(minorId, courses),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.minorCourses(variables.minorId) });
+    },
+  });
+}
+
+// ============================================================
+// SEMESTER COURSES
+// ============================================================
+
+export function useSemesterCourses(semesterId: string, department?: string) {
+  return useQuery({
+    queryKey: queryKeys.semesterCourses(semesterId, department),
+    queryFn: () =>
+      department
+        ? semesterCourseService.getByDepartment(semesterId, department)
+        : semesterCourseService.getBySemester(semesterId),
+    enabled: !!semesterId,
+  });
+}
+
+export function useCreateSemesterCourse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Omit<SemesterCourse, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions">) =>
+      semesterCourseService.create(data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["semesterCourses", variables.semester_id] });
+    },
+  });
+}
+
+export function useUpdateSemesterCourse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, semesterId, data }: { id: string; semesterId: string; data: Partial<SemesterCourse> }) =>
+      semesterCourseService.update(id, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["semesterCourses", variables.semesterId] });
+    },
+  });
+}
+
+export function useDeleteSemesterCourse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, semesterId }: { id: string; semesterId: string }) =>
+      semesterCourseService.delete(id),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["semesterCourses", variables.semesterId] });
+    },
+  });
+}
+
+export function useBatchCreateSemesterCourses() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ semesterId, department, courses }: {
+      semesterId: string;
+      department: string;
+      courses: Parameters<typeof semesterCourseService.batchCreate>[2];
+    }) => semesterCourseService.batchCreate(semesterId, department, courses),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["semesterCourses", variables.semesterId] });
+    },
+  });
+}
+
+export function useReplaceSemesterCourses() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ semesterId, department, courses }: {
+      semesterId: string;
+      department: string;
+      courses: Parameters<typeof semesterCourseService.replaceForDepartment>[2];
+    }) => semesterCourseService.replaceForDepartment(semesterId, department, courses),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["semesterCourses", variables.semesterId] });
     },
   });
 }

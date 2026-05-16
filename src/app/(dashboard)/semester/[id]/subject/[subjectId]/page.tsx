@@ -672,7 +672,7 @@ export default function SubjectDetailPage(): React.ReactNode {
 
   return (
     <motion.main
-      className="min-h-screen p-6 pb-28 md:pb-6"
+      className="page-medium min-h-screen"
       variants={pageVariants}
       initial="hidden"
       animate="visible"

@@ -106,12 +106,33 @@ export function NoExams({ onAdd }: { onAdd: () => void }): React.ReactNode {
  */
 export function NoTasks({ onAdd }: { onAdd: () => void }): React.ReactNode {
   return (
-    <EmptyState
-      icon={CheckSquare}
-      title="All caught up!"
-      description="You have no pending tasks. Add new tasks to stay organized."
-      action={{ label: "Add Task", onClick: onAdd }}
-    />
+    <motion.div
+      className="flex flex-col items-center justify-center py-12 text-center"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div
+        className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl"
+        style={{ background: "rgba(34, 197, 94, 0.1)" }}
+      >
+        <CheckSquare className="h-8 w-8 text-emerald-400" />
+      </div>
+      <h3 className="mb-1 text-lg font-semibold">You&apos;re all caught up! 🎉</h3>
+      <p className="mb-1 max-w-sm text-sm text-muted-foreground">
+        No pending tasks — nice work keeping on top of things.
+      </p>
+      <p className="mb-4 max-w-xs text-xs text-muted-foreground/70">
+        Add assignments, readings, or project milestones to stay organized.
+      </p>
+      <button
+        onClick={onAdd}
+        className="flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent/90"
+      >
+        <Plus className="h-4 w-4" />
+        Add Task
+      </button>
+    </motion.div>
   );
 }
 
@@ -120,12 +141,33 @@ export function NoTasks({ onAdd }: { onAdd: () => void }): React.ReactNode {
  */
 export function NoFiles({ onAdd }: { onAdd: () => void }): React.ReactNode {
   return (
-    <EmptyState
-      icon={FolderOpen}
-      title="No files uploaded"
-      description="Upload lecture notes, past papers, or other resources for easy access."
-      action={{ label: "Upload File", onClick: onAdd }}
-    />
+    <motion.div
+      className="flex flex-col items-center justify-center py-12 text-center"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div
+        className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl"
+        style={{ background: "rgba(var(--accent-rgb), 0.1)" }}
+      >
+        <FolderOpen className="h-8 w-8 text-accent" />
+      </div>
+      <h3 className="mb-1 text-lg font-semibold">No files yet</h3>
+      <p className="mb-1 max-w-sm text-sm text-muted-foreground">
+        Upload lecture notes, past papers, or study resources to keep everything in one place.
+      </p>
+      <p className="mb-4 max-w-xs text-xs text-muted-foreground/70">
+        Supports PDF, images, docs, and more. You can also drag &amp; drop files anywhere on this page.
+      </p>
+      <button
+        onClick={onAdd}
+        className="flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent/90"
+      >
+        <Plus className="h-4 w-4" />
+        Upload File
+      </button>
+    </motion.div>
   );
 }
 

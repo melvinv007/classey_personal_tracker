@@ -1,5 +1,7 @@
 "use client";
 
+import { useDockVisibilityStore, ALL_TABS, TAB_LABELS, type TabHref } from "@/stores/dock-visibility-store";
+import { useUIScaleStore, SCALE_PAGES, SCALE_PAGE_LABELS, type ScalePage } from "@/stores/ui-scale-store";
 import { ReminderOffsetsEditor } from "@/components/forms/ReminderOffsetsEditor";
 import { ConfirmActionModal } from "@/components/modals/ConfirmActionModal";
 import { ThemedColorPicker } from "@/components/ui/ThemedColorPicker";
@@ -37,16 +39,24 @@ import type { ReminderOffset, Settings } from "@/types/database";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
+  BarChart3,
   Bell,
   BookOpen,
   Calendar,
   CheckCircle,
   CheckSquare,
+  ChevronDown,
   Clock,
+  Eye,
+  EyeOff,
   FileText,
+  FolderOpen,
+  GraduationCap,
+  Home,
   Loader2,
   LogOut,
   MessageSquare,
+  Monitor,
   Moon,
   Palette,
   Send,
@@ -63,7 +73,7 @@ import { toast } from "sonner";
  * Settings page - Appearance and Notification preferences
  */
 export default function SettingsPage(): React.ReactNode {
-  const [activeTab, setActiveTab] = useState<"appearance" | "notifications">(
+  const [activeTab, setActiveTab] = useState<"appearance" | "notifications" | "academic">(
     "appearance",
   );
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -85,7 +95,7 @@ export default function SettingsPage(): React.ReactNode {
   };
 
   return (
-    <div className="min-h-screen p-4 pb-24 md:p-6 md:pb-6">
+    <div className="page-wide min-h-screen">
       {/* Header */}
       <motion.div
         className="mb-6 flex items-center gap-4"
@@ -150,6 +160,17 @@ export default function SettingsPage(): React.ReactNode {
           <Bell className="h-4 w-4" />
           Notifications
         </button>
+        <button
+          onClick={() => setActiveTab("academic")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === "academic"
+              ? "bg-accent text-white"
+              : "bg-muted hover:bg-muted/80"
+          }`}
+        >
+          <GraduationCap className="h-4 w-4" />
+          Academic
+        </button>
       </motion.div>
 
       {/* Content */}
@@ -161,6 +182,8 @@ export default function SettingsPage(): React.ReactNode {
       >
         {activeTab === "appearance" ? (
           <AppearanceSettings />
+        ) : activeTab === "academic" ? (
+          <AcademicSettings />
         ) : (
           <NotificationSettings />
         )}
@@ -588,6 +611,237 @@ function AppearanceSettings(): React.ReactNode {
           </p>
         </div>
       </div>
+
+      {/* Interface Scale (Desktop only) */}
+      <InterfaceScaleSettings />
+
+      {/* Navigation Tab Visibility */}
+      <NavigationTabSettings />
+    </div>
+  );
+}
+/**
+ * Interface Scale settings — per-page zoom sliders with collapsible detail
+ */
+function InterfaceScaleSettings(): React.ReactNode {
+  const globalScale = useUIScaleStore((s) => s.globalScale);
+  const pageScales = useUIScaleStore((s) => s.pageScales);
+  const setGlobalScale = useUIScaleStore((s) => s.setGlobalScale);
+  const setPageScale = useUIScaleStore((s) => s.setPageScale);
+  const clearPageScale = useUIScaleStore((s) => s.clearPageScale);
+  const [expanded, setExpanded] = useState(false);
+
+  const PAGE_ICONS: Record<ScalePage, React.ReactNode> = {
+    "/": <Home className="h-3.5 w-3.5" />,
+    "/calendar": <Calendar className="h-3.5 w-3.5" />,
+    "/timetable": <Clock className="h-3.5 w-3.5" />,
+    "/tasks": <CheckSquare className="h-3.5 w-3.5" />,
+    "/files": <FolderOpen className="h-3.5 w-3.5" />,
+    "/analytics/cgpa": <BarChart3 className="h-3.5 w-3.5" />,
+    "/minor": <GraduationCap className="h-3.5 w-3.5" />,
+    "/settings": <Palette className="h-3.5 w-3.5" />,
+  };
+
+  return (
+    <div className="glass-card p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-xl"
+          style={{ background: "rgba(var(--accent-rgb), 0.15)" }}
+        >
+          <Monitor className="h-5 w-5 text-accent" />
+        </div>
+        <div className="flex-1">
+          <h3 className="font-semibold">Interface Scale</h3>
+          <p className="text-xs text-muted-foreground">
+            Adjust UI zoom for desktop. Does not affect mobile.
+          </p>
+        </div>
+      </div>
+
+      {/* Global Scale */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">Global Scale</p>
+          <p className="text-sm font-semibold text-foreground">{globalScale}%</p>
+        </div>
+        <input
+          type="range"
+          min={50}
+          max={200}
+          step={5}
+          value={globalScale}
+          onChange={(e) => setGlobalScale(Number(e.target.value))}
+          className="w-full accent-[rgb(var(--accent))]"
+        />
+        <div className="flex justify-between text-[11px] text-muted-foreground">
+          <span>50%</span>
+          <button
+            type="button"
+            onClick={() => setGlobalScale(100)}
+            className="hover:text-foreground transition-colors"
+          >
+            100%
+          </button>
+          <span>200%</span>
+        </div>
+      </div>
+
+      {/* Per-Page Overrides (click to expand) */}
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="mt-4 flex w-full items-center justify-between rounded-xl bg-white/5 px-3 py-2.5 text-sm text-muted-foreground hover:bg-white/8 hover:text-foreground transition-all"
+      >
+        <span>Per-page overrides</span>
+        <div className="flex items-center gap-2">
+          {Object.keys(pageScales).length > 0 && (
+            <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-medium text-accent">
+              {Object.keys(pageScales).length} custom
+            </span>
+          )}
+          <ChevronDown
+            className={`h-4 w-4 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+          />
+        </div>
+      </button>
+
+      {expanded && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="mt-3 space-y-3"
+        >
+          {SCALE_PAGES.map((page) => {
+            const override = pageScales[page];
+            const effective = override ?? globalScale;
+            const hasOverride = override !== undefined;
+            return (
+              <div
+                key={page}
+                className={`rounded-xl px-3 py-2.5 transition-all ${
+                  hasOverride
+                    ? "bg-accent/8 border border-accent/15"
+                    : "bg-white/3 border border-white/6"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    {PAGE_ICONS[page]}
+                    <span className="text-xs font-medium">{SCALE_PAGE_LABELS[page]}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-foreground">
+                      {effective}%
+                    </span>
+                    {hasOverride && (
+                      <button
+                        type="button"
+                        onClick={() => clearPageScale(page)}
+                        className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                        title="Reset to global"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={50}
+                  max={200}
+                  step={5}
+                  value={effective}
+                  onChange={(e) => setPageScale(page, Number(e.target.value))}
+                  className="w-full accent-[rgb(var(--accent))] h-1"
+                />
+              </div>
+            );
+          })}
+          <p className="text-[11px] text-muted-foreground">
+            Override the global scale for individual pages. Click &ldquo;Reset&rdquo; to use the global value.
+          </p>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Navigation Tab visibility — device-specific dock tab toggles (Zustand-backed)
+ */
+function NavigationTabSettings(): React.ReactNode {
+  const toggleTab = useDockVisibilityStore((s) => s.toggleTab);
+  const isTabVisible = useDockVisibilityStore((s) => s.isTabVisible);
+  const isTabLocked = useDockVisibilityStore((s) => s.isTabLocked);
+  const visibleTabs = useDockVisibilityStore((s) => s.visibleTabs);
+
+  const TAB_ICONS_MAP: Record<string, React.ReactNode> = {
+    "/": <Home className="h-4 w-4" />,
+    "/calendar": <Calendar className="h-4 w-4" />,
+    "/timetable": <Clock className="h-4 w-4" />,
+    "/tasks": <CheckSquare className="h-4 w-4" />,
+    "/files": <FolderOpen className="h-4 w-4" />,
+    "/analytics/cgpa": <BarChart3 className="h-4 w-4" />,
+    "/minor": <GraduationCap className="h-4 w-4" />,
+    "/settings": <Palette className="h-4 w-4" />,
+  };
+
+  return (
+    <div className="glass-card p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-xl"
+          style={{ background: "rgba(var(--accent-rgb), 0.15)" }}
+        >
+          <Eye className="h-5 w-5 text-accent" />
+        </div>
+        <div>
+          <h3 className="font-semibold">Navigation Tabs</h3>
+          <p className="text-xs text-muted-foreground">
+            Choose which tabs appear in the dock. This is device-specific.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        {ALL_TABS.map((href) => {
+          const visible = isTabVisible(href);
+          const locked = isTabLocked(href);
+          return (
+            <button
+              key={href}
+              type="button"
+              disabled={locked}
+              onClick={() => toggleTab(href)}
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all ${
+                visible
+                  ? "bg-accent/15 text-accent border border-accent/20"
+                  : "bg-white/5 text-muted-foreground border border-white/8 hover:bg-white/8"
+              } ${locked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+            >
+              {TAB_ICONS_MAP[href]}
+              <span className="flex-1 text-left">{TAB_LABELS[href] ?? href}</span>
+              {visible ? (
+                <Eye className="h-4 w-4 opacity-60" />
+              ) : (
+                <EyeOff className="h-4 w-4 opacity-40" />
+              )}
+              {locked && (
+                <span className="text-[10px] uppercase tracking-wider opacity-50">
+                  Locked
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="mt-3 text-xs text-muted-foreground">
+        Home and Settings are always visible. Hidden tabs are still accessible via direct URL.
+      </p>
     </div>
   );
 }
@@ -1066,5 +1320,75 @@ function ToggleRow({
         />
       </div>
     </button>
+  );
+}
+
+/**
+ * Academic settings section — Home Department for minor course eligibility
+ */
+function AcademicSettings(): React.ReactNode {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+  const [dept, setDept] = useState(settings?.home_department || "");
+
+  useEffect(() => {
+    if (settings?.home_department !== undefined) {
+      setDept(settings.home_department || "");
+    }
+  }, [settings?.home_department]);
+
+  const handleSave = (): void => {
+    updateSettings.mutate({
+      home_department: dept.trim() || null,
+    });
+    toast.success("Academic settings saved");
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Home Department */}
+      <div className="glass-card p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <div
+            className="flex h-9 w-9 items-center justify-center rounded-xl"
+            style={{ background: "rgba(var(--accent-rgb), 0.15)" }}
+          >
+            <GraduationCap className="h-5 w-5 text-accent" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Home Department</h3>
+            <p className="text-xs text-muted-foreground">
+              Used by the Course Explorer to determine which &quot;Advanced&quot; courses you&apos;re eligible for
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            value={dept}
+            onChange={(e) => setDept(e.target.value)}
+            placeholder="e.g. Computer Science, Electrical Engineering"
+            className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition-colors focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+          />
+          <button
+            onClick={handleSave}
+            disabled={updateSettings.isPending}
+            className="btn-themed px-4 py-2.5 text-sm font-medium"
+          >
+            {updateSettings.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Save"
+            )}
+          </button>
+        </div>
+
+        <p className="mt-3 text-xs text-muted-foreground">
+          In the Course Explorer, <strong>STEM</strong> courses from all departments are always visible.{" "}
+          <strong>Advanced</strong> courses are only shown from your home department.
+        </p>
+      </div>
+    </div>
   );
 }
