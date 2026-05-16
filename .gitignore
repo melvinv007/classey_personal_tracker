@@ -50,3 +50,4 @@ appwrite-schema-check.txt
 *.sqlite
 testing.md
 prompt.txt
+DETAILS.md
