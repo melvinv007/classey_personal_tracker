@@ -9,13 +9,17 @@ import {
   isSameDay,
   startOfDay,
 } from "date-fns";
-import { Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { GripHorizontal, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarGridEvent } from "./types";
 
 const TIME_GUTTER_WIDTH = 56;
 const HOURS_IN_DAY = 24;
 const SLOT_MINUTES = 30;
+const DEFAULT_GRID_HEIGHT = 520; // px, fallback
+const MIN_GRID_HEIGHT = 200;
+const MAX_GRID_HEIGHT = 1200;
+const GRID_HEIGHT_STORAGE_KEY = "classey-calendar-grid-height";
 
 interface TimeGridSegment {
   event: CalendarGridEvent;
@@ -187,6 +191,51 @@ export function TimeGridView({
 
   const nowMinutes = toMinuteOfDay(now);
 
+  // --- Resizable grid height ---
+  const [gridViewHeight, setGridViewHeight] = useState(DEFAULT_GRID_HEIGHT);
+  const isDragging = useRef(false);
+  const dragStartY = useRef(0);
+  const dragStartHeight = useRef(0);
+
+  // Load persisted height on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(GRID_HEIGHT_STORAGE_KEY);
+      if (stored) {
+        const h = Number(stored);
+        if (Number.isFinite(h) && h >= MIN_GRID_HEIGHT && h <= MAX_GRID_HEIGHT) {
+          setGridViewHeight(h);
+        }
+      }
+    } catch { /* SSR or storage error */ }
+  }, []);
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    dragStartY.current = e.clientY;
+    dragStartHeight.current = gridViewHeight;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    document.body.style.cursor = "ns-resize";
+    document.body.style.userSelect = "none";
+  }, [gridViewHeight]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isDragging.current) return;
+    const delta = e.clientY - dragStartY.current;
+    const next = Math.max(MIN_GRID_HEIGHT, Math.min(MAX_GRID_HEIGHT, dragStartHeight.current + delta));
+    setGridViewHeight(next);
+  }, []);
+
+  const onPointerUp = useCallback(() => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    // Persist
+    try { localStorage.setItem(GRID_HEIGHT_STORAGE_KEY, String(gridViewHeight)); } catch { /* */ }
+  }, [gridViewHeight]);
+
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden">
       <div className="overflow-x-auto">
@@ -197,7 +246,8 @@ export function TimeGridView({
           {/* Scrollable time grid — header is sticky INSIDE so columns share scrollbar space */}
           <div
             ref={scrollRef}
-            className="relative max-h-[72vh] overflow-y-auto calendar-grid-scroll"
+            className="relative overflow-y-auto calendar-grid-scroll"
+            style={{ maxHeight: gridViewHeight }}
           >
             {/* Sticky day header */}
             <div
@@ -450,6 +500,18 @@ export function TimeGridView({
                 })}
               </div>
             </div>
+          </div>
+
+          {/* Drag handle to resize grid height */}
+          <div
+            className="group/resize flex items-center justify-center h-[6px] cursor-ns-resize select-none hover:bg-white/8 active:bg-accent/15 transition-colors"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            title="Drag to resize"
+          >
+            <GripHorizontal className="h-3 w-3 text-muted-foreground/40 group-hover/resize:text-accent/60 group-active/resize:text-accent transition-colors" />
           </div>
         </div>
       </div>
